@@ -1,11 +1,10 @@
 import { type SVGProps, useEffect, useMemo, useRef, useState } from "react";
 import { Card } from "./components/Card";
-import { createAdapter, runtimeModeLabel } from "./api/tauriAdapter";
+import { createAdapter } from "./api/tauriAdapter";
 import { mockAdapter } from "./api/mockAdapter";
 import type { OnlineMatch, RenameField, Track } from "./types";
 
 const adapter = createAdapter(mockAdapter);
-const runtimeMode = runtimeModeLabel();
 const RENAME_FIELD_OPTIONS: Array<{ key: RenameField; label: string }> = [
   { key: "tracknumber", label: "Numero traccia" },
   { key: "artist", label: "Artista" },
@@ -136,6 +135,26 @@ const IconMute = (props: SVGProps<SVGSVGElement>) => (
   </IconBase>
 );
 
+const IconGrid = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <rect x="4" y="4" width="6" height="6" />
+    <rect x="14" y="4" width="6" height="6" />
+    <rect x="4" y="14" width="6" height="6" />
+    <rect x="14" y="14" width="6" height="6" />
+  </IconBase>
+);
+
+const IconListCompact = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <line x1="6" y1="7" x2="20" y2="7" />
+    <line x1="6" y1="12" x2="20" y2="12" />
+    <line x1="6" y1="17" x2="20" y2="17" />
+    <circle cx="3" cy="7" r="1" fill="currentColor" stroke="none" />
+    <circle cx="3" cy="12" r="1" fill="currentColor" stroke="none" />
+    <circle cx="3" cy="17" r="1" fill="currentColor" stroke="none" />
+  </IconBase>
+);
+
 export function App() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [tracks, setTracks] = useState<Track[]>([]);
@@ -160,6 +179,7 @@ export function App() {
   const [isMuted, setIsMuted] = useState(false);
   const [audioSrc, setAudioSrc] = useState("");
   const [audioError, setAudioError] = useState("");
+  const [libraryViewMode, setLibraryViewMode] = useState<"card" | "compact">("card");
 
   const selectedTrack = tracks.find((t) => t.id === selectedTrackId) ?? null;
   const selectedResult = onlineResults.find((r) => r.id === selectedResultId) ?? null;
@@ -438,6 +458,47 @@ export function App() {
     setSearchStatus("Risultato applicato. Salva la traccia per confermare le modifiche.");
   }
 
+  async function handleApplyAndSaveOnlineResult() {
+    if (!selectedTrack || !selectedResult) {
+      return;
+    }
+
+    const nextTrack: Track = {
+      ...selectedTrack,
+      title: selectedResult.title,
+      artist: selectedResult.artist,
+      album: selectedResult.album,
+      tracknumber: selectedResult.tracknumber ?? selectedTrack.tracknumber,
+      year: selectedResult.date.slice(0, 4),
+      coverUrl: selectedResult.coverUrl,
+      hasCover: Boolean(selectedResult.coverUrl),
+    };
+
+    setTracks((prev) =>
+      prev.map((track) => (track.id === selectedTrack.id ? nextTrack : track))
+    );
+
+    try {
+      const result = await adapter.saveTrack(
+        nextTrack.id,
+        nextTrack.path,
+        {
+          title: nextTrack.title,
+          artist: nextTrack.artist,
+          album: nextTrack.album,
+          tracknumber: nextTrack.tracknumber,
+          year: nextTrack.year,
+          genre: nextTrack.genre,
+        },
+        nextTrack.coverUrl
+      );
+      updateTrackPathAfterSave(selectedTrack.id, result.path);
+      setSearchStatus("Risultato applicato e tag salvati nella traccia");
+    } catch (error) {
+      setSearchStatus(`Errore applica e salva: ${formatError(error)}`);
+    }
+  }
+
   function handleInfoClick() {
     window.alert(
       "MusicManager\n\nOrganizza MP3/FLAC, cerca metadati online (MusicBrainz + iTunes) e salva tag/copertina sulla traccia selezionata."
@@ -594,9 +655,6 @@ export function App() {
         <button className="ghost-button" onClick={handleInfoClick}>
           <span className="btn-content"><IconInfo className="btn-icon" />Info</span>
         </button>
-        <span className="library-path">
-          Backend: {runtimeMode === "tauri" ? "Tauri desktop" : "Mock browser (nessun dialog cartella nativo)"}
-        </span>
       </header>
 
       <main className="two-col">
@@ -620,13 +678,37 @@ export function App() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
+              <div className="library-view-toggle">
+                <button
+                  className={libraryViewMode === "card" ? "view-mode-button" : "ghost-button view-mode-button"}
+                  onClick={() => setLibraryViewMode("card")}
+                  title="Vista card"
+                >
+                  <span className="btn-content"><IconGrid className="btn-icon" /></span>
+                </button>
+                <button
+                  className={libraryViewMode === "compact" ? "view-mode-button" : "ghost-button view-mode-button"}
+                  onClick={() => setLibraryViewMode("compact")}
+                  title="Vista lista compatta"
+                >
+                  <span className="btn-content"><IconListCompact className="btn-icon" /></span>
+                </button>
+              </div>
               <span className="library-summary">{librarySummary}</span>
             </div>
-            <ul className="track-list">
+            <ul className={libraryViewMode === "compact" ? "track-list compact" : "track-list"}>
               {filteredTracks.map((track) => (
                 <li key={track.id}>
                   <button
-                    className={track.id === selectedTrackId ? "track-item active" : "track-item"}
+                    className={
+                      track.id === selectedTrackId
+                        ? libraryViewMode === "compact"
+                          ? "track-item compact active"
+                          : "track-item active"
+                        : libraryViewMode === "compact"
+                          ? "track-item compact"
+                          : "track-item"
+                    }
                     onClick={() => {
                       setSelectedTrackId(track.id);
                       setSearchTitle(track.title);
@@ -639,11 +721,20 @@ export function App() {
                     ) : (
                       <div className="track-thumb-placeholder">♪</div>
                     )}
-                    <span className="track-text">
-                      <strong>{track.title || "Senza titolo"}</strong>
-                      <small>{track.artist || "Artista sconosciuto"}</small>
-                      <small className="muted">{track.album || "Album sconosciuto"}</small>
-                    </span>
+                    {libraryViewMode === "compact" ? (
+                      <span className="track-text compact">
+                        <strong>{track.title || "Senza titolo"}</strong>
+                        <small className="muted compact-inline">
+                          {track.artist || "Artista sconosciuto"} · {track.album || "Album sconosciuto"} · {track.year || "n/d"} · #{track.tracknumber || "-"} · {track.genre || "Genere n/d"} · {getFileName(track.path)}
+                        </small>
+                      </span>
+                    ) : (
+                      <span className="track-text">
+                        <strong>{track.title || "Senza titolo"}</strong>
+                        <small>{track.artist || "Artista sconosciuto"}</small>
+                        <small className="muted">{track.album || "Album sconosciuto"}</small>
+                      </span>
+                    )}
                   </button>
                 </li>
               ))}
@@ -766,6 +857,9 @@ export function App() {
               </button>
               <button onClick={handleApplyOnlineResult} disabled={!selectedResult || !selectedTrack}>
                 <span className="btn-content"><IconCheck className="btn-icon" />Applica risultato selezionato</span>
+              </button>
+              <button onClick={handleApplyAndSaveOnlineResult} disabled={!selectedResult || !selectedTrack}>
+                <span className="btn-content"><IconSave className="btn-icon" />Applica e salva</span>
               </button>
             </div>
 

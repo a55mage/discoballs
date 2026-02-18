@@ -187,12 +187,21 @@ fn get_audio_data_url(path: String) -> Result<String, String> {
 }
 
 fn is_supported_audio_path(path: &Path) -> bool {
+    let file_name = path
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or_default()
+        .to_lowercase();
+    if file_name.ends_with(".cover") || file_name.contains(".cover.") {
+        return false;
+    }
+
     let lower = path
         .extension()
         .and_then(|s| s.to_str())
         .unwrap_or_default()
         .to_lowercase();
-    lower == "mp3" || lower == "flac"
+    matches!(lower.as_str(), "mp3" | "flac" | "m4a" | "ogg" | "wav")
 }
 
 fn read_track(path: &Path) -> Track {
@@ -296,9 +305,7 @@ fn maybe_rename_path(path: &Path, input: &SaveTrackInput) -> Result<PathBuf, Str
     let separator = input
         .rename_separator
         .clone()
-        .unwrap_or_else(|| " - ".to_string())
-        .trim()
-        .to_string();
+        .unwrap_or_else(|| " - ".to_string());
     let separator = if separator.is_empty() {
         " - ".to_string()
     } else {
