@@ -105,7 +105,91 @@ def save(payload: dict[str, Any]) -> dict[str, Any]:
         image_data, mime = _parse_data_url(cover_data_url)
         write_cover_art(path, image_data, mime)
 
-    return {"ok": True}
+    rename_fields_raw = payload.get("rename_fields")
+    rename_separator = str(payload.get("rename_separator", "") or "").strip() or " - "
+    rename_fields = (
+        [str(v) for v in rename_fields_raw if isinstance(v, str)] if isinstance(rename_fields_raw, list) else []
+    )
+
+    renamed_path = path
+    if rename_fields:
+        renamed_path = _rename_file_by_fields(path, fields, rename_fields, rename_separator)
+
+    return {"ok": True, "path": str(renamed_path)}
+
+
+def rename(payload: dict[str, Any]) -> dict[str, Any]:
+    path = Path(str(payload["path"]))
+    if not path.exists():
+        raise FileNotFoundError(f"File non trovato: {path}")
+
+    fields = {
+        "title": str(payload.get("title", "") or ""),
+        "artist": str(payload.get("artist", "") or ""),
+        "album": str(payload.get("album", "") or ""),
+        "tracknumber": str(payload.get("tracknumber", "") or ""),
+        "date": str(payload.get("year", "") or ""),
+        "genre": str(payload.get("genre", "") or ""),
+    }
+
+    rename_fields_raw = payload.get("rename_fields")
+    rename_separator = str(payload.get("rename_separator", "") or "").strip() or " - "
+    rename_fields = (
+        [str(v) for v in rename_fields_raw if isinstance(v, str)] if isinstance(rename_fields_raw, list) else []
+    )
+
+    renamed_path = _rename_file_by_fields(path, fields, rename_fields, rename_separator) if rename_fields else path
+    return {"ok": True, "path": str(renamed_path)}
+
+
+def _rename_file_by_fields(path: Path, fields: dict[str, str], order: list[str], separator: str) -> Path:
+    value_by_field = {
+        "tracknumber": fields.get("tracknumber", ""),
+        "artist": fields.get("artist", ""),
+        "album": fields.get("album", ""),
+        "title": fields.get("title", ""),
+        "year": fields.get("date", ""),
+        "genre": fields.get("genre", ""),
+    }
+
+    raw_parts = [str(value_by_field.get(name, "") or "").strip() for name in order]
+    clean_parts = [_sanitize_filename(part) for part in raw_parts if part]
+    if not clean_parts:
+        return path
+
+    base_name = separator.join(clean_parts).strip()
+    if not base_name:
+        return path
+
+    candidate = path.with_name(f"{base_name}{path.suffix}")
+    candidate = _unique_path(candidate)
+    if candidate == path:
+        return path
+
+    path.rename(candidate)
+    return candidate
+
+
+def _unique_path(path: Path) -> Path:
+    if not path.exists():
+        return path
+
+    stem = path.stem
+    suffix = path.suffix
+    parent = path.parent
+    index = 1
+    while True:
+        candidate = parent / f"{stem} ({index}){suffix}"
+        if not candidate.exists():
+            return candidate
+        index += 1
+
+
+def _sanitize_filename(value: str) -> str:
+    invalid = '<>:"/\\|?*'
+    out = "".join("_" if c in invalid else c for c in value)
+    out = out.replace("\n", " ").replace("\r", " ")
+    return " ".join(out.split()).strip(" .")
 
 
 def main() -> int:
@@ -125,6 +209,12 @@ def main() -> int:
         if command == "save":
             payload = json.loads(sys.stdin.read() or "{}")
             result = save(payload)
+            print(json.dumps(result))
+            return 0
+
+        if command == "rename":
+            payload = json.loads(sys.stdin.read() or "{}")
+            result = rename(payload)
             print(json.dumps(result))
             return 0
 

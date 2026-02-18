@@ -4,6 +4,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashSet;
+use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
@@ -59,6 +60,13 @@ struct SaveTrackInput {
     year: String,
     genre: String,
     cover_data_url: Option<String>,
+    rename_fields: Option<Vec<String>>,
+    rename_separator: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct SaveTrackOutput {
+    path: String,
 }
 
 #[tauri::command]
@@ -116,8 +124,20 @@ async fn search_online(query: OnlineQuery) -> Result<Vec<OnlineMatch>, String> {
 }
 
 #[tauri::command]
-fn save_track(input: SaveTrackInput) -> Result<(), String> {
+fn save_track(input: SaveTrackInput) -> Result<SaveTrackOutput, String> {
     run_python_save(&input)
+}
+
+#[tauri::command]
+fn rename_track(input: SaveTrackInput) -> Result<SaveTrackOutput, String> {
+    run_python_rename(&input)
+}
+
+#[tauri::command]
+fn get_audio_data_url(path: String) -> Result<String, String> {
+    let bytes = fs::read(&path).map_err(|e| format!("Errore lettura audio: {e}"))?;
+    let mime = mime_from_audio_path(&path);
+    Ok(format!("data:{};base64,{}", mime, BASE64.encode(bytes)))
 }
 
 fn project_root() -> PathBuf {
@@ -161,7 +181,7 @@ fn run_python_scan(path: &str) -> Result<ScanResult, String> {
         .map_err(|e| format!("Parse risultato scan fallita: {e}"))
 }
 
-fn run_python_save(input: &SaveTrackInput) -> Result<(), String> {
+fn run_python_save(input: &SaveTrackInput) -> Result<SaveTrackOutput, String> {
     let mut child = Command::new(python_executable())
         .arg(bridge_script_path())
         .arg("save")
@@ -187,7 +207,58 @@ fn run_python_save(input: &SaveTrackInput) -> Result<(), String> {
         return Err(format!("Bridge save failed: {stderr}"));
     }
 
-    Ok(())
+    serde_json::from_slice::<SaveTrackOutput>(&output.stdout)
+        .map_err(|e| format!("Parse risultato save fallita: {e}"))
+}
+
+fn run_python_rename(input: &SaveTrackInput) -> Result<SaveTrackOutput, String> {
+    let mut child = Command::new(python_executable())
+        .arg(bridge_script_path())
+        .arg("rename")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Errore avvio bridge rename: {e}"))?;
+
+    if let Some(stdin) = child.stdin.as_mut() {
+        let payload = serde_json::to_vec(input).map_err(|e| format!("Serialize input rename failed: {e}"))?;
+        stdin
+            .write_all(&payload)
+            .map_err(|e| format!("Errore write stdin bridge rename: {e}"))?;
+    }
+
+    let output = child
+        .wait_with_output()
+        .map_err(|e| format!("Errore attesa bridge rename: {e}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        return Err(format!("Bridge rename failed: {stderr}"));
+    }
+
+    serde_json::from_slice::<SaveTrackOutput>(&output.stdout)
+        .map_err(|e| format!("Parse risultato rename fallita: {e}"))
+}
+
+fn mime_from_audio_path(path: &str) -> &'static str {
+    let lower = path.to_lowercase();
+    if lower.ends_with(".mp3") {
+        return "audio/mpeg";
+    }
+    if lower.ends_with(".flac") {
+        return "audio/flac";
+    }
+    if lower.ends_with(".wav") {
+        return "audio/wav";
+    }
+    if lower.ends_with(".ogg") {
+        return "audio/ogg";
+    }
+    if lower.ends_with(".m4a") {
+        return "audio/mp4";
+    }
+    "application/octet-stream"
 }
 
 async fn fetch_cover_data_url(client: &Client, release_id: &str) -> Option<String> {
@@ -448,7 +519,9 @@ fn main() {
             pick_music_folder,
             scan_folder,
             search_online,
-            save_track
+            save_track,
+            rename_track,
+            get_audio_data_url
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

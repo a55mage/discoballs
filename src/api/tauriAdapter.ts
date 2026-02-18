@@ -1,5 +1,5 @@
 import type { MusicAdapter } from "./adapter";
-import type { OnlineMatch, ScanResult, SearchQuery, Track, TrackUpdate } from "../types";
+import type { OnlineMatch, RenameConfig, SaveTrackResult, ScanResult, SearchQuery, Track, TrackUpdate } from "../types";
 
 type TauriInvoke = <T>(command: string, args?: Record<string, unknown>) => Promise<T>;
 type TauriInternals = {
@@ -92,9 +92,15 @@ export const tauriAdapter: MusicAdapter = {
     };
   },
 
-  async saveTrack(_trackId: string, path: string, update: TrackUpdate, coverUrl?: string): Promise<void> {
+  async saveTrack(
+    _trackId: string,
+    path: string,
+    update: TrackUpdate,
+    coverUrl?: string,
+    renameConfig?: RenameConfig
+  ): Promise<SaveTrackResult> {
     const invoke = getInvoke();
-    await invoke("save_track", {
+    return await invoke<SaveTrackResult>("save_track", {
       input: {
         path,
         title: update.title,
@@ -104,6 +110,8 @@ export const tauriAdapter: MusicAdapter = {
         year: update.year,
         genre: update.genre,
         cover_data_url: coverUrl ?? null,
+        rename_fields: renameConfig?.fields ?? null,
+        rename_separator: renameConfig?.separator ?? null,
       },
     });
   },
@@ -112,6 +120,28 @@ export const tauriAdapter: MusicAdapter = {
     const invoke = getInvoke();
     const result = await invoke<TauriOnlineMatch[]>("search_online", { query });
     return result.map(mapOnlineMatch);
+  },
+
+  async renameTrack(path: string, update: TrackUpdate, renameConfig: RenameConfig): Promise<SaveTrackResult> {
+    const invoke = getInvoke();
+    return await invoke<SaveTrackResult>("rename_track", {
+      input: {
+        path,
+        title: update.title,
+        artist: update.artist,
+        album: update.album,
+        tracknumber: update.tracknumber,
+        year: update.year,
+        genre: update.genre,
+        rename_fields: renameConfig.fields,
+        rename_separator: renameConfig.separator,
+      },
+    });
+  },
+
+  async getAudioSource(path: string): Promise<string> {
+    const invoke = getInvoke();
+    return await invoke<string>("get_audio_data_url", { path });
   },
 };
 

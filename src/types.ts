@@ -28,6 +28,13 @@ export type TrackUpdate = Pick<
   "title" | "artist" | "album" | "tracknumber" | "year" | "genre"
 >;
 
+export type RenameField = "tracknumber" | "artist" | "album" | "title" | "year" | "genre";
+
+export type RenameConfig = {
+  fields: RenameField[];
+  separator: string;
+};
+
 export type SearchQuery = {
   title: string;
   artist: string;
@@ -37,4 +44,8 @@ export type SearchQuery = {
 export type ScanResult = {
   folderPath: string;
   tracks: Track[];
+};
+
+export type SaveTrackResult = {
+  path: string;
 };

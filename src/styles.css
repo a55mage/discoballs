@@ -50,6 +50,18 @@ button:disabled {
   cursor: not-allowed;
 }
 
+.btn-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.btn-icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+
 .app-shell {
   min-height: 100vh;
   padding: 18px;
@@ -61,6 +73,7 @@ button:disabled {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
   margin-bottom: 12px;
 }
 
@@ -69,6 +82,59 @@ button:disabled {
   font-family: "Syne", sans-serif;
   font-size: 24px;
   letter-spacing: 0.02em;
+  flex: 0 0 auto;
+}
+
+.top-player {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fffdf7;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  padding: 6px 8px;
+}
+
+.player-btn {
+  padding: 8px 10px;
+}
+
+.player-progress {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.player-progress input,
+.player-volume input {
+  accent-color: var(--accent);
+}
+
+.player-time {
+  font-size: 11px;
+  color: var(--ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.player-volume {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.player-volume input {
+  width: 84px;
+}
+
+.player-error {
+  font-size: 11px;
+  color: #9a4b2d;
+  white-space: nowrap;
 }
 
 .ghost-button {
@@ -126,6 +192,13 @@ button:disabled {
   align-items: center;
   gap: 10px;
   margin-bottom: 10px;
+}
+
+.card-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
 }
 
 .card-header-center {
@@ -292,12 +365,34 @@ button.track-item:hover:enabled {
 
 .short-fields {
   display: grid;
-  grid-template-columns: repeat(3, minmax(80px, 120px));
+  grid-template-columns: repeat(3, minmax(80px, 120px)) auto;
   gap: 8px;
+  align-items: end;
 }
 
 .input-short {
   max-width: 120px;
+}
+
+.inline-action-slot {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-start;
+  padding-bottom: 8px;
+}
+
+.detail-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.rename-preview-field {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+  color: #334155;
+  margin-top: 10px;
 }
 
 .actions-row {
@@ -307,13 +402,14 @@ button.track-item:hover:enabled {
 }
 
 .library-path {
-  display: block;
-  text-align: center;
+  display: inline-block;
+  text-align: left;
   color: var(--ink-secondary);
   font-size: 12px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 360px;
 }
 
 .library-filter-row {
@@ -425,7 +521,71 @@ button.track-item:hover:enabled {
   font-size: 12px;
 }
 
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 24, 30, 0.35);
+  display: grid;
+  place-items: center;
+  z-index: 50;
+  padding: 16px;
+}
+
+.modal-card {
+  width: min(640px, 100%);
+  background: var(--bg-card);
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  padding: 14px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-family: "Syne", sans-serif;
+}
+
+.rename-fields {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.rename-field-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: #fffdf7;
+}
+
+.rename-field-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rename-field-controls {
+  display: flex;
+  gap: 6px;
+}
+
 @media (max-width: 980px) {
+  .top-player {
+    display: none;
+  }
+
   .two-col {
     grid-template-columns: 1fr;
   }
@@ -473,12 +633,21 @@ button.track-item:hover:enabled {
     grid-template-columns: 1fr;
   }
 
+  .inline-action-slot {
+    padding-bottom: 0;
+  }
+
   .detail-row-two {
     grid-template-columns: 1fr;
   }
 
   .input-short {
     max-width: 100%;
+  }
+
+  .detail-actions {
+    flex-direction: column;
+    align-items: stretch;
   }
 }
 

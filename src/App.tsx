@@ -1,12 +1,142 @@
-import { useMemo, useState } from "react";
+import { type SVGProps, useEffect, useMemo, useRef, useState } from "react";
 import { Card } from "./components/Card";
 import { createAdapter } from "./api/tauriAdapter";
 import { mockAdapter } from "./api/mockAdapter";
-import type { OnlineMatch, Track } from "./types";
+import type { OnlineMatch, RenameField, Track } from "./types";
 
 const adapter = createAdapter(mockAdapter);
+const RENAME_FIELD_OPTIONS: Array<{ key: RenameField; label: string }> = [
+  { key: "tracknumber", label: "Numero traccia" },
+  { key: "artist", label: "Artista" },
+  { key: "album", label: "Album" },
+  { key: "title", label: "Titolo" },
+  { key: "year", label: "Anno" },
+  { key: "genre", label: "Genere" },
+];
+
+function IconBase(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props} />
+  );
+}
+
+const IconInfo = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <circle cx="12" cy="12" r="9" />
+    <line x1="12" y1="10" x2="12" y2="16" />
+    <circle cx="12" cy="7" r="1" fill="currentColor" stroke="none" />
+  </IconBase>
+);
+
+const IconFolder = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <path d="M3 7h6l2 2h10v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+  </IconBase>
+);
+
+const IconSave = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <path d="M5 4h11l3 3v13H5z" />
+    <path d="M8 4v5h8V4" />
+    <rect x="8" y="13" width="8" height="6" />
+  </IconBase>
+);
+
+const IconRename = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <path d="M4 20h4l10-10-4-4L4 16z" />
+    <path d="M13 7l4 4" />
+  </IconBase>
+);
+
+const IconSettings = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <line x1="4" y1="6" x2="20" y2="6" />
+    <line x1="4" y1="12" x2="20" y2="12" />
+    <line x1="4" y1="18" x2="20" y2="18" />
+    <circle cx="9" cy="6" r="2" fill="currentColor" stroke="none" />
+    <circle cx="15" cy="12" r="2" fill="currentColor" stroke="none" />
+    <circle cx="11" cy="18" r="2" fill="currentColor" stroke="none" />
+  </IconBase>
+);
+
+const IconSearch = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <circle cx="11" cy="11" r="6" />
+    <line x1="16" y1="16" x2="21" y2="21" />
+  </IconBase>
+);
+
+const IconCheck = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <polyline points="5 12 10 17 19 8" />
+  </IconBase>
+);
+
+const IconClose = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <line x1="6" y1="6" x2="18" y2="18" />
+    <line x1="18" y1="6" x2="6" y2="18" />
+  </IconBase>
+);
+
+const IconArrowUp = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <polyline points="6 14 12 8 18 14" />
+  </IconBase>
+);
+
+const IconArrowDown = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <polyline points="6 10 12 16 18 10" />
+  </IconBase>
+);
+
+const IconPlay = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <polygon points="8 6 18 12 8 18" fill="currentColor" stroke="none" />
+  </IconBase>
+);
+
+const IconPause = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <rect x="7" y="6" width="4" height="12" fill="currentColor" stroke="none" />
+    <rect x="13" y="6" width="4" height="12" fill="currentColor" stroke="none" />
+  </IconBase>
+);
+
+const IconPrev = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <line x1="7" y1="6" x2="7" y2="18" />
+    <polygon points="17 6 9 12 17 18" fill="currentColor" stroke="none" />
+  </IconBase>
+);
+
+const IconNext = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <line x1="17" y1="6" x2="17" y2="18" />
+    <polygon points="7 6 15 12 7 18" fill="currentColor" stroke="none" />
+  </IconBase>
+);
+
+const IconVolume = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <polygon points="4 10 8 10 12 6 12 18 8 14 4 14" />
+    <path d="M15 9a4 4 0 0 1 0 6" />
+    <path d="M17.5 7a7 7 0 0 1 0 10" />
+  </IconBase>
+);
+
+const IconMute = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <polygon points="4 10 8 10 12 6 12 18 8 14 4 14" />
+    <line x1="16" y1="9" x2="21" y2="15" />
+    <line x1="21" y1="9" x2="16" y2="15" />
+  </IconBase>
+);
 
 export function App() {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const [tracks, setTracks] = useState<Track[]>([]);
   const [folderPath, setFolderPath] = useState("");
   const [query, setQuery] = useState("");
@@ -19,9 +149,20 @@ export function App() {
   const [searchTitle, setSearchTitle] = useState("");
   const [searchArtist, setSearchArtist] = useState("");
   const [searchAlbum, setSearchAlbum] = useState("");
+  const [showRenameSettings, setShowRenameSettings] = useState(false);
+  const [renameFields, setRenameFields] = useState<RenameField[]>(["tracknumber", "artist", "title"]);
+  const [renameSeparator, setRenameSeparator] = useState(" - ");
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [volume, setVolume] = useState(0.7);
+  const [isMuted, setIsMuted] = useState(false);
+  const [audioSrc, setAudioSrc] = useState("");
+  const [audioError, setAudioError] = useState("");
 
   const selectedTrack = tracks.find((t) => t.id === selectedTrackId) ?? null;
   const selectedResult = onlineResults.find((r) => r.id === selectedResultId) ?? null;
+  const selectedFileName = selectedTrack ? getFileName(selectedTrack.path) : "Nessun file";
   const folderCount = useMemo(() => countFoldersAndSubfolders(tracks, folderPath), [tracks, folderPath]);
   const librarySummary = useMemo(() => {
     if (!tracks.length) {
@@ -29,6 +170,90 @@ export function App() {
     }
     return `Trovati ${tracks.length} file audio in ${folderCount} cartelle/sottocartelle`;
   }, [tracks.length, folderCount]);
+  const renamePreview = useMemo(() => {
+    if (!selectedTrack) {
+      return "";
+    }
+    return buildRenamePreview(selectedTrack, renameFields, renameSeparator);
+  }, [selectedTrack, renameFields, renameSeparator]);
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) {
+      return;
+    }
+
+    const onTimeUpdate = () => setCurrentTime(audio.currentTime || 0);
+    const onLoadedMetadata = () => setDuration(audio.duration || 0);
+    const onEnded = () => setIsPlaying(false);
+    const onError = () => setAudioError("Riproduzione non disponibile per questa traccia.");
+
+    audio.addEventListener("timeupdate", onTimeUpdate);
+    audio.addEventListener("loadedmetadata", onLoadedMetadata);
+    audio.addEventListener("ended", onEnded);
+    audio.addEventListener("error", onError);
+    return () => {
+      audio.removeEventListener("timeupdate", onTimeUpdate);
+      audio.removeEventListener("loadedmetadata", onLoadedMetadata);
+      audio.removeEventListener("ended", onEnded);
+      audio.removeEventListener("error", onError);
+    };
+  }, []);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) {
+      return;
+    }
+    audio.volume = volume;
+  }, [volume]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) {
+      return;
+    }
+    audio.muted = isMuted;
+  }, [isMuted]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const audio = audioRef.current;
+    if (!audio) {
+      return;
+    }
+    audio.pause();
+    setIsPlaying(false);
+    setCurrentTime(0);
+    setDuration(0);
+
+    const path = selectedTrack?.path;
+    if (!path) {
+      setAudioSrc("");
+      setAudioError("");
+      return;
+    }
+
+    (async () => {
+      try {
+        const src = await adapter.getAudioSource(path);
+        if (cancelled) {
+          return;
+        }
+        setAudioSrc(src);
+        setAudioError(src ? "" : "Riproduzione non disponibile per questa traccia.");
+      } catch {
+        if (cancelled) {
+          return;
+        }
+        setAudioSrc("");
+        setAudioError("Riproduzione non disponibile per questa traccia.");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedTrack?.path]);
 
   const filteredTracks = useMemo(() => {
     if (!query.trim()) {
@@ -43,6 +268,10 @@ export function App() {
         t.path.toLowerCase().includes(q)
     );
   }, [tracks, query]);
+  const selectedTrackIndex = useMemo(
+    () => filteredTracks.findIndex((t) => t.id === selectedTrackId),
+    [filteredTracks, selectedTrackId]
+  );
 
   async function handleScan() {
     setIsLoadingScan(true);
@@ -108,7 +337,7 @@ export function App() {
       return;
     }
     try {
-      await adapter.saveTrack(
+      const result = await adapter.saveTrack(
         selectedTrack.id,
         selectedTrack.path,
         {
@@ -121,8 +350,66 @@ export function App() {
         },
         selectedResult?.coverUrl
       );
+      updateTrackPathAfterSave(selectedTrack.id, result.path);
+      setSearchStatus("Tag salvati nella traccia");
     } catch (error) {
       setSearchStatus(`Errore salvataggio: ${String(error)}`);
+    }
+  }
+
+  async function handleSaveAndRenameTrack() {
+    if (!selectedTrack) {
+      return;
+    }
+    try {
+      const result = await adapter.saveTrack(
+        selectedTrack.id,
+        selectedTrack.path,
+        {
+          title: selectedTrack.title,
+          artist: selectedTrack.artist,
+          album: selectedTrack.album,
+          tracknumber: selectedTrack.tracknumber,
+          year: selectedTrack.year,
+          genre: selectedTrack.genre,
+        },
+        selectedResult?.coverUrl,
+        {
+          fields: renameFields,
+          separator: renameSeparator,
+        }
+      );
+      updateTrackPathAfterSave(selectedTrack.id, result.path);
+      setSearchStatus("Tag salvati e file rinominato");
+    } catch (error) {
+      setSearchStatus(`Errore salvataggio/rinomina: ${String(error)}`);
+    }
+  }
+
+  async function handleRenameOnlyTrack() {
+    if (!selectedTrack) {
+      return;
+    }
+    try {
+      const result = await adapter.renameTrack(
+        selectedTrack.path,
+        {
+          title: selectedTrack.title,
+          artist: selectedTrack.artist,
+          album: selectedTrack.album,
+          tracknumber: selectedTrack.tracknumber,
+          year: selectedTrack.year,
+          genre: selectedTrack.genre,
+        },
+        {
+          fields: renameFields,
+          separator: renameSeparator,
+        }
+      );
+      updateTrackPathAfterSave(selectedTrack.id, result.path);
+      setSearchStatus("File rinominato");
+    } catch (error) {
+      setSearchStatus(`Errore rinomina file: ${String(error)}`);
     }
   }
 
@@ -156,11 +443,156 @@ export function App() {
     );
   }
 
+  async function handleTogglePlayPause() {
+    const audio = audioRef.current;
+    if (!audio || !audioSrc) {
+      return;
+    }
+    if (isPlaying) {
+      audio.pause();
+      setIsPlaying(false);
+      return;
+    }
+    try {
+      await audio.play();
+      setIsPlaying(true);
+      setAudioError("");
+    } catch {
+      setAudioError("Impossibile avviare la riproduzione in questo ambiente.");
+      setIsPlaying(false);
+    }
+  }
+
+  function handleSeek(value: number) {
+    const audio = audioRef.current;
+    if (!audio) {
+      return;
+    }
+    audio.currentTime = value;
+    setCurrentTime(value);
+  }
+
+  function handlePrevTrack() {
+    if (selectedTrackIndex <= 0) {
+      return;
+    }
+    const prev = filteredTracks[selectedTrackIndex - 1];
+    if (prev) {
+      setSelectedTrackId(prev.id);
+      setSearchTitle(prev.title);
+      setSearchArtist(prev.artist);
+      setSearchAlbum(prev.album);
+    }
+  }
+
+  function handleNextTrack() {
+    if (selectedTrackIndex < 0 || selectedTrackIndex >= filteredTracks.length - 1) {
+      return;
+    }
+    const next = filteredTracks[selectedTrackIndex + 1];
+    if (next) {
+      setSelectedTrackId(next.id);
+      setSearchTitle(next.title);
+      setSearchArtist(next.artist);
+      setSearchAlbum(next.album);
+    }
+  }
+
+  function updateTrackPathAfterSave(currentId: string, newPath: string) {
+    if (!newPath) {
+      return;
+    }
+
+    setTracks((prev) =>
+      prev.map((track) => (track.id === currentId ? { ...track, id: newPath, path: newPath } : track))
+    );
+    setSelectedTrackId(newPath);
+  }
+
+  function toggleRenameField(field: RenameField) {
+    setRenameFields((prev) => {
+      if (prev.includes(field)) {
+        if (prev.length === 1) {
+          return prev;
+        }
+        return prev.filter((f) => f !== field);
+      }
+      return [...prev, field];
+    });
+  }
+
+  function moveRenameField(field: RenameField, direction: -1 | 1) {
+    setRenameFields((prev) => {
+      const index = prev.indexOf(field);
+      if (index < 0) {
+        return prev;
+      }
+      const nextIndex = index + direction;
+      if (nextIndex < 0 || nextIndex >= prev.length) {
+        return prev;
+      }
+      const next = [...prev];
+      const temp = next[index];
+      next[index] = next[nextIndex];
+      next[nextIndex] = temp;
+      return next;
+    });
+  }
+
   return (
     <div className="app-shell">
       <header className="top-bar">
         <h1>MusicManager</h1>
-        <button className="ghost-button" onClick={handleInfoClick}>Info</button>
+        <div className="top-player">
+          <audio ref={audioRef} src={audioSrc} preload="metadata" />
+          <button className="ghost-button player-btn" onClick={handlePrevTrack} disabled={selectedTrackIndex <= 0}>
+            <span className="btn-content"><IconPrev className="btn-icon" /></span>
+          </button>
+          <button className="player-btn" onClick={handleTogglePlayPause} disabled={!audioSrc}>
+            <span className="btn-content">
+              {isPlaying ? <IconPause className="btn-icon" /> : <IconPlay className="btn-icon" />}
+            </span>
+          </button>
+          <button
+            className="ghost-button player-btn"
+            onClick={handleNextTrack}
+            disabled={selectedTrackIndex < 0 || selectedTrackIndex >= filteredTracks.length - 1}
+          >
+            <span className="btn-content"><IconNext className="btn-icon" /></span>
+          </button>
+          <div className="player-progress">
+            <span className="player-time">{formatTime(currentTime)}</span>
+            <input
+              type="range"
+              min={0}
+              max={Math.max(duration, 0)}
+              step={0.1}
+              value={Math.min(currentTime, duration || 0)}
+              onChange={(e) => handleSeek(Number(e.target.value))}
+              disabled={!audioSrc || duration <= 0}
+            />
+            <span className="player-time">{formatTime(duration)}</span>
+          </div>
+          <div className="player-volume">
+            <button className="ghost-button player-btn" onClick={() => setIsMuted((v) => !v)}>
+              <span className="btn-content">
+                {isMuted || volume === 0 ? <IconMute className="btn-icon" /> : <IconVolume className="btn-icon" />}
+              </span>
+            </button>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
+              value={volume}
+              onChange={(e) => setVolume(Number(e.target.value))}
+            />
+          </div>
+          {audioError && <span className="player-error">{audioError}</span>}
+        </div>
+        <button className="ghost-button" onClick={handleInfoClick}>
+          <span className="btn-content"><IconInfo className="btn-icon" />Info</span>
+        </button>
       </header>
 
       <main className="two-col">
@@ -168,12 +600,12 @@ export function App() {
           <Card
             title="File libreria"
             className="library-card"
-            headerCenter={
+            headerAfterTitle={
               <span className="library-path">{folderPath ? folderPath : "Nessuna cartella selezionata"}</span>
             }
             headerRight={
               <button onClick={handleScan} disabled={isLoadingScan}>
-                {isLoadingScan ? "Scansione..." : "Seleziona cartella"}
+                <span className="btn-content"><IconFolder className="btn-icon" />{isLoadingScan ? "Scansione..." : "Seleziona cartella"}</span>
               </button>
             }
           >
@@ -214,7 +646,11 @@ export function App() {
             </ul>
           </Card>
 
-          <Card title="Dettagli traccia" className="details-card">
+          <Card
+            title="Dettagli traccia"
+            className="details-card"
+            headerAfterTitle={<span className="library-path">{selectedFileName}</span>}
+          >
             <div className="detail-layout">
               <div className="detail-cover-wrap">
                 {selectedTrack?.coverUrl ? (
@@ -276,13 +712,31 @@ export function App() {
                       onChange={(e) => handleTrackFieldChange("genre", e.target.value)}
                     />
                   </label>
+                  <div className="inline-action-slot">
+                    <button onClick={handleSaveTrack} disabled={!selectedTrack}>
+                      <span className="btn-content"><IconSave className="btn-icon" />Salva tag</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <button onClick={handleSaveTrack} disabled={!selectedTrack}>
-              Salva tag nella traccia
-            </button>
+            <div className="detail-actions">
+              <button onClick={handleRenameOnlyTrack} disabled={!selectedTrack}>
+                <span className="btn-content"><IconRename className="btn-icon" />Rinomina file</span>
+              </button>
+              <button onClick={handleSaveAndRenameTrack} disabled={!selectedTrack}>
+                <span className="btn-content"><IconSave className="btn-icon" />Salva tag + rinomina file</span>
+              </button>
+              <button className="ghost-button" onClick={() => setShowRenameSettings(true)} disabled={!selectedTrack}>
+                <span className="btn-content"><IconSettings className="btn-icon" />Impostazioni rinomina</span>
+              </button>
+            </div>
+
+            <label className="rename-preview-field">
+              Anteprima nome file rinominato
+              <input className="input" readOnly value={renamePreview} />
+            </label>
           </Card>
         </div>
 
@@ -304,10 +758,10 @@ export function App() {
             </div>
             <div className="actions-row">
               <button onClick={handleSearchOnline} disabled={!selectedTrack || isLoadingSearch}>
-                {isLoadingSearch ? "Ricerca..." : "Cerca online"}
+                <span className="btn-content"><IconSearch className="btn-icon" />{isLoadingSearch ? "Ricerca..." : "Cerca online"}</span>
               </button>
               <button onClick={handleApplyOnlineResult} disabled={!selectedResult || !selectedTrack}>
-                Applica risultato selezionato
+                <span className="btn-content"><IconCheck className="btn-icon" />Applica risultato selezionato</span>
               </button>
             </div>
 
@@ -338,12 +792,122 @@ export function App() {
           </Card>
         </div>
       </main>
+
+      {showRenameSettings && (
+        <div className="modal-backdrop" onClick={() => setShowRenameSettings(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Impostazioni rinomina file</h3>
+              <button className="ghost-button" onClick={() => setShowRenameSettings(false)}>
+                <span className="btn-content"><IconClose className="btn-icon" />Chiudi</span>
+              </button>
+            </div>
+            <p className="muted compact">Scegli campi, ordine e divisore per il nome file finale.</p>
+
+            <div className="rename-fields">
+              {renameFields.map((field) => (
+                <div key={field} className="rename-field-row">
+                  <label className="rename-field-check">{renameFieldLabel(field)}</label>
+                  <div className="rename-field-controls">
+                    <button className="ghost-button" onClick={() => moveRenameField(field, -1)}>
+                      <span className="btn-content"><IconArrowUp className="btn-icon" />Su</span>
+                    </button>
+                    <button className="ghost-button" onClick={() => moveRenameField(field, 1)}>
+                      <span className="btn-content"><IconArrowDown className="btn-icon" />Giù</span>
+                    </button>
+                    <button className="ghost-button" onClick={() => toggleRenameField(field)} disabled={renameFields.length <= 1}>
+                      <span className="btn-content"><IconClose className="btn-icon" />Rimuovi</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {RENAME_FIELD_OPTIONS.filter((opt) => !renameFields.includes(opt.key)).map((opt) => (
+                <div key={opt.key} className="rename-field-row">
+                  <label className="rename-field-check">{opt.label}</label>
+                  <div className="rename-field-controls">
+                    <button className="ghost-button" onClick={() => toggleRenameField(opt.key)}>
+                      <span className="btn-content"><IconCheck className="btn-icon" />Aggiungi</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <label>
+              Divisore
+              <input className="input input-short" value={renameSeparator} onChange={(e) => setRenameSeparator(e.target.value)} />
+            </label>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 function normalizePath(path: string): string {
   return path.replace(/\\/g, "/").replace(/\/+$/, "");
+}
+
+function getFileName(path: string): string {
+  const normalized = normalizePath(path);
+  const index = normalized.lastIndexOf("/");
+  if (index < 0) {
+    return normalized;
+  }
+  return normalized.slice(index + 1);
+}
+
+function buildRenamePreview(track: Track, fields: RenameField[], separator: string): string {
+  const fieldMap: Record<RenameField, string> = {
+    tracknumber: track.tracknumber,
+    artist: track.artist,
+    album: track.album,
+    title: track.title,
+    year: track.year,
+    genre: track.genre,
+  };
+
+  const parts = fields
+    .map((field) => sanitizeFilePart((fieldMap[field] || "").trim()))
+    .filter(Boolean);
+  const ext = getExtension(track.path);
+  if (!parts.length) {
+    return getFileName(track.path);
+  }
+  return `${parts.join(separator || " - ")}${ext}`;
+}
+
+function getExtension(path: string): string {
+  const file = getFileName(path);
+  const index = file.lastIndexOf(".");
+  if (index < 0) {
+    return "";
+  }
+  return file.slice(index);
+}
+
+function sanitizeFilePart(value: string): string {
+  const normalized = value
+    .replace(/[<>:"/\\|?*]/g, "_")
+    .replace(/[\r\n]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return normalized.replace(/[.\s]+$/g, "");
+}
+
+function renameFieldLabel(field: RenameField): string {
+  const found = RENAME_FIELD_OPTIONS.find((f) => f.key === field);
+  return found?.label ?? field;
+}
+
+function formatTime(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) {
+    return "0:00";
+  }
+  const total = Math.floor(value);
+  const minutes = Math.floor(total / 60);
+  const seconds = total % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
 function countFoldersAndSubfolders(items: Track[], rootPath: string): number {

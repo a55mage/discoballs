@@ -1,5 +1,5 @@
 import type { MusicAdapter } from "./adapter";
-import type { OnlineMatch, ScanResult, SearchQuery, Track, TrackUpdate } from "../types";
+import type { OnlineMatch, RenameConfig, SaveTrackResult, ScanResult, SearchQuery, Track, TrackUpdate } from "../types";
 
 let tracks: Track[] = [
   {
@@ -38,19 +38,66 @@ export const mockAdapter: MusicAdapter = {
     };
   },
 
-  async saveTrack(trackId: string, _path: string, update: TrackUpdate, coverUrl?: string): Promise<void> {
+  async saveTrack(
+    trackId: string,
+    path: string,
+    update: TrackUpdate,
+    coverUrl?: string,
+    renameConfig?: RenameConfig
+  ): Promise<SaveTrackResult> {
     await wait(200);
+    let nextPath = path;
     tracks = tracks.map((track) => {
       if (track.id !== trackId) {
         return track;
       }
+      if (renameConfig && renameConfig.fields.length) {
+        const extension = track.path.includes(".") ? `.${track.path.split(".").pop()}` : "";
+        const parts = renameConfig.fields
+          .map((field) => String(update[field as keyof TrackUpdate] || "").trim())
+          .filter(Boolean);
+        const name = parts.join(renameConfig.separator || " - ") || "Track";
+        const baseDir = track.path.slice(0, track.path.lastIndexOf("/") + 1);
+        nextPath = `${baseDir}${name}${extension}`;
+      }
       return {
         ...track,
         ...update,
+        id: nextPath,
+        path: nextPath,
         coverUrl: coverUrl ?? track.coverUrl,
         hasCover: Boolean(coverUrl ?? track.coverUrl),
       };
     });
+    return { path: nextPath };
+  },
+
+  async renameTrack(path: string, update: TrackUpdate, renameConfig: RenameConfig): Promise<SaveTrackResult> {
+    await wait(180);
+    let nextPath = path;
+    tracks = tracks.map((track) => {
+      if (track.path !== path) {
+        return track;
+      }
+
+      const extension = track.path.includes(".") ? `.${track.path.split(".").pop()}` : "";
+      const parts = renameConfig.fields
+        .map((field) => String(update[field as keyof TrackUpdate] || "").trim())
+        .filter(Boolean);
+      const name = parts.join(renameConfig.separator || " - ") || "Track";
+      const baseDir = track.path.slice(0, track.path.lastIndexOf("/") + 1);
+      nextPath = `${baseDir}${name}${extension}`;
+      return {
+        ...track,
+        id: nextPath,
+        path: nextPath,
+      };
+    });
+    return { path: nextPath };
+  },
+
+  async getAudioSource(_path: string): Promise<string> {
+    return "";
   },
 
   async searchOnline(query: SearchQuery): Promise<OnlineMatch[]> {
