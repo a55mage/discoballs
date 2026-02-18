@@ -117,7 +117,7 @@ async fn search_online(query: OnlineQuery) -> Result<Vec<OnlineMatch>, String> {
     }
 
     let client = Client::builder()
-        .user_agent("musicmanager/0.1.0 (desktop app)")
+        .user_agent("discoballs/0.1.0 (desktop app)")
         .build()
         .map_err(|e| e.to_string())?;
 
@@ -733,7 +733,7 @@ fn main() {
     tauri::Builder::default()
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {
-                let _ = window.set_title("MusicManager");
+                let _ = window.set_title("DiscoBalls");
             }
             Ok(())
         })

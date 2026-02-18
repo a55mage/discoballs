@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "MusicManager",
+  "productName": "DiscoBalls",
   "version": "0.1.0",
-  "identifier": "com.riccardomacis.musicmanager",
+  "identifier": "com.riccardomacis.discoballs",
   "build": {
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build",
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "MusicManager",
+        "title": "DiscoBalls",
         "width": 1440,
         "height": 900,
         "resizable": true

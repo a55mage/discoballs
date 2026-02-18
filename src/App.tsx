@@ -551,7 +551,7 @@ export function App() {
 
   function handleInfoClick() {
     window.alert(
-      "MusicManager\n\nOrganize MP3/FLAC files, search online metadata (MusicBrainz + iTunes), and save tags/cover art to the selected track."
+      "DiscoBalls\n\nOrganize MP3/FLAC files, search online metadata (MusicBrainz + iTunes), and save tags/cover art to the selected track."
     );
   }
 
@@ -658,7 +658,7 @@ export function App() {
           onClick={() => setAccentIndex((prev) => (prev + 1) % ACCENT_THEMES.length)}
           title="Change accent color"
         >
-          MusicManager
+          DiscoBalls
         </h1>
         <div className="top-player">
           <audio ref={audioRef} src={audioSrc} preload="metadata" />
