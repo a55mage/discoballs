@@ -67,6 +67,8 @@ button:disabled {
   padding: 18px;
   display: flex;
   flex-direction: column;
+  background: var(--bg-page);
+  color: var(--ink-primary);
 }
 
 .top-bar {
@@ -83,6 +85,14 @@ button:disabled {
   font-size: 24px;
   letter-spacing: 0.02em;
   flex: 0 0 auto;
+  cursor: pointer;
+  user-select: none;
+}
+
+.top-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
 .top-player {
@@ -139,8 +149,8 @@ button:disabled {
 
 .ghost-button {
   background: transparent;
-  color: #2c2f36;
-  border: 1px solid #d8d1c1;
+  color: var(--ink-primary);
+  border: 1px solid var(--border-soft);
   padding: 8px 12px;
   font-weight: 600;
 }
@@ -148,7 +158,7 @@ button:disabled {
 .ghost-button:hover:enabled {
   background: rgba(238, 112, 62, 0.08);
   border-color: #e5b39e;
-  color: #2c2f36;
+  color: var(--ink-primary);
 }
 
 .two-col {
@@ -333,6 +343,13 @@ button.track-item:hover:enabled {
 .form-grid label {
   font-size: 13px;
   color: #334155;
+}
+
+.query-with-action {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
 }
 
 .cover-wrap {
@@ -521,24 +538,36 @@ button.track-item:hover:enabled {
 }
 
 .result-card h3 {
-  margin: 0 0 6px 0;
+  margin: 0 0 2px 0;
   font-size: 15px;
+  line-height: 1.2;
 }
 
 .result-card p {
-  margin: 4px 0;
+  margin: 1px 0;
   color: #475569;
+  line-height: 1.2;
 }
 
 .result-row {
   display: grid;
-  grid-template-columns: 96px 1fr;
+  grid-template-columns: 96px 1fr auto;
   gap: 10px;
   align-items: start;
 }
 
 .result-content {
   min-width: 0;
+}
+
+.result-actions {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+}
+
+.result-actions button {
+  white-space: nowrap;
 }
 
 .result-cover {
@@ -616,6 +645,58 @@ button.track-item:hover:enabled {
   border: 1px solid var(--border-soft);
   border-radius: 10px;
   background: #fffdf7;
+}
+
+.app-shell.theme-dark {
+  --bg-page: #13161b;
+  --bg-page-soft: #151a20;
+  --bg-card: #1c222b;
+  --bg-card-hover: #212934;
+  --ink-primary: #e6edf4;
+  --ink-secondary: #9eacbc;
+  --border-soft: #394553;
+  --border-strong: #566476;
+  --accent-soft: rgba(255, 255, 255, 0.08);
+  color-scheme: dark;
+}
+
+.app-shell.theme-dark .top-player {
+  background: #161c24;
+}
+
+.app-shell.theme-dark .input {
+  background: #182029;
+}
+
+.app-shell.theme-dark .track-item {
+  background: #1a212a;
+  border-color: #374555;
+}
+
+.app-shell.theme-dark button.track-item:hover:enabled {
+  background: #232c37;
+  border-color: #4a5a6d;
+}
+
+.app-shell.theme-dark .result-card {
+  background: #18202a;
+}
+
+.app-shell.theme-dark .result-card:hover {
+  background: #212b37;
+  border-color: #4c5d72;
+}
+
+.app-shell.theme-dark .result-card p {
+  color: #b4c1cf;
+}
+
+.app-shell.theme-dark .rename-field-row {
+  background: #18202a;
+}
+
+.app-shell.theme-dark .player-error {
+  color: #f0a892;
 }
 
 .rename-field-check {

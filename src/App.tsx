@@ -1,17 +1,26 @@
-import { type SVGProps, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, type SVGProps, useEffect, useMemo, useRef, useState } from "react";
 import { Card } from "./components/Card";
 import { createAdapter } from "./api/tauriAdapter";
 import { mockAdapter } from "./api/mockAdapter";
 import type { OnlineMatch, RenameField, Track } from "./types";
 
 const adapter = createAdapter(mockAdapter);
+const ACCENT_THEMES = [
+  { accent: "#ee703e", soft: "#e9dfce", strong: "#df6535" },
+  { accent: "#2d9c5f", soft: "#d8ebdd", strong: "#23804c" },
+  { accent: "#2f7dd1", soft: "#dbe7f4", strong: "#2565aa" },
+  { accent: "#b85cc8", soft: "#ebddf1", strong: "#9b49aa" },
+  { accent: "#d14f6a", soft: "#f3d9df", strong: "#ae3d56" },
+  { accent: "#cc8a22", soft: "#efe3ce", strong: "#aa721b" },
+  { accent: "#3a8b8f", soft: "#d5e7e8", strong: "#2e7073" },
+] as const;
 const RENAME_FIELD_OPTIONS: Array<{ key: RenameField; label: string }> = [
-  { key: "tracknumber", label: "Numero traccia" },
-  { key: "artist", label: "Artista" },
+  { key: "tracknumber", label: "Track number" },
+  { key: "artist", label: "Artist" },
   { key: "album", label: "Album" },
-  { key: "title", label: "Titolo" },
-  { key: "year", label: "Anno" },
-  { key: "genre", label: "Genere" },
+  { key: "title", label: "Title" },
+  { key: "year", label: "Year" },
+  { key: "genre", label: "Genre" },
 ];
 
 function IconBase(props: SVGProps<SVGSVGElement>) {
@@ -155,6 +164,26 @@ const IconListCompact = (props: SVGProps<SVGSVGElement>) => (
   </IconBase>
 );
 
+const IconSun = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <circle cx="12" cy="12" r="4" />
+    <line x1="12" y1="2" x2="12" y2="5" />
+    <line x1="12" y1="19" x2="12" y2="22" />
+    <line x1="2" y1="12" x2="5" y2="12" />
+    <line x1="19" y1="12" x2="22" y2="12" />
+    <line x1="4.9" y1="4.9" x2="7" y2="7" />
+    <line x1="17" y1="17" x2="19.1" y2="19.1" />
+    <line x1="17" y1="7" x2="19.1" y2="4.9" />
+    <line x1="4.9" y1="19.1" x2="7" y2="17" />
+  </IconBase>
+);
+
+const IconMoon = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <path d="M21 12.4A8.5 8.5 0 1 1 11.6 3a7 7 0 0 0 9.4 9.4z" />
+  </IconBase>
+);
+
 export function App() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [tracks, setTracks] = useState<Track[]>([]);
@@ -165,7 +194,7 @@ export function App() {
   const [selectedResultId, setSelectedResultId] = useState<string>("");
   const [isLoadingScan, setIsLoadingScan] = useState(false);
   const [isLoadingSearch, setIsLoadingSearch] = useState(false);
-  const [searchStatus, setSearchStatus] = useState("Pronto");
+  const [searchStatus, setSearchStatus] = useState("Ready");
   const [searchTitle, setSearchTitle] = useState("");
   const [searchArtist, setSearchArtist] = useState("");
   const [searchAlbum, setSearchAlbum] = useState("");
@@ -180,16 +209,35 @@ export function App() {
   const [audioSrc, setAudioSrc] = useState("");
   const [audioError, setAudioError] = useState("");
   const [libraryViewMode, setLibraryViewMode] = useState<"card" | "compact">("card");
+  const [accentIndex, setAccentIndex] = useState(0);
+  const [colorMode, setColorMode] = useState<"light" | "dark">("light");
 
   const selectedTrack = tracks.find((t) => t.id === selectedTrackId) ?? null;
   const selectedResult = onlineResults.find((r) => r.id === selectedResultId) ?? null;
-  const selectedFileName = selectedTrack ? getFileName(selectedTrack.path) : "Nessun file";
+  const accentTheme = ACCENT_THEMES[accentIndex % ACCENT_THEMES.length];
+  const appStyle: CSSProperties = {
+    "--accent": accentTheme.accent,
+    "--accent-soft": accentTheme.soft,
+    "--accent-strong": accentTheme.strong,
+  } as CSSProperties;
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem("musicmanager-color-mode");
+    if (saved === "light" || saved === "dark") {
+      setColorMode(saved);
+    }
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem("musicmanager-color-mode", colorMode);
+  }, [colorMode]);
+  const selectedFileName = selectedTrack ? getFileName(selectedTrack.path) : "No file selected";
   const folderCount = useMemo(() => countFoldersAndSubfolders(tracks, folderPath), [tracks, folderPath]);
   const librarySummary = useMemo(() => {
     if (!tracks.length) {
-      return "Nessun file audio";
+      return "No audio files";
     }
-    return `Trovati ${tracks.length} file audio in ${folderCount} cartelle/sottocartelle`;
+    return `Found ${tracks.length} audio files in ${folderCount} folders/subfolders`;
   }, [tracks.length, folderCount]);
   const renamePreview = useMemo(() => {
     if (!selectedTrack) {
@@ -206,7 +254,7 @@ export function App() {
     const onTimeUpdate = () => setCurrentTime(audio.currentTime || 0);
     const onLoadedMetadata = () => setDuration(audio.duration || 0);
     const onEnded = () => setIsPlaying(false);
-    const onError = () => setAudioError("Riproduzione non disponibile per questa traccia.");
+    const onError = () => setAudioError("Playback unavailable for this track.");
 
     audio.addEventListener("timeupdate", onTimeUpdate);
     audio.addEventListener("loadedmetadata", onLoadedMetadata);
@@ -261,13 +309,13 @@ export function App() {
           return;
         }
         setAudioSrc(src);
-        setAudioError(src ? "" : "Riproduzione non disponibile per questa traccia.");
+        setAudioError(src ? "" : "Playback unavailable for this track.");
       } catch {
         if (cancelled) {
           return;
         }
         setAudioSrc("");
-        setAudioError("Riproduzione non disponibile per questa traccia.");
+        setAudioError("Playback unavailable for this track.");
       }
     })();
 
@@ -312,9 +360,9 @@ export function App() {
       }
       setOnlineResults([]);
       setSelectedResultId("");
-      setSearchStatus("Pronto");
+      setSearchStatus("Ready");
     } catch (error) {
-      setSearchStatus(`Errore scansione: ${formatError(error)}`);
+      setSearchStatus(`Scan error: ${formatError(error)}`);
     } finally {
       setIsLoadingScan(false);
     }
@@ -325,7 +373,7 @@ export function App() {
       return;
     }
     setIsLoadingSearch(true);
-    setSearchStatus("Ricerca online in corso...");
+    setSearchStatus("Online search in progress...");
     try {
       const result = await adapter.searchOnline({
         title: searchTitle,
@@ -335,10 +383,10 @@ export function App() {
       setOnlineResults(result);
       setSelectedResultId("");
       setSearchStatus(
-        `Ricerca: "${searchArtist} ${searchTitle} ${searchAlbum}". Risultati online: ${result.length}`
+        `Search: "${searchArtist} ${searchTitle} ${searchAlbum}". Online results: ${result.length}`
       );
     } catch (error) {
-      setSearchStatus(`Errore ricerca online: ${formatError(error)}`);
+      setSearchStatus(`Online search error: ${formatError(error)}`);
     } finally {
       setIsLoadingSearch(false);
     }
@@ -372,9 +420,9 @@ export function App() {
         selectedTrack.coverUrl
       );
       updateTrackPathAfterSave(selectedTrack.id, result.path);
-      setSearchStatus("Tag salvati nella traccia");
+      setSearchStatus("Tags saved to track");
     } catch (error) {
-      setSearchStatus(`Errore salvataggio: ${formatError(error)}`);
+      setSearchStatus(`Save error: ${formatError(error)}`);
     }
   }
 
@@ -401,9 +449,9 @@ export function App() {
         }
       );
       updateTrackPathAfterSave(selectedTrack.id, result.path);
-      setSearchStatus("Tag salvati e file rinominato");
+      setSearchStatus("Tags saved and file renamed");
     } catch (error) {
-      setSearchStatus(`Errore salvataggio/rinomina: ${formatError(error)}`);
+      setSearchStatus(`Save/rename error: ${formatError(error)}`);
     }
   }
 
@@ -428,55 +476,57 @@ export function App() {
         }
       );
       updateTrackPathAfterSave(selectedTrack.id, result.path);
-      setSearchStatus("File rinominato");
+      setSearchStatus("File renamed");
     } catch (error) {
-      setSearchStatus(`Errore rinomina file: ${formatError(error)}`);
+      setSearchStatus(`Rename error: ${formatError(error)}`);
     }
   }
 
-  function handleApplyOnlineResult() {
-    if (!selectedTrack || !selectedResult) {
-      return;
+  function applyOnlineResultToTrack(result: OnlineMatch): Track | null {
+    if (!selectedTrack) {
+      return null;
     }
+
+    const nextTrack: Track = {
+      ...selectedTrack,
+      title: result.title,
+      artist: result.artist,
+      album: result.album,
+      tracknumber: result.tracknumber ?? selectedTrack.tracknumber,
+      year: result.date.slice(0, 4),
+      coverUrl: result.coverUrl,
+      hasCover: Boolean(result.coverUrl),
+    };
+
     setTracks((prev) =>
       prev.map((track) => {
         if (track.id !== selectedTrack.id) {
           return track;
         }
-        return {
-          ...track,
-          title: selectedResult.title,
-          artist: selectedResult.artist,
-          album: selectedResult.album,
-          tracknumber: selectedResult.tracknumber ?? track.tracknumber,
-          year: selectedResult.date.slice(0, 4),
-          coverUrl: selectedResult.coverUrl,
-          hasCover: Boolean(selectedResult.coverUrl),
-        };
+        return nextTrack;
       })
     );
-    setSearchStatus("Risultato applicato. Salva la traccia per confermare le modifiche.");
+
+    return nextTrack;
   }
 
-  async function handleApplyAndSaveOnlineResult() {
-    if (!selectedTrack || !selectedResult) {
+  function handleApplyOnlineResult(result: OnlineMatch) {
+    if (!selectedTrack) {
+      return;
+    }
+    applyOnlineResultToTrack(result);
+    setSearchStatus("Result applied. Save the track to confirm changes.");
+  }
+
+  async function handleApplyAndSaveOnlineResult(result: OnlineMatch) {
+    if (!selectedTrack) {
       return;
     }
 
-    const nextTrack: Track = {
-      ...selectedTrack,
-      title: selectedResult.title,
-      artist: selectedResult.artist,
-      album: selectedResult.album,
-      tracknumber: selectedResult.tracknumber ?? selectedTrack.tracknumber,
-      year: selectedResult.date.slice(0, 4),
-      coverUrl: selectedResult.coverUrl,
-      hasCover: Boolean(selectedResult.coverUrl),
-    };
-
-    setTracks((prev) =>
-      prev.map((track) => (track.id === selectedTrack.id ? nextTrack : track))
-    );
+    const nextTrack = applyOnlineResultToTrack(result);
+    if (!nextTrack) {
+      return;
+    }
 
     try {
       const result = await adapter.saveTrack(
@@ -493,15 +543,15 @@ export function App() {
         nextTrack.coverUrl
       );
       updateTrackPathAfterSave(selectedTrack.id, result.path);
-      setSearchStatus("Risultato applicato e tag salvati nella traccia");
+      setSearchStatus("Result applied and tags saved to track");
     } catch (error) {
-      setSearchStatus(`Errore applica e salva: ${formatError(error)}`);
+      setSearchStatus(`Apply and save error: ${formatError(error)}`);
     }
   }
 
   function handleInfoClick() {
     window.alert(
-      "MusicManager\n\nOrganizza MP3/FLAC, cerca metadati online (MusicBrainz + iTunes) e salva tag/copertina sulla traccia selezionata."
+      "MusicManager\n\nOrganize MP3/FLAC files, search online metadata (MusicBrainz + iTunes), and save tags/cover art to the selected track."
     );
   }
 
@@ -520,7 +570,7 @@ export function App() {
       setIsPlaying(true);
       setAudioError("");
     } catch {
-      setAudioError("Impossibile avviare la riproduzione in questo ambiente.");
+      setAudioError("Unable to start playback in this environment.");
       setIsPlaying(false);
     }
   }
@@ -602,9 +652,14 @@ export function App() {
   }
 
   return (
-    <div className="app-shell">
+    <div className={colorMode === "dark" ? "app-shell theme-dark" : "app-shell"} style={appStyle}>
       <header className="top-bar">
-        <h1>MusicManager</h1>
+        <h1
+          onClick={() => setAccentIndex((prev) => (prev + 1) % ACCENT_THEMES.length)}
+          title="Change accent color"
+        >
+          MusicManager
+        </h1>
         <div className="top-player">
           <audio ref={audioRef} src={audioSrc} preload="metadata" />
           <button className="ghost-button player-btn" onClick={handlePrevTrack} disabled={selectedTrackIndex <= 0}>
@@ -652,29 +707,40 @@ export function App() {
           </div>
           {audioError && <span className="player-error">{audioError}</span>}
         </div>
-        <button className="ghost-button" onClick={handleInfoClick}>
-          <span className="btn-content"><IconInfo className="btn-icon" />Info</span>
-        </button>
+        <div className="top-actions">
+          <button
+            className="ghost-button"
+            onClick={() => setColorMode((prev) => (prev === "light" ? "dark" : "light"))}
+            title={colorMode === "light" ? "Enable dark mode" : "Enable light mode"}
+          >
+            <span className="btn-content">
+              {colorMode === "light" ? <IconMoon className="btn-icon" /> : <IconSun className="btn-icon" />}
+            </span>
+          </button>
+          <button className="ghost-button" onClick={handleInfoClick}>
+            <span className="btn-content"><IconInfo className="btn-icon" />Info</span>
+          </button>
+        </div>
       </header>
 
       <main className="two-col">
         <div className="col col-left">
           <Card
-            title="File libreria"
+            title="Library files"
             className="library-card"
             headerAfterTitle={
-              <span className="library-path">{folderPath ? folderPath : "Nessuna cartella selezionata"}</span>
+              <span className="library-path">{folderPath ? folderPath : "No folder selected"}</span>
             }
             headerRight={
               <button onClick={handleScan} disabled={isLoadingScan}>
-                <span className="btn-content"><IconFolder className="btn-icon" />{isLoadingScan ? "Scansione..." : "Seleziona cartella"}</span>
+                <span className="btn-content"><IconFolder className="btn-icon" />{isLoadingScan ? "Scanning..." : "Select folder"}</span>
               </button>
             }
           >
             <div className="library-filter-row">
               <input
                 className="input"
-                placeholder="Filtra file..."
+                placeholder="Filter files..."
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
@@ -682,14 +748,14 @@ export function App() {
                 <button
                   className={libraryViewMode === "card" ? "view-mode-button" : "ghost-button view-mode-button"}
                   onClick={() => setLibraryViewMode("card")}
-                  title="Vista card"
+                  title="Card view"
                 >
                   <span className="btn-content"><IconGrid className="btn-icon" /></span>
                 </button>
                 <button
                   className={libraryViewMode === "compact" ? "view-mode-button" : "ghost-button view-mode-button"}
                   onClick={() => setLibraryViewMode("compact")}
-                  title="Vista lista compatta"
+                  title="Compact list view"
                 >
                   <span className="btn-content"><IconListCompact className="btn-icon" /></span>
                 </button>
@@ -723,16 +789,16 @@ export function App() {
                     )}
                     {libraryViewMode === "compact" ? (
                       <span className="track-text compact">
-                        <strong>{track.title || "Senza titolo"}</strong>
+                        <strong>{track.title || "Untitled"}</strong>
                         <small className="muted compact-inline">
-                          {track.artist || "Artista sconosciuto"} · {track.album || "Album sconosciuto"} · {track.year || "n/d"} · #{track.tracknumber || "-"} · {track.genre || "Genere n/d"} · {getFileName(track.path)}
+                          {track.artist || "Unknown artist"} · {track.album || "Unknown album"} · {track.year || "n/a"} · #{track.tracknumber || "-"} · {track.genre || "Genre n/a"} · {getFileName(track.path)}
                         </small>
                       </span>
                     ) : (
                       <span className="track-text">
-                        <strong>{track.title || "Senza titolo"}</strong>
-                        <small>{track.artist || "Artista sconosciuto"}</small>
-                        <small className="muted">{track.album || "Album sconosciuto"}</small>
+                        <strong>{track.title || "Untitled"}</strong>
+                        <small>{track.artist || "Unknown artist"}</small>
+                        <small className="muted">{track.album || "Unknown album"}</small>
                       </span>
                     )}
                   </button>
@@ -742,22 +808,22 @@ export function App() {
           </Card>
 
           <Card
-            title="Dettagli traccia"
+            title="Track details"
             className="details-card"
             headerAfterTitle={<span className="library-path">{selectedFileName}</span>}
           >
             <div className="detail-layout">
               <div className="detail-cover-wrap">
                 {selectedTrack?.coverUrl ? (
-                  <img src={selectedTrack.coverUrl} alt="Copertina traccia" className="cover detail-cover" />
+                  <img src={selectedTrack.coverUrl} alt="Track cover" className="cover detail-cover" />
                 ) : (
-                  <div className="cover-placeholder detail-cover">Nessuna copertina</div>
+                  <div className="cover-placeholder detail-cover">No cover</div>
                 )}
               </div>
 
               <div className="detail-form">
                 <label>
-                  Titolo
+                  Title
                   <input
                     className="input"
                     value={selectedTrack?.title ?? ""}
@@ -766,7 +832,7 @@ export function App() {
                 </label>
                 <div className="detail-row-two">
                   <label>
-                    Artista
+                    Artist
                     <input
                       className="input"
                       value={selectedTrack?.artist ?? ""}
@@ -792,7 +858,7 @@ export function App() {
                     />
                   </label>
                   <label>
-                    Anno
+                    Year
                     <input
                       className="input input-short"
                       value={selectedTrack?.year ?? ""}
@@ -800,7 +866,7 @@ export function App() {
                     />
                   </label>
                   <label>
-                    Genere
+                    Genre
                     <input
                       className="input input-short"
                       value={selectedTrack?.genre ?? ""}
@@ -809,7 +875,7 @@ export function App() {
                   </label>
                   <div className="inline-action-slot">
                     <button onClick={handleSaveTrack} disabled={!selectedTrack}>
-                      <span className="btn-content"><IconSave className="btn-icon" />Salva tag</span>
+                      <span className="btn-content"><IconSave className="btn-icon" />Save tags</span>
                     </button>
                   </div>
                 </div>
@@ -818,49 +884,43 @@ export function App() {
 
             <div className="detail-actions">
               <button onClick={handleRenameOnlyTrack} disabled={!selectedTrack}>
-                <span className="btn-content"><IconRename className="btn-icon" />Rinomina file</span>
+                <span className="btn-content"><IconRename className="btn-icon" />Rename file</span>
               </button>
               <button onClick={handleSaveAndRenameTrack} disabled={!selectedTrack}>
-                <span className="btn-content"><IconSave className="btn-icon" />Salva tag + rinomina file</span>
+                <span className="btn-content"><IconSave className="btn-icon" />Save tags + rename file</span>
               </button>
               <button className="ghost-button" onClick={() => setShowRenameSettings(true)} disabled={!selectedTrack}>
-                <span className="btn-content"><IconSettings className="btn-icon" />Impostazioni rinomina</span>
+                <span className="btn-content"><IconSettings className="btn-icon" />Rename settings</span>
               </button>
             </div>
 
             <label className="rename-preview-field">
-              Anteprima nome file rinominato
+              Renamed filename preview
               <input className="input" readOnly value={renamePreview} />
             </label>
           </Card>
         </div>
 
         <div className="col col-right">
-          <Card title="Ricerca online" className="search-card" headerRight={<span className="search-status">{searchStatus}</span>}>
+          <Card title="Online search" className="search-card" headerRight={<span className="search-status">{searchStatus}</span>}>
             <div className="form-grid">
               <label>
-                Titolo query
+                Title query
                 <input className="input" value={searchTitle} onChange={(e) => setSearchTitle(e.target.value)} />
               </label>
               <label>
-                Artista query
+                Artist query
                 <input className="input" value={searchArtist} onChange={(e) => setSearchArtist(e.target.value)} />
               </label>
               <label>
                 Album query
-                <input className="input" value={searchAlbum} onChange={(e) => setSearchAlbum(e.target.value)} />
+                <div className="query-with-action">
+                  <input className="input" value={searchAlbum} onChange={(e) => setSearchAlbum(e.target.value)} />
+                  <button onClick={handleSearchOnline} disabled={!selectedTrack || isLoadingSearch}>
+                    <span className="btn-content"><IconSearch className="btn-icon" />{isLoadingSearch ? "Searching..." : "Search online"}</span>
+                  </button>
+                </div>
               </label>
-            </div>
-            <div className="actions-row">
-              <button onClick={handleSearchOnline} disabled={!selectedTrack || isLoadingSearch}>
-                <span className="btn-content"><IconSearch className="btn-icon" />{isLoadingSearch ? "Ricerca..." : "Cerca online"}</span>
-              </button>
-              <button onClick={handleApplyOnlineResult} disabled={!selectedResult || !selectedTrack}>
-                <span className="btn-content"><IconCheck className="btn-icon" />Applica risultato selezionato</span>
-              </button>
-              <button onClick={handleApplyAndSaveOnlineResult} disabled={!selectedResult || !selectedTrack}>
-                <span className="btn-content"><IconSave className="btn-icon" />Applica e salva</span>
-              </button>
             </div>
 
             <div className="results-grid">
@@ -872,20 +932,43 @@ export function App() {
                 >
                   <div className="result-row">
                     {result.coverUrl ? (
-                      <img src={result.coverUrl} alt={`Copertina ${result.album}`} className="result-cover" />
+                      <img src={result.coverUrl} alt={`Cover ${result.album}`} className="result-cover" />
                     ) : (
                       <div className="result-cover-placeholder">No cover</div>
                     )}
                     <div className="result-content">
                       <h3>{result.artist} - {result.title}</h3>
                       <p>Album: {result.album}</p>
-                      <p>Data: {result.date || "n/d"}</p>
-                      <p className="muted">Fonte: {result.source ?? "N/D"}</p>
+                      <p>Date: {result.date || "n/a"}</p>
+                      <p className="muted">Source: {result.source ?? "N/A"}</p>
+                    </div>
+                    <div className="result-actions">
+                      <button
+                        className="ghost-button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedResultId(result.id);
+                          handleApplyOnlineResult(result);
+                        }}
+                        disabled={!selectedTrack}
+                      >
+                        <span className="btn-content"><IconCheck className="btn-icon" />Apply</span>
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedResultId(result.id);
+                          void handleApplyAndSaveOnlineResult(result);
+                        }}
+                        disabled={!selectedTrack}
+                      >
+                        <span className="btn-content"><IconSave className="btn-icon" />Apply & save</span>
+                      </button>
                     </div>
                   </div>
                 </article>
               ))}
-              {!onlineResults.length && <p className="muted">Nessun risultato. Avvia la ricerca online.</p>}
+              {!onlineResults.length && <p className="muted">No results. Start an online search.</p>}
             </div>
           </Card>
         </div>
@@ -895,12 +978,12 @@ export function App() {
         <div className="modal-backdrop" onClick={() => setShowRenameSettings(false)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>Impostazioni rinomina file</h3>
+              <h3>File rename settings</h3>
               <button className="ghost-button" onClick={() => setShowRenameSettings(false)}>
-                <span className="btn-content"><IconClose className="btn-icon" />Chiudi</span>
+                <span className="btn-content"><IconClose className="btn-icon" />Close</span>
               </button>
             </div>
-            <p className="muted compact">Scegli campi, ordine e divisore per il nome file finale.</p>
+            <p className="muted compact">Choose fields, order, and separator for the final filename.</p>
 
             <div className="rename-fields">
               {renameFields.map((field) => (
@@ -908,13 +991,13 @@ export function App() {
                   <label className="rename-field-check">{renameFieldLabel(field)}</label>
                   <div className="rename-field-controls">
                     <button className="ghost-button" onClick={() => moveRenameField(field, -1)}>
-                      <span className="btn-content"><IconArrowUp className="btn-icon" />Su</span>
+                      <span className="btn-content"><IconArrowUp className="btn-icon" />Up</span>
                     </button>
                     <button className="ghost-button" onClick={() => moveRenameField(field, 1)}>
-                      <span className="btn-content"><IconArrowDown className="btn-icon" />Giù</span>
+                      <span className="btn-content"><IconArrowDown className="btn-icon" />Down</span>
                     </button>
                     <button className="ghost-button" onClick={() => toggleRenameField(field)} disabled={renameFields.length <= 1}>
-                      <span className="btn-content"><IconClose className="btn-icon" />Rimuovi</span>
+                      <span className="btn-content"><IconClose className="btn-icon" />Remove</span>
                     </button>
                   </div>
                 </div>
@@ -924,7 +1007,7 @@ export function App() {
                   <label className="rename-field-check">{opt.label}</label>
                   <div className="rename-field-controls">
                     <button className="ghost-button" onClick={() => toggleRenameField(opt.key)}>
-                      <span className="btn-content"><IconCheck className="btn-icon" />Aggiungi</span>
+                      <span className="btn-content"><IconCheck className="btn-icon" />Add</span>
                     </button>
                   </div>
                 </div>
@@ -932,7 +1015,7 @@ export function App() {
             </div>
 
             <label>
-              Divisore
+              Separator
               <input className="input input-short" value={renameSeparator} onChange={(e) => setRenameSeparator(e.target.value)} />
             </label>
           </div>
@@ -1024,7 +1107,7 @@ function formatError(error: unknown): string {
       }
     }
   }
-  return "Errore sconosciuto";
+  return "Unknown error";
 }
 
 function countFoldersAndSubfolders(items: Track[], rootPath: string): number {

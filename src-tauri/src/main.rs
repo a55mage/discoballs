@@ -77,7 +77,7 @@ struct SaveTrackOutput {
 #[tauri::command]
 fn pick_music_folder() -> Option<String> {
     rfd::FileDialog::new()
-        .set_title("Seleziona cartella musica")
+        .set_title("Select music folder")
         .pick_folder()
         .map(|p| p.to_string_lossy().to_string())
 }
@@ -86,7 +86,7 @@ fn pick_music_folder() -> Option<String> {
 fn scan_folder(path: String) -> Result<ScanResult, String> {
     let root = PathBuf::from(&path);
     if !root.exists() {
-        return Err(format!("Cartella non trovata: {path}"));
+        return Err(format!("Folder not found: {path}"));
     }
 
     let mut tracks = Vec::new();
@@ -155,7 +155,7 @@ async fn search_online(query: OnlineQuery) -> Result<Vec<OnlineMatch>, String> {
 fn save_track(input: SaveTrackInput) -> Result<SaveTrackOutput, String> {
     let original_path = PathBuf::from(&input.path);
     if !original_path.exists() {
-        return Err(format!("File non trovato: {}", input.path));
+        return Err(format!("File not found: {}", input.path));
     }
 
     write_metadata_and_cover(&original_path, &input)?;
@@ -170,7 +170,7 @@ fn save_track(input: SaveTrackInput) -> Result<SaveTrackOutput, String> {
 fn rename_track(input: SaveTrackInput) -> Result<SaveTrackOutput, String> {
     let original_path = PathBuf::from(&input.path);
     if !original_path.exists() {
-        return Err(format!("File non trovato: {}", input.path));
+        return Err(format!("File not found: {}", input.path));
     }
 
     let renamed_path = maybe_rename_path(&original_path, &input)?;
@@ -181,7 +181,7 @@ fn rename_track(input: SaveTrackInput) -> Result<SaveTrackOutput, String> {
 
 #[tauri::command]
 fn get_audio_data_url(path: String) -> Result<String, String> {
-    let bytes = fs::read(&path).map_err(|e| format!("Errore lettura audio: {e}"))?;
+    let bytes = fs::read(&path).map_err(|e| format!("Audio read error: {e}"))?;
     let mime = mime_from_audio_path(&path);
     Ok(format!("data:{};base64,{}", mime, BASE64.encode(bytes)))
 }
@@ -268,7 +268,7 @@ fn write_metadata_and_cover(path: &Path, input: &SaveTrackInput) -> Result<(), S
 
     let mut tag = Probe::open(path)
         .and_then(|p| p.read())
-        .map_err(|e| format!("Errore lettura metadata: {e}"))?
+        .map_err(|e| format!("Metadata read error: {e}"))?
         .primary_tag()
         .cloned()
         .unwrap_or_else(|| Tag::new(tag_type));
@@ -293,7 +293,7 @@ fn write_metadata_and_cover(path: &Path, input: &SaveTrackInput) -> Result<(), S
     }
 
     tag.save_to_path(path, WriteOptions::default())
-        .map_err(|e| format!("Errore salvataggio metadata: {e}"))
+        .map_err(|e| format!("Metadata save error: {e}"))
 }
 
 fn maybe_rename_path(path: &Path, input: &SaveTrackInput) -> Result<PathBuf, String> {
@@ -330,7 +330,7 @@ fn maybe_rename_path(path: &Path, input: &SaveTrackInput) -> Result<PathBuf, Str
         return Ok(path.to_path_buf());
     }
 
-    fs::rename(path, &unique_target).map_err(|e| format!("Errore rinomina file: {e}"))?;
+    fs::rename(path, &unique_target).map_err(|e| format!("File rename error: {e}"))?;
     Ok(unique_target)
 }
 
@@ -391,14 +391,14 @@ fn sanitize_filename_part(value: String) -> String {
 
 fn parse_data_url(data_url: &str) -> Result<(Vec<u8>, MimeType), String> {
     if !data_url.starts_with("data:") {
-        return Err("cover_data_url non valido".to_string());
+        return Err("invalid cover_data_url".to_string());
     }
 
     let (header, encoded) = data_url
         .split_once(',')
-        .ok_or_else(|| "cover_data_url non valido".to_string())?;
+        .ok_or_else(|| "invalid cover_data_url".to_string())?;
     if !header.contains(";base64") {
-        return Err("cover_data_url deve essere base64".to_string());
+        return Err("cover_data_url must be base64".to_string());
     }
 
     let mime_raw = header
@@ -419,7 +419,7 @@ fn parse_data_url(data_url: &str) -> Result<(Vec<u8>, MimeType), String> {
 
     let bytes = BASE64
         .decode(encoded.as_bytes())
-        .map_err(|e| format!("Base64 cover non valido: {e}"))?;
+        .map_err(|e| format!("Invalid base64 cover: {e}"))?;
 
     Ok((bytes, mime))
 }
@@ -459,7 +459,7 @@ fn primary_tag_type_for_path(path: &Path) -> Result<TagType, String> {
     match ext.as_str() {
         "mp3" => Ok(TagType::Id3v2),
         "flac" => Ok(TagType::VorbisComments),
-        _ => Err(format!("Formato non supportato: .{ext}")),
+        _ => Err(format!("Unsupported format: .{ext}")),
     }
 }
 
