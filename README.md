@@ -1,42 +1,58 @@
-# MusicManager Web
+# DiscoBalls
 
-Repository app + landing nella stessa codebase.
+DiscoBalls is an open-source desktop music metadata manager built with a modern web UI and a native Rust backend.
 
-## App desktop/web
-Stack:
-- React + TypeScript + Vite
-- Tauri 2 (`src-tauri`)
-- Motore metadata/covers nativo in Rust (`lofty`), senza dipendenze Python per l'utente finale
+## Project Overview
+DiscoBalls helps you manage local audio libraries (MP3/FLAC and other supported formats), search metadata online, and write tags plus cover art directly to files.
 
-Avvio web:
-```bash
-cd /Users/riccardomacis/Progetti/musicmanager/web
-npm install
-npm run dev
-```
+## Tech Stack
+- Frontend: React + TypeScript + Vite
+- Desktop shell: Tauri 2
+- Native backend: Rust
+- Audio metadata engine: `lofty` (Rust)
+- Online metadata sources: MusicBrainz, iTunes
+- Landing page: static HTML/CSS/JS in `docs/` for GitHub Pages
 
-Avvio desktop (Tauri):
+## Core App Functions
+- Library scan:
+  - Select a local music folder
+  - Recursively scan supported audio files
+  - Read and display existing tags and embedded cover art
+- Track editing:
+  - Edit title, artist, album, track number, year, genre
+  - Save tags directly to the selected file
+  - Save tags and optional cover art in one action
+- Online lookup:
+  - Search metadata by title/artist/album
+  - Preview multiple online matches
+  - Apply metadata to the selected track
+  - Apply and save directly from each result card
+- File renaming:
+  - Rename using configurable field order
+  - Custom separator support
+  - Preview output filename before rename
+- UI utilities:
+  - Compact and card library views
+  - Accent color cycling
+  - Light/Dark mode toggle with persisted preference
+
+## Repository Structure
+- `src/`: React application
+- `src-tauri/`: Tauri + Rust backend commands
+- `docs/`: GitHub Pages landing and release download page
+
+## Run Desktop (Tauri)
 ```bash
 cd /Users/riccardomacis/Progetti/musicmanager/web
 npm install
 npm run tauri:dev
 ```
 
-## Landing GitHub Pages
-Landing statica per download release in:
-- `/Users/riccardomacis/Progetti/musicmanager/web/docs/index.html`
+## Build
+```bash
+npm run build
+npm run tauri:build
+```
 
-File:
-- `docs/index.html`
-- `docs/styles.css`
-- `docs/script.js`
-
-Configurazione GitHub Pages (su questa repo):
-1. apri `Settings > Pages`
-2. in `Build and deployment`, seleziona `Deploy from a branch`
-3. scegli branch `main` (o default) e cartella `/docs`
-4. salva e usa l'URL Pages generato
-
-Nota:
-- su `*.github.io` la landing rileva automaticamente `owner/repo`
-- con dominio custom, imposta manualmente lo slug in `docs/script.js`
+## Open Source
+DiscoBalls is open-source. Contributions, issue reports, and feature suggestions are welcome.

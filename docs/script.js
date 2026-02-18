@@ -8,17 +8,17 @@ function detectRepositorySlug() {
     if (owner && repo) return `${owner}/${repo}`;
   }
 
-  const fallback = "OWNER/REPO";
-  return fallback;
+  return "OWNER/REPO";
 }
 
 function formatDate(value) {
   if (!value) return "-";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
-  return new Intl.DateTimeFormat("it-IT", {
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
     day: "2-digit",
-    month: "2-digit",
     year: "numeric"
   }).format(date);
 }
@@ -38,17 +38,14 @@ async function loadReleaseInfo() {
 
   if (slug === "OWNER/REPO") {
     assetsList.innerHTML =
-      '<li class="muted">Imposta owner/repo in docs/script.js se usi un dominio personalizzato.</li>';
+      '<li class="muted">Set the repository slug in <code>docs/script.js</code> when using a custom domain.</li>';
     return;
   }
 
   try {
-    const response = await fetch(
-      `https://api.github.com/repos/${slug}/releases/latest`,
-      {
-        headers: { Accept: "application/vnd.github+json" }
-      }
-    );
+    const response = await fetch(`https://api.github.com/repos/${slug}/releases/latest`, {
+      headers: { Accept: "application/vnd.github+json" }
+    });
 
     if (!response.ok) {
       throw new Error(`GitHub API error: ${response.status}`);
@@ -59,8 +56,7 @@ async function loadReleaseInfo() {
     dateLabel.textContent = formatDate(release.published_at);
 
     if (!release.assets || release.assets.length === 0) {
-      assetsList.innerHTML =
-        '<li class="muted">Nessun asset allegato a questa release.</li>';
+      assetsList.innerHTML = '<li class="muted">No downloadable assets found for this release.</li>';
       return;
     }
 
@@ -71,9 +67,9 @@ async function loadReleaseInfo() {
       li.innerHTML = `<a href="${asset.browser_download_url}" target="_blank" rel="noreferrer">${asset.name}</a> · ${sizeMb} MB`;
       assetsList.appendChild(li);
     });
-  } catch (error) {
+  } catch {
     assetsList.innerHTML =
-      '<li class="muted">Impossibile leggere la latest release. Verifica che il repository abbia release pubbliche.</li>';
+      '<li class="muted">Could not load the latest release. Make sure the repository has public releases.</li>';
   }
 }
 
