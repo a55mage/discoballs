@@ -15,13 +15,20 @@ export function App() {
   const [selectedResultId, setSelectedResultId] = useState<string>("");
   const [isLoadingScan, setIsLoadingScan] = useState(false);
   const [isLoadingSearch, setIsLoadingSearch] = useState(false);
-  const [statusMessage, setStatusMessage] = useState("Pronto");
+  const [searchStatus, setSearchStatus] = useState("Pronto");
   const [searchTitle, setSearchTitle] = useState("");
   const [searchArtist, setSearchArtist] = useState("");
   const [searchAlbum, setSearchAlbum] = useState("");
 
   const selectedTrack = tracks.find((t) => t.id === selectedTrackId) ?? null;
   const selectedResult = onlineResults.find((r) => r.id === selectedResultId) ?? null;
+  const folderCount = useMemo(() => countFoldersAndSubfolders(tracks, folderPath), [tracks, folderPath]);
+  const librarySummary = useMemo(() => {
+    if (!tracks.length) {
+      return "Nessun file audio";
+    }
+    return `Trovati ${tracks.length} file audio in ${folderCount} cartelle/sottocartelle`;
+  }, [tracks.length, folderCount]);
 
   const filteredTracks = useMemo(() => {
     if (!query.trim()) {
@@ -39,11 +46,9 @@ export function App() {
 
   async function handleScan() {
     setIsLoadingScan(true);
-    setStatusMessage("Scansione cartella in corso...");
     try {
       const result = await adapter.selectFolderAndScan();
       if (!result.folderPath) {
-        setStatusMessage("Selezione cartella annullata");
         return;
       }
       setFolderPath(result.folderPath);
@@ -57,9 +62,9 @@ export function App() {
       }
       setOnlineResults([]);
       setSelectedResultId("");
-      setStatusMessage(`Trovati ${result.tracks.length} file audio`);
+      setSearchStatus("Pronto");
     } catch (error) {
-      setStatusMessage(`Errore scansione: ${String(error)}`);
+      setSearchStatus(`Errore scansione: ${String(error)}`);
     } finally {
       setIsLoadingScan(false);
     }
@@ -70,7 +75,7 @@ export function App() {
       return;
     }
     setIsLoadingSearch(true);
-    setStatusMessage("Ricerca online in corso...");
+    setSearchStatus("Ricerca online in corso...");
     try {
       const result = await adapter.searchOnline({
         title: searchTitle,
@@ -79,11 +84,11 @@ export function App() {
       });
       setOnlineResults(result);
       setSelectedResultId("");
-      setStatusMessage(
+      setSearchStatus(
         `Ricerca: "${searchArtist} ${searchTitle} ${searchAlbum}". Risultati online: ${result.length}`
       );
     } catch (error) {
-      setStatusMessage(`Errore ricerca online: ${String(error)}`);
+      setSearchStatus(`Errore ricerca online: ${String(error)}`);
     } finally {
       setIsLoadingSearch(false);
     }
@@ -116,9 +121,8 @@ export function App() {
         },
         selectedResult?.coverUrl
       );
-      setStatusMessage("Tag salvati nella traccia");
     } catch (error) {
-      setStatusMessage(`Errore salvataggio: ${String(error)}`);
+      setSearchStatus(`Errore salvataggio: ${String(error)}`);
     }
   }
 
@@ -143,31 +147,45 @@ export function App() {
         };
       })
     );
-    setStatusMessage("Risultato online applicato ai campi traccia");
+    setSearchStatus("Risultato applicato. Salva la traccia per confermare le modifiche.");
+  }
+
+  function handleInfoClick() {
+    window.alert(
+      "MusicManager\n\nOrganizza MP3/FLAC, cerca metadati online (MusicBrainz + iTunes) e salva tag/copertina sulla traccia selezionata."
+    );
   }
 
   return (
     <div className="app-shell">
       <header className="top-bar">
-        <div>
-          <h1>MusicManager</h1>
-          <p className="muted">{folderPath ? `Cartella: ${folderPath}` : "Nessuna cartella selezionata"}</p>
-          <p className="muted">{statusMessage}</p>
-        </div>
-        <button onClick={handleScan} disabled={isLoadingScan}>
-          {isLoadingScan ? "Scansione..." : "Seleziona cartella"}
-        </button>
+        <h1>MusicManager</h1>
+        <button className="ghost-button" onClick={handleInfoClick}>Info</button>
       </header>
 
       <main className="two-col">
-        <div className="col">
-          <Card title="File libreria">
-            <input
-              className="input"
-              placeholder="Filtra file..."
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
+        <div className="col col-left">
+          <Card
+            title="File libreria"
+            className="library-card"
+            headerCenter={
+              <span className="library-path">{folderPath ? folderPath : "Nessuna cartella selezionata"}</span>
+            }
+            headerRight={
+              <button onClick={handleScan} disabled={isLoadingScan}>
+                {isLoadingScan ? "Scansione..." : "Seleziona cartella"}
+              </button>
+            }
+          >
+            <div className="library-filter-row">
+              <input
+                className="input"
+                placeholder="Filtra file..."
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+              <span className="library-summary">{librarySummary}</span>
+            </div>
             <ul className="track-list">
               {filteredTracks.map((track) => (
                 <li key={track.id}>
@@ -180,72 +198,86 @@ export function App() {
                       setSearchAlbum(track.album);
                     }}
                   >
-                    <span>{track.title || "Senza titolo"}</span>
-                    <small>{track.artist || "Artista sconosciuto"}</small>
+                    {track.coverUrl ? (
+                      <img src={track.coverUrl} alt={`Cover ${track.album || track.title}`} className="track-thumb" />
+                    ) : (
+                      <div className="track-thumb-placeholder">♪</div>
+                    )}
+                    <span className="track-text">
+                      <strong>{track.title || "Senza titolo"}</strong>
+                      <small>{track.artist || "Artista sconosciuto"}</small>
+                      <small className="muted">{track.album || "Album sconosciuto"}</small>
+                    </span>
                   </button>
                 </li>
               ))}
             </ul>
           </Card>
 
-          <Card title="Dettagli traccia">
-            <div className="cover-wrap">
-              {selectedTrack?.coverUrl ? (
-                <img src={selectedTrack.coverUrl} alt="Copertina traccia" className="cover" />
-              ) : (
-                <div className="cover-placeholder">Nessuna copertina</div>
-              )}
-            </div>
+          <Card title="Dettagli traccia" className="details-card">
+            <div className="detail-layout">
+              <div className="detail-cover-wrap">
+                {selectedTrack?.coverUrl ? (
+                  <img src={selectedTrack.coverUrl} alt="Copertina traccia" className="cover detail-cover" />
+                ) : (
+                  <div className="cover-placeholder detail-cover">Nessuna copertina</div>
+                )}
+              </div>
 
-            <div className="form-grid">
-              <label>
-                Titolo
-                <input
-                  className="input"
-                  value={selectedTrack?.title ?? ""}
-                  onChange={(e) => handleTrackFieldChange("title", e.target.value)}
-                />
-              </label>
-              <label>
-                Artista
-                <input
-                  className="input"
-                  value={selectedTrack?.artist ?? ""}
-                  onChange={(e) => handleTrackFieldChange("artist", e.target.value)}
-                />
-              </label>
-              <label>
-                Album
-                <input
-                  className="input"
-                  value={selectedTrack?.album ?? ""}
-                  onChange={(e) => handleTrackFieldChange("album", e.target.value)}
-                />
-              </label>
-              <label>
-                Track #
-                <input
-                  className="input"
-                  value={selectedTrack?.tracknumber ?? ""}
-                  onChange={(e) => handleTrackFieldChange("tracknumber", e.target.value)}
-                />
-              </label>
-              <label>
-                Anno
-                <input
-                  className="input"
-                  value={selectedTrack?.year ?? ""}
-                  onChange={(e) => handleTrackFieldChange("year", e.target.value)}
-                />
-              </label>
-              <label>
-                Genere
-                <input
-                  className="input"
-                  value={selectedTrack?.genre ?? ""}
-                  onChange={(e) => handleTrackFieldChange("genre", e.target.value)}
-                />
-              </label>
+              <div className="detail-form">
+                <label>
+                  Titolo
+                  <input
+                    className="input"
+                    value={selectedTrack?.title ?? ""}
+                    onChange={(e) => handleTrackFieldChange("title", e.target.value)}
+                  />
+                </label>
+                <div className="detail-row-two">
+                  <label>
+                    Artista
+                    <input
+                      className="input"
+                      value={selectedTrack?.artist ?? ""}
+                      onChange={(e) => handleTrackFieldChange("artist", e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Album
+                    <input
+                      className="input"
+                      value={selectedTrack?.album ?? ""}
+                      onChange={(e) => handleTrackFieldChange("album", e.target.value)}
+                    />
+                  </label>
+                </div>
+                <div className="short-fields">
+                  <label>
+                    Track #
+                    <input
+                      className="input input-short"
+                      value={selectedTrack?.tracknumber ?? ""}
+                      onChange={(e) => handleTrackFieldChange("tracknumber", e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Anno
+                    <input
+                      className="input input-short"
+                      value={selectedTrack?.year ?? ""}
+                      onChange={(e) => handleTrackFieldChange("year", e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Genere
+                    <input
+                      className="input input-short"
+                      value={selectedTrack?.genre ?? ""}
+                      onChange={(e) => handleTrackFieldChange("genre", e.target.value)}
+                    />
+                  </label>
+                </div>
+              </div>
             </div>
 
             <button onClick={handleSaveTrack} disabled={!selectedTrack}>
@@ -254,8 +286,8 @@ export function App() {
           </Card>
         </div>
 
-        <div className="col">
-          <Card title="Ricerca online">
+        <div className="col col-right">
+          <Card title="Ricerca online" className="search-card" headerRight={<span className="search-status">{searchStatus}</span>}>
             <div className="form-grid">
               <label>
                 Titolo query
@@ -279,19 +311,12 @@ export function App() {
               </button>
             </div>
 
-            <div className="cover-wrap">
-              {selectedResult?.coverUrl ? (
-                <img src={selectedResult.coverUrl} alt="Copertina risultato" className="cover" />
-              ) : (
-                <div className="cover-placeholder">Nessuna copertina risultato</div>
-              )}
-            </div>
-
             <div className="results-grid">
               {onlineResults.map((result) => (
                 <article
                   key={result.id}
                   className={result.id === selectedResultId ? "result-card selected" : "result-card"}
+                  onClick={() => setSelectedResultId(result.id)}
                 >
                   <div className="result-row">
                     {result.coverUrl ? (
@@ -304,7 +329,6 @@ export function App() {
                       <p>Album: {result.album}</p>
                       <p>Data: {result.date || "n/d"}</p>
                       <p className="muted">Fonte: {result.source ?? "N/D"}</p>
-                      <button onClick={() => setSelectedResultId(result.id)}>Seleziona</button>
                     </div>
                   </div>
                 </article>
@@ -316,4 +340,45 @@ export function App() {
       </main>
     </div>
   );
+}
+
+function normalizePath(path: string): string {
+  return path.replace(/\\/g, "/").replace(/\/+$/, "");
+}
+
+function countFoldersAndSubfolders(items: Track[], rootPath: string): number {
+  if (!items.length) {
+    return 0;
+  }
+
+  const root = normalizePath(rootPath);
+  const folders = new Set<string>();
+
+  for (const track of items) {
+    const normalizedTrackPath = normalizePath(track.path);
+    const lastSlash = normalizedTrackPath.lastIndexOf("/");
+    if (lastSlash <= 0) {
+      continue;
+    }
+
+    const parent = normalizedTrackPath.slice(0, lastSlash);
+    if (root && parent.startsWith(root)) {
+      const relative = parent.slice(root.length).replace(/^\/+/, "");
+      if (!relative) {
+        continue;
+      }
+
+      const segments = relative.split("/").filter(Boolean);
+      let composed = "";
+      for (const segment of segments) {
+        composed = composed ? `${composed}/${segment}` : segment;
+        folders.add(composed);
+      }
+      continue;
+    }
+
+    folders.add(parent);
+  }
+
+  return folders.size;
 }
