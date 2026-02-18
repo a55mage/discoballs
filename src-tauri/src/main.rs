@@ -1,14 +1,19 @@
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
+use lofty::config::WriteOptions;
+use lofty::file::TaggedFileExt;
+use lofty::picture::{MimeType, Picture, PictureType};
+use lofty::prelude::Accessor;
+use lofty::probe::Probe;
+use lofty::tag::{Tag, TagExt, TagType};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashSet;
 use std::fs;
-use std::io::Write;
-use std::path::PathBuf;
-use std::process::{Command, Stdio};
+use std::path::{Path, PathBuf};
 use tauri::Manager;
+use walkdir::WalkDir;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct Track {
@@ -79,7 +84,30 @@ fn pick_music_folder() -> Option<String> {
 
 #[tauri::command]
 fn scan_folder(path: String) -> Result<ScanResult, String> {
-    run_python_scan(&path)
+    let root = PathBuf::from(&path);
+    if !root.exists() {
+        return Err(format!("Cartella non trovata: {path}"));
+    }
+
+    let mut tracks = Vec::new();
+    for entry in WalkDir::new(&root).into_iter().filter_map(Result::ok) {
+        if !entry.file_type().is_file() {
+            continue;
+        }
+
+        let p = entry.path();
+        if !is_supported_audio_path(p) {
+            continue;
+        }
+
+        tracks.push(read_track(p));
+    }
+
+    tracks.sort_by(|a, b| a.path.cmp(&b.path));
+    Ok(ScanResult {
+        folder_path: path,
+        tracks,
+    })
 }
 
 #[tauri::command]
@@ -125,12 +153,30 @@ async fn search_online(query: OnlineQuery) -> Result<Vec<OnlineMatch>, String> {
 
 #[tauri::command]
 fn save_track(input: SaveTrackInput) -> Result<SaveTrackOutput, String> {
-    run_python_save(&input)
+    let original_path = PathBuf::from(&input.path);
+    if !original_path.exists() {
+        return Err(format!("File non trovato: {}", input.path));
+    }
+
+    write_metadata_and_cover(&original_path, &input)?;
+
+    let renamed_path = maybe_rename_path(&original_path, &input)?;
+    Ok(SaveTrackOutput {
+        path: renamed_path.to_string_lossy().to_string(),
+    })
 }
 
 #[tauri::command]
 fn rename_track(input: SaveTrackInput) -> Result<SaveTrackOutput, String> {
-    run_python_rename(&input)
+    let original_path = PathBuf::from(&input.path);
+    if !original_path.exists() {
+        return Err(format!("File non trovato: {}", input.path));
+    }
+
+    let renamed_path = maybe_rename_path(&original_path, &input)?;
+    Ok(SaveTrackOutput {
+        path: renamed_path.to_string_lossy().to_string(),
+    })
 }
 
 #[tauri::command]
@@ -140,105 +186,274 @@ fn get_audio_data_url(path: String) -> Result<String, String> {
     Ok(format!("data:{};base64,{}", mime, BASE64.encode(bytes)))
 }
 
-fn project_root() -> PathBuf {
-    // web/src-tauri -> project root is parent of web
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .and_then(|p| p.parent())
-        .unwrap()
-        .to_path_buf()
+fn is_supported_audio_path(path: &Path) -> bool {
+    let lower = path
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or_default()
+        .to_lowercase();
+    lower == "mp3" || lower == "flac"
 }
 
-fn bridge_script_path() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("py_bridge.py")
+fn read_track(path: &Path) -> Track {
+    let default_title = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or_default()
+        .to_string();
+
+    let mut title = default_title;
+    let mut artist = String::new();
+    let mut album = String::new();
+    let mut tracknumber = String::new();
+    let mut year = String::new();
+    let mut genre = String::new();
+    let mut cover_data_url = None;
+
+    if let Ok(tagged_file) = Probe::open(path).and_then(|p| p.read()) {
+        if let Some(tag) = tagged_file.primary_tag().or_else(|| tagged_file.first_tag()) {
+            if let Some(v) = tag.title() {
+                if !v.trim().is_empty() {
+                    title = v.to_string();
+                }
+            }
+            if let Some(v) = tag.artist() {
+                artist = v.to_string();
+            }
+            if let Some(v) = tag.album() {
+                album = v.to_string();
+            }
+            if let Some(v) = tag.track() {
+                tracknumber = v.to_string();
+            }
+            if let Some(v) = tag.year() {
+                year = v.to_string();
+            }
+            if let Some(v) = tag.genre() {
+                genre = v.to_string();
+            }
+
+            if let Some(pic) = tag.pictures().first() {
+                let mime = mime_type_to_str(pic.mime_type());
+                cover_data_url = encode_data_url(pic.data(), mime);
+            }
+        }
+    }
+
+    Track {
+        id: path.to_string_lossy().to_string(),
+        path: path.to_string_lossy().to_string(),
+        title,
+        artist,
+        album,
+        tracknumber,
+        year: year.chars().take(4).collect(),
+        genre,
+        has_cover: cover_data_url.is_some(),
+        cover_data_url,
+    }
 }
 
-fn python_executable() -> PathBuf {
-    let root = project_root();
-    let candidates = [root.join(".venv/bin/python"), root.join(".venv/bin/python3")];
-    for candidate in candidates {
-        if candidate.exists() {
+fn write_metadata_and_cover(path: &Path, input: &SaveTrackInput) -> Result<(), String> {
+    let tag_type = primary_tag_type_for_path(path)?;
+
+    let mut tag = Probe::open(path)
+        .and_then(|p| p.read())
+        .map_err(|e| format!("Errore lettura metadata: {e}"))?
+        .primary_tag()
+        .cloned()
+        .unwrap_or_else(|| Tag::new(tag_type));
+
+    tag.set_title(input.title.clone());
+    tag.set_artist(input.artist.clone());
+    tag.set_album(input.album.clone());
+    tag.set_genre(input.genre.clone());
+
+    if let Some(track_no) = parse_u32_prefix(&input.tracknumber) {
+        tag.set_track(track_no);
+    }
+    if let Some(year) = parse_u32_year(&input.year) {
+        tag.set_year(year);
+    }
+
+    if let Some(cover_data_url) = input.cover_data_url.as_ref().filter(|v| !v.trim().is_empty()) {
+        let (bytes, mime) = parse_data_url(cover_data_url)?;
+        let picture = Picture::new_unchecked(PictureType::CoverFront, Some(mime), None, bytes);
+        tag.remove_picture_type(PictureType::CoverFront);
+        tag.push_picture(picture);
+    }
+
+    tag.save_to_path(path, WriteOptions::default())
+        .map_err(|e| format!("Errore salvataggio metadata: {e}"))
+}
+
+fn maybe_rename_path(path: &Path, input: &SaveTrackInput) -> Result<PathBuf, String> {
+    let rename_fields = input.rename_fields.clone().unwrap_or_default();
+    if rename_fields.is_empty() {
+        return Ok(path.to_path_buf());
+    }
+
+    let separator = input
+        .rename_separator
+        .clone()
+        .unwrap_or_else(|| " - ".to_string())
+        .trim()
+        .to_string();
+    let separator = if separator.is_empty() {
+        " - ".to_string()
+    } else {
+        separator
+    };
+
+    let parts = rename_fields
+        .iter()
+        .map(|field| rename_field_value(field, input))
+        .map(sanitize_filename_part)
+        .filter(|v| !v.is_empty())
+        .collect::<Vec<_>>();
+
+    if parts.is_empty() {
+        return Ok(path.to_path_buf());
+    }
+
+    let filename = format!("{}{}", parts.join(&separator), path.extension().map_or(String::new(), |e| format!(".{}", e.to_string_lossy())));
+    let target = path.with_file_name(filename);
+    let unique_target = unique_path(target);
+    if unique_target == path {
+        return Ok(path.to_path_buf());
+    }
+
+    fs::rename(path, &unique_target).map_err(|e| format!("Errore rinomina file: {e}"))?;
+    Ok(unique_target)
+}
+
+fn rename_field_value(field: &str, input: &SaveTrackInput) -> String {
+    match field {
+        "tracknumber" => input.tracknumber.clone(),
+        "artist" => input.artist.clone(),
+        "album" => input.album.clone(),
+        "title" => input.title.clone(),
+        "year" => input.year.clone(),
+        "genre" => input.genre.clone(),
+        _ => String::new(),
+    }
+}
+
+fn unique_path(path: PathBuf) -> PathBuf {
+    if !path.exists() {
+        return path;
+    }
+
+    let stem = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("file")
+        .to_string();
+    let ext = path
+        .extension()
+        .and_then(|s| s.to_str())
+        .map(|s| format!(".{s}"))
+        .unwrap_or_default();
+    let parent = path.parent().unwrap_or_else(|| Path::new(".")).to_path_buf();
+
+    for index in 1..10000 {
+        let candidate = parent.join(format!("{} ({}){}", stem, index, ext));
+        if !candidate.exists() {
             return candidate;
         }
     }
-    PathBuf::from("python3")
+
+    path
 }
 
-fn run_python_scan(path: &str) -> Result<ScanResult, String> {
-    let output = Command::new(python_executable())
-        .arg(bridge_script_path())
-        .arg("scan")
-        .arg(path)
-        .output()
-        .map_err(|e| format!("Errore avvio bridge scan: {e}"))?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-        return Err(format!("Bridge scan failed: {stderr}"));
+fn sanitize_filename_part(value: String) -> String {
+    let mut out = String::with_capacity(value.len());
+    for c in value.chars() {
+        if "<>:\"/\\|?*".contains(c) {
+            out.push('_');
+        } else if c == '\n' || c == '\r' {
+            out.push(' ');
+        } else {
+            out.push(c);
+        }
     }
 
-    serde_json::from_slice::<ScanResult>(&output.stdout)
-        .map_err(|e| format!("Parse risultato scan fallita: {e}"))
+    let collapsed = out.split_whitespace().collect::<Vec<_>>().join(" ");
+    collapsed.trim().trim_end_matches('.').to_string()
 }
 
-fn run_python_save(input: &SaveTrackInput) -> Result<SaveTrackOutput, String> {
-    let mut child = Command::new(python_executable())
-        .arg(bridge_script_path())
-        .arg("save")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| format!("Errore avvio bridge save: {e}"))?;
-
-    if let Some(stdin) = child.stdin.as_mut() {
-        let payload = serde_json::to_vec(input).map_err(|e| format!("Serialize input save failed: {e}"))?;
-        stdin
-            .write_all(&payload)
-            .map_err(|e| format!("Errore write stdin bridge save: {e}"))?;
+fn parse_data_url(data_url: &str) -> Result<(Vec<u8>, MimeType), String> {
+    if !data_url.starts_with("data:") {
+        return Err("cover_data_url non valido".to_string());
     }
 
-    let output = child
-        .wait_with_output()
-        .map_err(|e| format!("Errore attesa bridge save: {e}"))?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-        return Err(format!("Bridge save failed: {stderr}"));
+    let (header, encoded) = data_url
+        .split_once(',')
+        .ok_or_else(|| "cover_data_url non valido".to_string())?;
+    if !header.contains(";base64") {
+        return Err("cover_data_url deve essere base64".to_string());
     }
 
-    serde_json::from_slice::<SaveTrackOutput>(&output.stdout)
-        .map_err(|e| format!("Parse risultato save fallita: {e}"))
+    let mime_raw = header
+        .trim_start_matches("data:")
+        .split(';')
+        .next()
+        .unwrap_or("image/jpeg")
+        .trim()
+        .to_lowercase();
+
+    let mime = match mime_raw.as_str() {
+        "image/png" => MimeType::Png,
+        "image/gif" => MimeType::Gif,
+        "image/bmp" => MimeType::Bmp,
+        "image/tiff" | "image/tif" => MimeType::Tiff,
+        _ => MimeType::Jpeg,
+    };
+
+    let bytes = BASE64
+        .decode(encoded.as_bytes())
+        .map_err(|e| format!("Base64 cover non valido: {e}"))?;
+
+    Ok((bytes, mime))
 }
 
-fn run_python_rename(input: &SaveTrackInput) -> Result<SaveTrackOutput, String> {
-    let mut child = Command::new(python_executable())
-        .arg(bridge_script_path())
-        .arg("rename")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| format!("Errore avvio bridge rename: {e}"))?;
-
-    if let Some(stdin) = child.stdin.as_mut() {
-        let payload = serde_json::to_vec(input).map_err(|e| format!("Serialize input rename failed: {e}"))?;
-        stdin
-            .write_all(&payload)
-            .map_err(|e| format!("Errore write stdin bridge rename: {e}"))?;
+fn mime_type_to_str(mime: Option<&MimeType>) -> &'static str {
+    match mime {
+        Some(MimeType::Png) => "image/png",
+        Some(MimeType::Gif) => "image/gif",
+        Some(MimeType::Bmp) => "image/bmp",
+        Some(MimeType::Tiff) => "image/tiff",
+        _ => "image/jpeg",
     }
+}
 
-    let output = child
-        .wait_with_output()
-        .map_err(|e| format!("Errore attesa bridge rename: {e}"))?;
+fn parse_u32_prefix(value: &str) -> Option<u32> {
+    value
+        .split('/')
+        .next()
+        .unwrap_or(value)
+        .trim()
+        .parse::<u32>()
+        .ok()
+}
 
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-        return Err(format!("Bridge rename failed: {stderr}"));
+fn parse_u32_year(value: &str) -> Option<u32> {
+    let year = value.trim().chars().take(4).collect::<String>();
+    year.parse::<u32>().ok()
+}
+
+fn primary_tag_type_for_path(path: &Path) -> Result<TagType, String> {
+    let ext = path
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or_default()
+        .to_lowercase();
+
+    match ext.as_str() {
+        "mp3" => Ok(TagType::Id3v2),
+        "flac" => Ok(TagType::VorbisComments),
+        _ => Err(format!("Formato non supportato: .{ext}")),
     }
-
-    serde_json::from_slice::<SaveTrackOutput>(&output.stdout)
-        .map_err(|e| format!("Parse risultato rename fallita: {e}"))
 }
 
 fn mime_from_audio_path(path: &str) -> &'static str {

@@ -10,6 +10,10 @@ function isTauriRuntime(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
 
+export function runtimeModeLabel(): "tauri" | "mock" {
+  return isTauriRuntime() ? "tauri" : "mock";
+}
+
 function getInvoke(): TauriInvoke {
   const internals = (window as Window & { __TAURI_INTERNALS__?: TauriInternals }).__TAURI_INTERNALS__;
   if (!internals?.invoke) {

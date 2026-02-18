@@ -1,38 +1,42 @@
-# MusicManager Web (nuova base)
+# MusicManager Web
 
-Questa e la nuova versione web app, pensata per essere incapsulata come desktop app (consiglio: Tauri 2).
+Repository app + landing nella stessa codebase.
 
-## Stack
+## App desktop/web
+Stack:
 - React + TypeScript + Vite
-- Adapter layer per collegare backend desktop (scan file, tagging, ricerca online)
+- Tauri 2 (`src-tauri`)
+- Motore metadata/covers nativo in Rust (`lofty`), senza dipendenze Python per l'utente finale
 
-## Avvio
+Avvio web:
 ```bash
 cd /Users/riccardomacis/Progetti/musicmanager/web
 npm install
 npm run dev
 ```
 
-## Avvio desktop (Tauri)
+Avvio desktop (Tauri):
 ```bash
 cd /Users/riccardomacis/Progetti/musicmanager/web
 npm install
 npm run tauri:dev
 ```
 
-## Stato attuale
-- UI completa a 2 colonne con card
-- Colonna sinistra:
-  - card lista file
-  - card dettaglio traccia editabile con copertina
-- Colonna destra:
-  - card ricerca online con query editabile (titolo/artista/album)
-  - risultati in card selezionabili con preview copertina per risultato
-- Backend desktop Tauri disponibile in `src-tauri`:
-  - selezione cartella nativa
-  - scansione file `.mp3`/`.flac`
-  - ricerca online aggregata MusicBrainz + iTunes
-  - salvataggio tag/coperina reale tramite bridge Python (mutagen)
+## Landing GitHub Pages
+Landing statica per download release in:
+- `/Users/riccardomacis/Progetti/musicmanager/web/docs/index.html`
 
-## Nota importante
-- In ambiente browser puro resta attivo il fallback `mockAdapter`.
+File:
+- `docs/index.html`
+- `docs/styles.css`
+- `docs/script.js`
+
+Configurazione GitHub Pages (su questa repo):
+1. apri `Settings > Pages`
+2. in `Build and deployment`, seleziona `Deploy from a branch`
+3. scegli branch `main` (o default) e cartella `/docs`
+4. salva e usa l'URL Pages generato
+
+Nota:
+- su `*.github.io` la landing rileva automaticamente `owner/repo`
+- con dominio custom, imposta manualmente lo slug in `docs/script.js`

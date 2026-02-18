@@ -1,10 +1,11 @@
 import { type SVGProps, useEffect, useMemo, useRef, useState } from "react";
 import { Card } from "./components/Card";
-import { createAdapter } from "./api/tauriAdapter";
+import { createAdapter, runtimeModeLabel } from "./api/tauriAdapter";
 import { mockAdapter } from "./api/mockAdapter";
 import type { OnlineMatch, RenameField, Track } from "./types";
 
 const adapter = createAdapter(mockAdapter);
+const runtimeMode = runtimeModeLabel();
 const RENAME_FIELD_OPTIONS: Array<{ key: RenameField; label: string }> = [
   { key: "tracknumber", label: "Numero traccia" },
   { key: "artist", label: "Artista" },
@@ -293,7 +294,7 @@ export function App() {
       setSelectedResultId("");
       setSearchStatus("Pronto");
     } catch (error) {
-      setSearchStatus(`Errore scansione: ${String(error)}`);
+      setSearchStatus(`Errore scansione: ${formatError(error)}`);
     } finally {
       setIsLoadingScan(false);
     }
@@ -317,7 +318,7 @@ export function App() {
         `Ricerca: "${searchArtist} ${searchTitle} ${searchAlbum}". Risultati online: ${result.length}`
       );
     } catch (error) {
-      setSearchStatus(`Errore ricerca online: ${String(error)}`);
+      setSearchStatus(`Errore ricerca online: ${formatError(error)}`);
     } finally {
       setIsLoadingSearch(false);
     }
@@ -348,12 +349,12 @@ export function App() {
           year: selectedTrack.year,
           genre: selectedTrack.genre,
         },
-        selectedResult?.coverUrl
+        selectedTrack.coverUrl
       );
       updateTrackPathAfterSave(selectedTrack.id, result.path);
       setSearchStatus("Tag salvati nella traccia");
     } catch (error) {
-      setSearchStatus(`Errore salvataggio: ${String(error)}`);
+      setSearchStatus(`Errore salvataggio: ${formatError(error)}`);
     }
   }
 
@@ -373,7 +374,7 @@ export function App() {
           year: selectedTrack.year,
           genre: selectedTrack.genre,
         },
-        selectedResult?.coverUrl,
+        selectedTrack.coverUrl,
         {
           fields: renameFields,
           separator: renameSeparator,
@@ -382,7 +383,7 @@ export function App() {
       updateTrackPathAfterSave(selectedTrack.id, result.path);
       setSearchStatus("Tag salvati e file rinominato");
     } catch (error) {
-      setSearchStatus(`Errore salvataggio/rinomina: ${String(error)}`);
+      setSearchStatus(`Errore salvataggio/rinomina: ${formatError(error)}`);
     }
   }
 
@@ -409,7 +410,7 @@ export function App() {
       updateTrackPathAfterSave(selectedTrack.id, result.path);
       setSearchStatus("File rinominato");
     } catch (error) {
-      setSearchStatus(`Errore rinomina file: ${String(error)}`);
+      setSearchStatus(`Errore rinomina file: ${formatError(error)}`);
     }
   }
 
@@ -593,6 +594,9 @@ export function App() {
         <button className="ghost-button" onClick={handleInfoClick}>
           <span className="btn-content"><IconInfo className="btn-icon" />Info</span>
         </button>
+        <span className="library-path">
+          Backend: {runtimeMode === "tauri" ? "Tauri desktop" : "Mock browser (nessun dialog cartella nativo)"}
+        </span>
       </header>
 
       <main className="two-col">
@@ -908,6 +912,25 @@ function formatTime(value: number): string {
   const minutes = Math.floor(total / 60);
   const seconds = total % 60;
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+function formatError(error: unknown): string {
+  if (typeof error === "string") {
+    return error;
+  }
+  if (error && typeof error === "object") {
+    const candidate = error as { message?: unknown; toString?: () => string };
+    if (typeof candidate.message === "string" && candidate.message.trim()) {
+      return candidate.message;
+    }
+    if (typeof candidate.toString === "function") {
+      const text = candidate.toString();
+      if (text && text !== "[object Object]") {
+        return text;
+      }
+    }
+  }
+  return "Errore sconosciuto";
 }
 
 function countFoldersAndSubfolders(items: Track[], rootPath: string): number {
