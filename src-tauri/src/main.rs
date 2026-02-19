@@ -12,6 +12,7 @@ use serde_json::Value;
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use tauri::Manager;
 use walkdir::WalkDir;
 
@@ -184,6 +185,44 @@ fn get_audio_data_url(path: String) -> Result<String, String> {
     let bytes = fs::read(&path).map_err(|e| format!("Audio read error: {e}"))?;
     let mime = mime_from_audio_path(&path);
     Ok(format!("data:{};base64,{}", mime, BASE64.encode(bytes)))
+}
+
+#[tauri::command]
+fn open_external_url(url: String) -> Result<(), String> {
+    let url = url.trim();
+    if !(url.starts_with("https://") || url.starts_with("http://")) {
+        return Err("Only http/https URLs are allowed".to_string());
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        Command::new("open")
+            .arg(url)
+            .spawn()
+            .map_err(|e| format!("Unable to open browser: {e}"))?;
+        return Ok(());
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        Command::new("cmd")
+            .args(["/C", "start", "", url])
+            .spawn()
+            .map_err(|e| format!("Unable to open browser: {e}"))?;
+        return Ok(());
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        Command::new("xdg-open")
+            .arg(url)
+            .spawn()
+            .map_err(|e| format!("Unable to open browser: {e}"))?;
+        return Ok(());
+    }
+
+    #[allow(unreachable_code)]
+    Err("Unsupported platform".to_string())
 }
 
 fn is_supported_audio_path(path: &Path) -> bool {
@@ -743,7 +782,8 @@ fn main() {
             search_online,
             save_track,
             rename_track,
-            get_audio_data_url
+            get_audio_data_url,
+            open_external_url
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

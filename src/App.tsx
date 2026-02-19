@@ -51,6 +51,18 @@ const IconSave = (props: SVGProps<SVGSVGElement>) => (
   </IconBase>
 );
 
+const IconSaveRename = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <path d="M4 4h10l3 3v4" />
+    <path d="M7 4v5h6V4" />
+    <rect x="7" y="13" width="5" height="4" />
+    <line x1="15" y1="11" x2="21" y2="17" />
+    <path d="M14 20h3l6-6-3-3-6 6z" />
+    <line x1="12" y1="15" x2="18" y2="15" />
+    <line x1="15" y1="12" x2="15" y2="18" />
+  </IconBase>
+);
+
 const IconRename = (props: SVGProps<SVGSVGElement>) => (
   <IconBase {...props}>
     <path d="M4 20h4l10-10-4-4L4 16z" />
@@ -190,6 +202,7 @@ export function App() {
   const [folderPath, setFolderPath] = useState("");
   const [query, setQuery] = useState("");
   const [selectedTrackId, setSelectedTrackId] = useState<string>("");
+  const [trackDraft, setTrackDraft] = useState<Track | null>(null);
   const [onlineResults, setOnlineResults] = useState<OnlineMatch[]>([]);
   const [selectedResultId, setSelectedResultId] = useState<string>("");
   const [isLoadingScan, setIsLoadingScan] = useState(false);
@@ -198,6 +211,7 @@ export function App() {
   const [searchTitle, setSearchTitle] = useState("");
   const [searchArtist, setSearchArtist] = useState("");
   const [searchAlbum, setSearchAlbum] = useState("");
+  const [showInfoModal, setShowInfoModal] = useState(false);
   const [showRenameSettings, setShowRenameSettings] = useState(false);
   const [renameFields, setRenameFields] = useState<RenameField[]>(["tracknumber", "artist", "title"]);
   const [renameSeparator, setRenameSeparator] = useState(" - ");
@@ -213,6 +227,7 @@ export function App() {
   const [colorMode, setColorMode] = useState<"light" | "dark">("light");
 
   const selectedTrack = tracks.find((t) => t.id === selectedTrackId) ?? null;
+  const editableTrack = trackDraft ?? selectedTrack;
   const selectedResult = onlineResults.find((r) => r.id === selectedResultId) ?? null;
   const accentTheme = ACCENT_THEMES[accentIndex % ACCENT_THEMES.length];
   const appStyle: CSSProperties = {
@@ -231,7 +246,7 @@ export function App() {
   useEffect(() => {
     window.localStorage.setItem("musicmanager-color-mode", colorMode);
   }, [colorMode]);
-  const selectedFileName = selectedTrack ? getFileName(selectedTrack.path) : "No file selected";
+  const selectedFileName = editableTrack ? getFileName(editableTrack.path) : "No file selected";
   const folderCount = useMemo(() => countFoldersAndSubfolders(tracks, folderPath), [tracks, folderPath]);
   const librarySummary = useMemo(() => {
     if (!tracks.length) {
@@ -240,11 +255,15 @@ export function App() {
     return `Found ${tracks.length} audio files in ${folderCount} folders/subfolders`;
   }, [tracks.length, folderCount]);
   const renamePreview = useMemo(() => {
-    if (!selectedTrack) {
+    if (!editableTrack) {
       return "";
     }
-    return buildRenamePreview(selectedTrack, renameFields, renameSeparator);
-  }, [selectedTrack, renameFields, renameSeparator]);
+    return buildRenamePreview(editableTrack, renameFields, renameSeparator);
+  }, [editableTrack, renameFields, renameSeparator]);
+
+  useEffect(() => {
+    setTrackDraft(selectedTrack ? { ...selectedTrack } : null);
+  }, [selectedTrackId, tracks]);
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) {
@@ -309,7 +328,7 @@ export function App() {
           return;
         }
         setAudioSrc(src);
-        setAudioError(src ? "" : "Playback unavailable for this track.");
+        setAudioError("");
       } catch {
         if (cancelled) {
           return;
@@ -393,33 +412,31 @@ export function App() {
   }
 
   function handleTrackFieldChange(field: keyof Track, value: string) {
-    if (!selectedTrack) {
+    if (!editableTrack) {
       return;
     }
-    setTracks((prev) =>
-      prev.map((track) => (track.id === selectedTrack.id ? { ...track, [field]: value } : track))
-    );
+    setTrackDraft((prev) => (prev ? { ...prev, [field]: value } : prev));
   }
 
   async function handleSaveTrack() {
-    if (!selectedTrack) {
+    if (!editableTrack) {
       return;
     }
     try {
       const result = await adapter.saveTrack(
-        selectedTrack.id,
-        selectedTrack.path,
+        editableTrack.id,
+        editableTrack.path,
         {
-          title: selectedTrack.title,
-          artist: selectedTrack.artist,
-          album: selectedTrack.album,
-          tracknumber: selectedTrack.tracknumber,
-          year: selectedTrack.year,
-          genre: selectedTrack.genre,
+          title: editableTrack.title,
+          artist: editableTrack.artist,
+          album: editableTrack.album,
+          tracknumber: editableTrack.tracknumber,
+          year: editableTrack.year,
+          genre: editableTrack.genre,
         },
-        selectedTrack.coverUrl
+        editableTrack.coverUrl
       );
-      updateTrackPathAfterSave(selectedTrack.id, result.path);
+      commitTrackAfterTagSave(editableTrack.id, editableTrack, result.path);
       setSearchStatus("Tags saved to track");
     } catch (error) {
       setSearchStatus(`Save error: ${formatError(error)}`);
@@ -427,28 +444,28 @@ export function App() {
   }
 
   async function handleSaveAndRenameTrack() {
-    if (!selectedTrack) {
+    if (!editableTrack) {
       return;
     }
     try {
       const result = await adapter.saveTrack(
-        selectedTrack.id,
-        selectedTrack.path,
+        editableTrack.id,
+        editableTrack.path,
         {
-          title: selectedTrack.title,
-          artist: selectedTrack.artist,
-          album: selectedTrack.album,
-          tracknumber: selectedTrack.tracknumber,
-          year: selectedTrack.year,
-          genre: selectedTrack.genre,
+          title: editableTrack.title,
+          artist: editableTrack.artist,
+          album: editableTrack.album,
+          tracknumber: editableTrack.tracknumber,
+          year: editableTrack.year,
+          genre: editableTrack.genre,
         },
-        selectedTrack.coverUrl,
+        editableTrack.coverUrl,
         {
           fields: renameFields,
           separator: renameSeparator,
         }
       );
-      updateTrackPathAfterSave(selectedTrack.id, result.path);
+      commitTrackAfterTagSave(editableTrack.id, editableTrack, result.path);
       setSearchStatus("Tags saved and file renamed");
     } catch (error) {
       setSearchStatus(`Save/rename error: ${formatError(error)}`);
@@ -456,26 +473,26 @@ export function App() {
   }
 
   async function handleRenameOnlyTrack() {
-    if (!selectedTrack) {
+    if (!editableTrack) {
       return;
     }
     try {
       const result = await adapter.renameTrack(
-        selectedTrack.path,
+        editableTrack.path,
         {
-          title: selectedTrack.title,
-          artist: selectedTrack.artist,
-          album: selectedTrack.album,
-          tracknumber: selectedTrack.tracknumber,
-          year: selectedTrack.year,
-          genre: selectedTrack.genre,
+          title: editableTrack.title,
+          artist: editableTrack.artist,
+          album: editableTrack.album,
+          tracknumber: editableTrack.tracknumber,
+          year: editableTrack.year,
+          genre: editableTrack.genre,
         },
         {
           fields: renameFields,
           separator: renameSeparator,
         }
       );
-      updateTrackPathAfterSave(selectedTrack.id, result.path);
+      commitPathAfterRename(editableTrack.id, result.path);
       setSearchStatus("File renamed");
     } catch (error) {
       setSearchStatus(`Rename error: ${formatError(error)}`);
@@ -483,35 +500,29 @@ export function App() {
   }
 
   function applyOnlineResultToTrack(result: OnlineMatch): Track | null {
-    if (!selectedTrack) {
+    const baseTrack = editableTrack;
+    if (!baseTrack) {
       return null;
     }
 
     const nextTrack: Track = {
-      ...selectedTrack,
+      ...baseTrack,
       title: result.title,
       artist: result.artist,
       album: result.album,
-      tracknumber: result.tracknumber ?? selectedTrack.tracknumber,
+      tracknumber: result.tracknumber ?? baseTrack.tracknumber,
       year: result.date.slice(0, 4),
       coverUrl: result.coverUrl,
       hasCover: Boolean(result.coverUrl),
     };
 
-    setTracks((prev) =>
-      prev.map((track) => {
-        if (track.id !== selectedTrack.id) {
-          return track;
-        }
-        return nextTrack;
-      })
-    );
+    setTrackDraft(nextTrack);
 
     return nextTrack;
   }
 
   function handleApplyOnlineResult(result: OnlineMatch) {
-    if (!selectedTrack) {
+    if (!editableTrack) {
       return;
     }
     applyOnlineResultToTrack(result);
@@ -519,7 +530,7 @@ export function App() {
   }
 
   async function handleApplyAndSaveOnlineResult(result: OnlineMatch) {
-    if (!selectedTrack) {
+    if (!editableTrack) {
       return;
     }
 
@@ -542,7 +553,7 @@ export function App() {
         },
         nextTrack.coverUrl
       );
-      updateTrackPathAfterSave(selectedTrack.id, result.path);
+      commitTrackAfterTagSave(editableTrack.id, nextTrack, result.path);
       setSearchStatus("Result applied and tags saved to track");
     } catch (error) {
       setSearchStatus(`Apply and save error: ${formatError(error)}`);
@@ -550,9 +561,30 @@ export function App() {
   }
 
   function handleInfoClick() {
-    window.alert(
-      "DiscoBalls\n\nOrganize MP3/FLAC files, search online metadata (MusicBrainz + iTunes), and save tags/cover art to the selected track."
-    );
+    setShowInfoModal(true);
+  }
+
+  async function handleOpenExternalLink(
+    event: { preventDefault: () => void },
+    url: string
+  ) {
+    event.preventDefault();
+    const invoke = (
+      window as Window & {
+        __TAURI_INTERNALS__?: { invoke?: <T>(command: string, args?: Record<string, unknown>) => Promise<T> };
+      }
+    ).__TAURI_INTERNALS__?.invoke;
+
+    if (invoke) {
+      try {
+        await invoke<void>("open_external_url", { url });
+        return;
+      } catch {
+        // Fall through to browser default opener.
+      }
+    }
+
+    window.open(url, "_blank", "noopener,noreferrer");
   }
 
   async function handleTogglePlayPause() {
@@ -610,7 +642,19 @@ export function App() {
     }
   }
 
-  function updateTrackPathAfterSave(currentId: string, newPath: string) {
+  function commitTrackAfterTagSave(currentId: string, source: Track, newPath: string) {
+    const finalPath = newPath || source.path;
+    const committed: Track = {
+      ...source,
+      id: finalPath,
+      path: finalPath,
+    };
+    setTracks((prev) => prev.map((track) => (track.id === currentId ? committed : track)));
+    setTrackDraft(committed);
+    setSelectedTrackId(finalPath);
+  }
+
+  function commitPathAfterRename(currentId: string, newPath: string) {
     if (!newPath) {
       return;
     }
@@ -618,6 +662,7 @@ export function App() {
     setTracks((prev) =>
       prev.map((track) => (track.id === currentId ? { ...track, id: newPath, path: newPath } : track))
     );
+    setTrackDraft((prev) => (prev ? { ...prev, id: newPath, path: newPath } : prev));
     setSelectedTrackId(newPath);
   }
 
@@ -662,10 +707,10 @@ export function App() {
         </h1>
         <div className="top-player">
           <audio ref={audioRef} src={audioSrc} preload="metadata" />
-          <button className="ghost-button player-btn" onClick={handlePrevTrack} disabled={selectedTrackIndex <= 0}>
+          <button className="ghost-button player-btn" onClick={handlePrevTrack} disabled={selectedTrackIndex <= 0} title="Previous track" aria-label="Previous track">
             <span className="btn-content"><IconPrev className="btn-icon" /></span>
           </button>
-          <button className="player-btn" onClick={handleTogglePlayPause} disabled={!audioSrc}>
+          <button className="player-btn" onClick={handleTogglePlayPause} disabled={!audioSrc} title={isPlaying ? "Pause" : "Play"} aria-label={isPlaying ? "Pause" : "Play"}>
             <span className="btn-content">
               {isPlaying ? <IconPause className="btn-icon" /> : <IconPlay className="btn-icon" />}
             </span>
@@ -674,6 +719,8 @@ export function App() {
             className="ghost-button player-btn"
             onClick={handleNextTrack}
             disabled={selectedTrackIndex < 0 || selectedTrackIndex >= filteredTracks.length - 1}
+            title="Next track"
+            aria-label="Next track"
           >
             <span className="btn-content"><IconNext className="btn-icon" /></span>
           </button>
@@ -691,7 +738,7 @@ export function App() {
             <span className="player-time">{formatTime(duration)}</span>
           </div>
           <div className="player-volume">
-            <button className="ghost-button player-btn" onClick={() => setIsMuted((v) => !v)}>
+            <button className="ghost-button player-btn" onClick={() => setIsMuted((v) => !v)} title={isMuted || volume === 0 ? "Unmute" : "Mute"} aria-label={isMuted || volume === 0 ? "Unmute" : "Mute"}>
               <span className="btn-content">
                 {isMuted || volume === 0 ? <IconMute className="btn-icon" /> : <IconVolume className="btn-icon" />}
               </span>
@@ -712,13 +759,14 @@ export function App() {
             className="ghost-button"
             onClick={() => setColorMode((prev) => (prev === "light" ? "dark" : "light"))}
             title={colorMode === "light" ? "Enable dark mode" : "Enable light mode"}
+            aria-label={colorMode === "light" ? "Enable dark mode" : "Enable light mode"}
           >
             <span className="btn-content">
               {colorMode === "light" ? <IconMoon className="btn-icon" /> : <IconSun className="btn-icon" />}
             </span>
           </button>
-          <button className="ghost-button" onClick={handleInfoClick}>
-            <span className="btn-content"><IconInfo className="btn-icon" />Info</span>
+          <button className="ghost-button" onClick={handleInfoClick} title="Info" aria-label="Info">
+            <span className="btn-content"><IconInfo className="btn-icon" /></span>
           </button>
         </div>
       </header>
@@ -732,8 +780,8 @@ export function App() {
               <span className="library-path">{folderPath ? folderPath : "No folder selected"}</span>
             }
             headerRight={
-              <button onClick={handleScan} disabled={isLoadingScan}>
-                <span className="btn-content"><IconFolder className="btn-icon" />{isLoadingScan ? "Scanning..." : "Select folder"}</span>
+              <button onClick={handleScan} disabled={isLoadingScan} title={isLoadingScan ? "Scanning..." : "Select folder"} aria-label={isLoadingScan ? "Scanning..." : "Select folder"}>
+                <span className="btn-content"><IconFolder className="btn-icon" /></span>
               </button>
             }
           >
@@ -806,7 +854,9 @@ export function App() {
               ))}
             </ul>
           </Card>
+        </div>
 
+        <div className="col col-right">
           <Card
             title="Track details"
             className="details-card"
@@ -814,8 +864,8 @@ export function App() {
           >
             <div className="detail-layout">
               <div className="detail-cover-wrap">
-                {selectedTrack?.coverUrl ? (
-                  <img src={selectedTrack.coverUrl} alt="Track cover" className="cover detail-cover" />
+                {editableTrack?.coverUrl ? (
+                  <img src={editableTrack.coverUrl} alt="Track cover" className="cover detail-cover" />
                 ) : (
                   <div className="cover-placeholder detail-cover">No cover</div>
                 )}
@@ -826,7 +876,7 @@ export function App() {
                   Title
                   <input
                     className="input"
-                    value={selectedTrack?.title ?? ""}
+                    value={editableTrack?.title ?? ""}
                     onChange={(e) => handleTrackFieldChange("title", e.target.value)}
                   />
                 </label>
@@ -835,7 +885,7 @@ export function App() {
                     Artist
                     <input
                       className="input"
-                      value={selectedTrack?.artist ?? ""}
+                      value={editableTrack?.artist ?? ""}
                       onChange={(e) => handleTrackFieldChange("artist", e.target.value)}
                     />
                   </label>
@@ -843,7 +893,7 @@ export function App() {
                     Album
                     <input
                       className="input"
-                      value={selectedTrack?.album ?? ""}
+                      value={editableTrack?.album ?? ""}
                       onChange={(e) => handleTrackFieldChange("album", e.target.value)}
                     />
                   </label>
@@ -853,7 +903,7 @@ export function App() {
                     Track #
                     <input
                       className="input input-short"
-                      value={selectedTrack?.tracknumber ?? ""}
+                      value={editableTrack?.tracknumber ?? ""}
                       onChange={(e) => handleTrackFieldChange("tracknumber", e.target.value)}
                     />
                   </label>
@@ -861,7 +911,7 @@ export function App() {
                     Year
                     <input
                       className="input input-short"
-                      value={selectedTrack?.year ?? ""}
+                      value={editableTrack?.year ?? ""}
                       onChange={(e) => handleTrackFieldChange("year", e.target.value)}
                     />
                   </label>
@@ -869,39 +919,38 @@ export function App() {
                     Genre
                     <input
                       className="input input-short"
-                      value={selectedTrack?.genre ?? ""}
+                      value={editableTrack?.genre ?? ""}
                       onChange={(e) => handleTrackFieldChange("genre", e.target.value)}
                     />
                   </label>
                   <div className="inline-action-slot">
-                    <button onClick={handleSaveTrack} disabled={!selectedTrack}>
-                      <span className="btn-content"><IconSave className="btn-icon" />Save tags</span>
+                    <button onClick={handleSaveTrack} disabled={!editableTrack} title="Save tags" aria-label="Save tags">
+                      <span className="btn-content"><IconSave className="btn-icon" /></span>
+                    </button>
+                    <button onClick={handleSaveAndRenameTrack} disabled={!editableTrack} title="Save tags + rename file" aria-label="Save tags + rename file">
+                      <span className="btn-content"><IconSaveRename className="btn-icon" /></span>
                     </button>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="detail-actions">
-              <button onClick={handleRenameOnlyTrack} disabled={!selectedTrack}>
-                <span className="btn-content"><IconRename className="btn-icon" />Rename file</span>
-              </button>
-              <button onClick={handleSaveAndRenameTrack} disabled={!selectedTrack}>
-                <span className="btn-content"><IconSave className="btn-icon" />Save tags + rename file</span>
-              </button>
-              <button className="ghost-button" onClick={() => setShowRenameSettings(true)} disabled={!selectedTrack}>
-                <span className="btn-content"><IconSettings className="btn-icon" />Rename settings</span>
-              </button>
+            <div className="rename-preview-row">
+              <label className="rename-preview-field">
+                Renamed filename preview
+                <input className="input" readOnly value={renamePreview} />
+              </label>
+              <div className="rename-preview-actions">
+                <button onClick={handleRenameOnlyTrack} disabled={!editableTrack} title="Rename file" aria-label="Rename file">
+                  <span className="btn-content"><IconRename className="btn-icon" /></span>
+                </button>
+                <button className="ghost-button" onClick={() => setShowRenameSettings(true)} disabled={!editableTrack} title="Rename settings" aria-label="Rename settings">
+                  <span className="btn-content"><IconSettings className="btn-icon" /></span>
+                </button>
+              </div>
             </div>
-
-            <label className="rename-preview-field">
-              Renamed filename preview
-              <input className="input" readOnly value={renamePreview} />
-            </label>
           </Card>
-        </div>
 
-        <div className="col col-right">
           <Card title="Online search" className="search-card" headerRight={<span className="search-status">{searchStatus}</span>}>
             <div className="form-grid">
               <label>
@@ -916,8 +965,8 @@ export function App() {
                 Album query
                 <div className="query-with-action">
                   <input className="input" value={searchAlbum} onChange={(e) => setSearchAlbum(e.target.value)} />
-                  <button onClick={handleSearchOnline} disabled={!selectedTrack || isLoadingSearch}>
-                    <span className="btn-content"><IconSearch className="btn-icon" />{isLoadingSearch ? "Searching..." : "Search online"}</span>
+                  <button onClick={handleSearchOnline} disabled={!selectedTrack || isLoadingSearch} title={isLoadingSearch ? "Searching..." : "Search online"} aria-label={isLoadingSearch ? "Searching..." : "Search online"}>
+                    <span className="btn-content"><IconSearch className="btn-icon" /></span>
                   </button>
                 </div>
               </label>
@@ -937,33 +986,39 @@ export function App() {
                       <div className="result-cover-placeholder">No cover</div>
                     )}
                     <div className="result-content">
-                      <h3>{result.artist} - {result.title}</h3>
-                      <p>Album: {result.album}</p>
-                      <p>Date: {result.date || "n/a"}</p>
-                      <p className="muted">Source: {result.source ?? "N/A"}</p>
-                    </div>
-                    <div className="result-actions">
-                      <button
-                        className="ghost-button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedResultId(result.id);
-                          handleApplyOnlineResult(result);
-                        }}
-                        disabled={!selectedTrack}
-                      >
-                        <span className="btn-content"><IconCheck className="btn-icon" />Apply</span>
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedResultId(result.id);
-                          void handleApplyAndSaveOnlineResult(result);
-                        }}
-                        disabled={!selectedTrack}
-                      >
-                        <span className="btn-content"><IconSave className="btn-icon" />Apply & save</span>
-                      </button>
+                      <div className="result-main">
+                        <h3>{result.artist} - {result.title}</h3>
+                        <p>Album: {result.album}</p>
+                        <p>Date: {result.date || "n/a"}</p>
+                        <p className="muted">Source: {result.source ?? "N/A"}</p>
+                      </div>
+                      <div className="result-actions">
+                        <button
+                          className="ghost-button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedResultId(result.id);
+                            handleApplyOnlineResult(result);
+                          }}
+                          disabled={!selectedTrack}
+                          title="Apply"
+                          aria-label="Apply"
+                        >
+                          <span className="btn-content"><IconCheck className="btn-icon" /></span>
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedResultId(result.id);
+                            void handleApplyAndSaveOnlineResult(result);
+                          }}
+                          disabled={!selectedTrack}
+                          title="Apply & save"
+                          aria-label="Apply & save"
+                        >
+                          <span className="btn-content"><IconSave className="btn-icon" /></span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </article>
@@ -974,13 +1029,62 @@ export function App() {
         </div>
       </main>
 
+      {showInfoModal && (
+        <div className="modal-backdrop" onClick={() => setShowInfoModal(false)}>
+          <div className="modal-card info-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>About DiscoBalls</h3>
+              <button className="ghost-button" onClick={() => setShowInfoModal(false)} title="Close" aria-label="Close">
+                <span className="btn-content"><IconClose className="btn-icon" /></span>
+              </button>
+            </div>
+
+            <div className="info-meta">
+              <p><strong>App:</strong> DiscoBalls</p>
+              <p><strong>Version:</strong> 0.1.0</p>
+              <p>
+                <strong>Website:</strong>{" "}
+                <a
+                  href="https://a55mage.github.io/discoballs/"
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={(e) => void handleOpenExternalLink(e, "https://a55mage.github.io/discoballs/")}
+                >
+                  https://a55mage.github.io/discoballs/
+                </a>
+              </p>
+              <p>
+                <strong>Developer:</strong>{" "}
+                <a
+                  href="https://a55mage.github.io/"
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={(e) => void handleOpenExternalLink(e, "https://a55mage.github.io/")}
+                >
+                  https://a55mage.github.io/
+                </a>
+              </p>
+            </div>
+
+            <h4>Quick Manual</h4>
+            <ul className="info-manual">
+              <li>Select a folder to load your audio files library.</li>
+              <li>Pick a track, edit fields in Track details, then save tags.</li>
+              <li>Use rename actions to rename with your configured pattern.</li>
+              <li>Run online search to fetch metadata and cover art from MusicBrainz/iTunes.</li>
+              <li>Apply an online result, then save to persist metadata to file.</li>
+            </ul>
+          </div>
+        </div>
+      )}
+
       {showRenameSettings && (
         <div className="modal-backdrop" onClick={() => setShowRenameSettings(false)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>File rename settings</h3>
-              <button className="ghost-button" onClick={() => setShowRenameSettings(false)}>
-                <span className="btn-content"><IconClose className="btn-icon" />Close</span>
+              <button className="ghost-button" onClick={() => setShowRenameSettings(false)} title="Close" aria-label="Close">
+                <span className="btn-content"><IconClose className="btn-icon" /></span>
               </button>
             </div>
             <p className="muted compact">Choose fields, order, and separator for the final filename.</p>
@@ -990,14 +1094,14 @@ export function App() {
                 <div key={field} className="rename-field-row">
                   <label className="rename-field-check">{renameFieldLabel(field)}</label>
                   <div className="rename-field-controls">
-                    <button className="ghost-button" onClick={() => moveRenameField(field, -1)}>
-                      <span className="btn-content"><IconArrowUp className="btn-icon" />Up</span>
+                    <button className="ghost-button" onClick={() => moveRenameField(field, -1)} title="Move up" aria-label="Move up">
+                      <span className="btn-content"><IconArrowUp className="btn-icon" /></span>
                     </button>
-                    <button className="ghost-button" onClick={() => moveRenameField(field, 1)}>
-                      <span className="btn-content"><IconArrowDown className="btn-icon" />Down</span>
+                    <button className="ghost-button" onClick={() => moveRenameField(field, 1)} title="Move down" aria-label="Move down">
+                      <span className="btn-content"><IconArrowDown className="btn-icon" /></span>
                     </button>
-                    <button className="ghost-button" onClick={() => toggleRenameField(field)} disabled={renameFields.length <= 1}>
-                      <span className="btn-content"><IconClose className="btn-icon" />Remove</span>
+                    <button className="ghost-button" onClick={() => toggleRenameField(field)} disabled={renameFields.length <= 1} title="Remove" aria-label="Remove">
+                      <span className="btn-content"><IconClose className="btn-icon" /></span>
                     </button>
                   </div>
                 </div>
@@ -1006,8 +1110,8 @@ export function App() {
                 <div key={opt.key} className="rename-field-row">
                   <label className="rename-field-check">{opt.label}</label>
                   <div className="rename-field-controls">
-                    <button className="ghost-button" onClick={() => toggleRenameField(opt.key)}>
-                      <span className="btn-content"><IconCheck className="btn-icon" />Add</span>
+                    <button className="ghost-button" onClick={() => toggleRenameField(opt.key)} title="Add" aria-label="Add">
+                      <span className="btn-content"><IconCheck className="btn-icon" /></span>
                     </button>
                   </div>
                 </div>
