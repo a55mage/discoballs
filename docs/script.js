@@ -1,7 +1,40 @@
 (function initGallery() {
+  initMobileMenu();
   initSwiper();
   initImageModal();
 })();
+
+function initMobileMenu() {
+  const button = document.getElementById("mobile-menu-button");
+  const nav = document.getElementById("main-nav");
+  if (!button || !nav) return;
+
+  const closeMenu = () => {
+    nav.classList.remove("is-open");
+    button.setAttribute("aria-expanded", "false");
+  };
+
+  const toggleMenu = () => {
+    const isOpen = nav.classList.toggle("is-open");
+    button.setAttribute("aria-expanded", String(isOpen));
+  };
+
+  button.addEventListener("click", toggleMenu);
+  nav.querySelectorAll("a").forEach((link) => {
+    link.addEventListener("click", closeMenu);
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeMenu();
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!nav.classList.contains("is-open")) return;
+    if (event.target === button || button.contains(event.target)) return;
+    if (event.target === nav || nav.contains(event.target)) return;
+    closeMenu();
+  });
+}
 
 function initSwiper() {
   if (typeof window.Swiper !== "function") return;
