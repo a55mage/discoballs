@@ -1,4 +1,4 @@
-import { type ChangeEvent, type CSSProperties, type MouseEvent, type SVGProps, useEffect, useMemo, useRef, useState } from "react";
+import { type ChangeEvent, type CSSProperties, type MouseEvent, type SVGProps, type UIEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Card } from "./components/Card";
 import { createAdapter } from "./api/tauriAdapter";
 import { mockAdapter } from "./api/mockAdapter";
@@ -23,6 +23,13 @@ const RENAME_FIELD_OPTIONS: Array<{ key: RenameField; label: string }> = [
   { key: "genre", label: "Genre" },
 ];
 const RENAME_FIELD_KEYS = new Set<RenameField>(RENAME_FIELD_OPTIONS.map((option) => option.key));
+const TRACK_LIST_OVERSCAN_ROWS = 4;
+const TRACK_LIST_CARD_MIN_WIDTH = 250;
+const TRACK_LIST_CARD_ROW_HEIGHT = 68;
+const TRACK_LIST_COMPACT_ROW_HEIGHT = 32;
+const TRACK_LIST_CARD_GAP = 8;
+const TRACK_LIST_COMPACT_GAP = 4;
+const TRACK_LIST_VIRTUALIZE_AFTER = 120;
 
 function IconBase(props: SVGProps<SVGSVGElement>) {
   return (
@@ -217,6 +224,7 @@ const IconMoon = (props: SVGProps<SVGSVGElement>) => (
 export function App() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const coverInputRef = useRef<HTMLInputElement | null>(null);
+  const trackListRef = useRef<HTMLUListElement | null>(null);
   const [tracks, setTracks] = useState<Track[]>([]);
   const [folderPath, setFolderPath] = useState("");
   const [query, setQuery] = useState("");
@@ -245,6 +253,9 @@ export function App() {
   const [audioError, setAudioError] = useState("");
   const [shouldAutoplay, setShouldAutoplay] = useState(false);
   const [libraryViewMode, setLibraryViewMode] = useState<"card" | "compact">("card");
+  const [trackListScrollTop, setTrackListScrollTop] = useState(0);
+  const [trackListViewportHeight, setTrackListViewportHeight] = useState(420);
+  const [trackListWidth, setTrackListWidth] = useState(0);
   const [accentIndex, setAccentIndex] = useState(0);
   const [colorMode, setColorMode] = useState<"light" | "dark">("light");
 
@@ -335,6 +346,31 @@ export function App() {
   useEffect(() => {
     setTrackDraft(selectedTrack ? { ...selectedTrack } : null);
   }, [selectedTrackId, tracks]);
+
+  useEffect(() => {
+    const list = trackListRef.current;
+    if (!list) {
+      return;
+    }
+    const updateMetrics = () => {
+      setTrackListViewportHeight(list.clientHeight || 420);
+      setTrackListWidth(list.clientWidth || 0);
+    };
+    updateMetrics();
+    const observer = new ResizeObserver(updateMetrics);
+    observer.observe(list);
+    return () => {
+      observer.disconnect();
+    };
+  }, [libraryViewMode]);
+
+  useEffect(() => {
+    const list = trackListRef.current;
+    if (list) {
+      list.scrollTop = 0;
+    }
+    setTrackListScrollTop(0);
+  }, [query, libraryViewMode, tracks.length]);
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) {
@@ -468,6 +504,36 @@ export function App() {
         t.path.toLowerCase().includes(q)
     );
   }, [tracks, query]);
+  const virtualTrackWindow = useMemo(() => {
+    const isCompact = libraryViewMode === "compact";
+    const gap = isCompact ? TRACK_LIST_COMPACT_GAP : TRACK_LIST_CARD_GAP;
+    const rowHeight = isCompact ? TRACK_LIST_COMPACT_ROW_HEIGHT : TRACK_LIST_CARD_ROW_HEIGHT;
+    const columns = isCompact
+      ? 1
+      : Math.max(1, Math.floor((trackListWidth + gap) / (TRACK_LIST_CARD_MIN_WIDTH + gap)));
+    const totalRows = Math.ceil(filteredTracks.length / columns);
+    const shouldVirtualize = filteredTracks.length > TRACK_LIST_VIRTUALIZE_AFTER;
+
+    if (!shouldVirtualize) {
+      return {
+        visibleTracks: filteredTracks,
+        topSpacerHeight: 0,
+        bottomSpacerHeight: 0,
+      };
+    }
+
+    const viewportRows = Math.max(1, Math.ceil(trackListViewportHeight / rowHeight));
+    const startRow = Math.max(0, Math.floor(trackListScrollTop / rowHeight) - TRACK_LIST_OVERSCAN_ROWS);
+    const endRow = Math.min(totalRows, startRow + viewportRows + TRACK_LIST_OVERSCAN_ROWS * 2);
+    const startIndex = startRow * columns;
+    const endIndex = Math.min(filteredTracks.length, endRow * columns);
+
+    return {
+      visibleTracks: filteredTracks.slice(startIndex, endIndex),
+      topSpacerHeight: startRow * rowHeight,
+      bottomSpacerHeight: Math.max(0, (totalRows - endRow) * rowHeight),
+    };
+  }, [filteredTracks, libraryViewMode, trackListScrollTop, trackListViewportHeight, trackListWidth]);
   const playbackTrackIndex = useMemo(
     () => filteredTracks.findIndex((t) => t.id === playbackTrackId),
     [filteredTracks, playbackTrackId]
@@ -768,6 +834,10 @@ export function App() {
     setCurrentTime(value);
   }
 
+  function handleTrackListScroll(event: UIEvent<HTMLUListElement>) {
+    setTrackListScrollTop(event.currentTarget.scrollTop);
+  }
+
   function handleSelectCoverClick() {
     if (!editableTrack) {
       return;
@@ -1030,8 +1100,19 @@ export function App() {
               </div>
               <span className="library-summary">{librarySummary}</span>
             </div>
-            <ul className={libraryViewMode === "compact" ? "track-list compact" : "track-list"}>
-              {filteredTracks.map((track) => (
+            <ul
+              ref={trackListRef}
+              onScroll={handleTrackListScroll}
+              className={libraryViewMode === "compact" ? "track-list compact" : "track-list"}
+            >
+              {virtualTrackWindow.topSpacerHeight > 0 && (
+                <li
+                  className="track-list-spacer"
+                  style={{ height: virtualTrackWindow.topSpacerHeight, gridColumn: "1 / -1" }}
+                  aria-hidden="true"
+                />
+              )}
+              {virtualTrackWindow.visibleTracks.map((track) => (
                 <li key={track.id}>
                   <button
                     className={
@@ -1082,6 +1163,13 @@ export function App() {
                   </button>
                 </li>
               ))}
+              {virtualTrackWindow.bottomSpacerHeight > 0 && (
+                <li
+                  className="track-list-spacer"
+                  style={{ height: virtualTrackWindow.bottomSpacerHeight, gridColumn: "1 / -1" }}
+                  aria-hidden="true"
+                />
+              )}
             </ul>
           </Card>
         </div>

@@ -265,6 +265,7 @@ button:disabled {
   gap: 8px;
   padding: 8px;
   border: 1px solid #e2e8e4;
+  min-height: 60px;
 }
 
 .track-item.compact {
@@ -272,6 +273,14 @@ button:disabled {
   align-items: center;
   gap: 6px;
   padding: 4px 6px;
+  min-height: 28px;
+}
+
+.track-list-spacer {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
 button.track-item.active {
