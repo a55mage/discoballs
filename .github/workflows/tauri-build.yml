@@ -64,7 +64,10 @@ jobs:
 
       - name: Read app version
         id: app_version
-        run: echo "value=$(node -p \"require('./src-tauri/tauri.conf.json').version\")" >> "$GITHUB_OUTPUT"
+        shell: bash
+        run: |
+          version=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          echo "value=$version" >> "$GITHUB_OUTPUT"
 
       - name: Build Tauri bundles
         run: npm run tauri:build
