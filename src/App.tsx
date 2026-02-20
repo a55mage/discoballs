@@ -22,6 +22,7 @@ const RENAME_FIELD_OPTIONS: Array<{ key: RenameField; label: string }> = [
   { key: "year", label: "Year" },
   { key: "genre", label: "Genre" },
 ];
+const RENAME_FIELD_KEYS = new Set<RenameField>(RENAME_FIELD_OPTIONS.map((option) => option.key));
 
 function IconBase(props: SVGProps<SVGSVGElement>) {
   return (
@@ -241,12 +242,60 @@ export function App() {
     if (saved === "light" || saved === "dark") {
       setColorMode(saved);
     }
+
+    const savedAccent = window.localStorage.getItem("musicmanager-accent-index");
+    if (savedAccent) {
+      const parsed = Number(savedAccent);
+      if (Number.isInteger(parsed) && parsed >= 0) {
+        setAccentIndex(parsed % ACCENT_THEMES.length);
+      }
+    }
+
+    const savedRenameFields = window.localStorage.getItem("musicmanager-rename-fields");
+    if (savedRenameFields) {
+      try {
+        const parsed = JSON.parse(savedRenameFields);
+        if (Array.isArray(parsed)) {
+          const valid = parsed
+            .map((value) => String(value))
+            .filter((value): value is RenameField => RENAME_FIELD_KEYS.has(value as RenameField));
+          if (valid.length) {
+            setRenameFields(valid);
+          }
+        }
+      } catch {
+        // Ignore invalid persisted value.
+      }
+    }
+
+    const savedRenameSeparator = window.localStorage.getItem("musicmanager-rename-separator");
+    if (savedRenameSeparator !== null) {
+      setRenameSeparator(savedRenameSeparator);
+    }
   }, []);
 
   useEffect(() => {
     window.localStorage.setItem("musicmanager-color-mode", colorMode);
   }, [colorMode]);
+
+  useEffect(() => {
+    window.localStorage.setItem("musicmanager-accent-index", String(accentIndex));
+  }, [accentIndex]);
+
+  useEffect(() => {
+    window.localStorage.setItem("musicmanager-rename-fields", JSON.stringify(renameFields));
+  }, [renameFields]);
+
+  useEffect(() => {
+    window.localStorage.setItem("musicmanager-rename-separator", renameSeparator);
+  }, [renameSeparator]);
   const selectedFileName = editableTrack ? getFileName(editableTrack.path) : "No file selected";
+  const hasUnsavedChanges = useMemo(() => {
+    if (!selectedTrack || !editableTrack) {
+      return false;
+    }
+    return !areTracksEqual(selectedTrack, editableTrack);
+  }, [selectedTrack, editableTrack]);
   const folderCount = useMemo(() => countFoldersAndSubfolders(tracks, folderPath), [tracks, folderPath]);
   const librarySummary = useMemo(() => {
     if (!tracks.length) {
@@ -861,6 +910,11 @@ export function App() {
             title="Track details"
             className="details-card"
             headerAfterTitle={<span className="library-path">{selectedFileName}</span>}
+            headerRight={
+              <span className={hasUnsavedChanges ? "dirty-indicator" : "dirty-indicator is-hidden"}>
+                Unsaved changes
+              </span>
+            }
           >
             <div className="detail-layout">
               <div className="detail-cover-wrap">
@@ -1041,7 +1095,7 @@ export function App() {
 
             <div className="info-meta">
               <p><strong>App:</strong> DiscoBalls</p>
-              <p><strong>Version:</strong> 0.1.0</p>
+              <p><strong>Version:</strong> 1.0</p>
               <p>
                 <strong>Website:</strong>{" "}
                 <a
@@ -1140,6 +1194,21 @@ function getFileName(path: string): string {
     return normalized;
   }
   return normalized.slice(index + 1);
+}
+
+function areTracksEqual(a: Track, b: Track): boolean {
+  return (
+    a.id === b.id &&
+    a.path === b.path &&
+    a.title === b.title &&
+    a.artist === b.artist &&
+    a.album === b.album &&
+    a.tracknumber === b.tracknumber &&
+    a.year === b.year &&
+    a.genre === b.genre &&
+    a.hasCover === b.hasCover &&
+    (a.coverUrl ?? "") === (b.coverUrl ?? "")
+  );
 }
 
 function buildRenamePreview(track: Track, fields: RenameField[], separator: string): string {

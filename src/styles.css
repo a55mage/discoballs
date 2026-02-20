@@ -517,6 +517,21 @@ button.track-item:hover:enabled {
   max-width: 420px;
 }
 
+.dirty-indicator {
+  font-size: 12px;
+  font-weight: 700;
+  color: #8b5a20;
+  background: #f4e4c8;
+  border: 1px solid #ddb77a;
+  border-radius: 999px;
+  padding: 4px 8px;
+  white-space: nowrap;
+}
+
+.dirty-indicator.is-hidden {
+  visibility: hidden;
+}
+
 .results-grid {
   display: grid;
   gap: 10px;
@@ -765,6 +780,12 @@ button.track-item:hover:enabled {
 .app-shell.theme-dark .detail-form label,
 .app-shell.theme-dark .rename-preview-field {
   color: #c4d0dd;
+}
+
+.app-shell.theme-dark .dirty-indicator {
+  color: #ffd7a1;
+  background: rgba(255, 180, 84, 0.14);
+  border-color: rgba(255, 180, 84, 0.5);
 }
 
 .app-shell.theme-dark .rename-field-row {
