@@ -62,13 +62,17 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      - name: Read app version
+        id: app_version
+        run: echo "value=$(node -p \"require('./src-tauri/tauri.conf.json').version\")" >> "$GITHUB_OUTPUT"
+
       - name: Build Tauri bundles
         run: npm run tauri:build
 
       - name: Upload bundles
         uses: actions/upload-artifact@v4
         with:
-          name: discoballs-${{ matrix.platform }}-bundles
+          name: discoballs-v${{ steps.app_version.outputs.value }}-${{ matrix.platform }}-bundles
           path: src-tauri/target/release/bundle
           if-no-files-found: error
 

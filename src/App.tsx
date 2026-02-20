@@ -1393,7 +1393,7 @@ export function App() {
 
             <div className="info-meta">
               <p><strong>App:</strong> DiscoBalls</p>
-              <p><strong>Version:</strong> 1.0</p>
+              <p><strong>Version:</strong> 1.1</p>
               <p>
                 <strong>Website:</strong>{" "}
                 <a
