@@ -101,7 +101,8 @@ export const tauriAdapter: MusicAdapter = {
     path: string,
     update: TrackUpdate,
     coverUrl?: string,
-    renameConfig?: RenameConfig
+    renameConfig?: RenameConfig,
+    removeCover?: boolean
   ): Promise<SaveTrackResult> {
     const invoke = getInvoke();
     return await invoke<SaveTrackResult>("save_track", {
@@ -114,6 +115,7 @@ export const tauriAdapter: MusicAdapter = {
         year: update.year,
         genre: update.genre,
         cover_data_url: coverUrl ?? null,
+        remove_cover: Boolean(removeCover),
         rename_fields: renameConfig?.fields ?? null,
         rename_separator: renameConfig?.separator ?? null,
       },

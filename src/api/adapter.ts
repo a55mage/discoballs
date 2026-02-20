@@ -7,7 +7,8 @@ export interface MusicAdapter {
     path: string,
     update: TrackUpdate,
     coverUrl?: string,
-    renameConfig?: RenameConfig
+    renameConfig?: RenameConfig,
+    removeCover?: boolean
   ): Promise<SaveTrackResult>;
   renameTrack(path: string, update: TrackUpdate, renameConfig: RenameConfig): Promise<SaveTrackResult>;
   getAudioSource(path: string): Promise<string>;

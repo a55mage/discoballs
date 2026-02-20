@@ -66,6 +66,8 @@ struct SaveTrackInput {
     year: String,
     genre: String,
     cover_data_url: Option<String>,
+    #[serde(default)]
+    remove_cover: bool,
     rename_fields: Option<Vec<String>>,
     rename_separator: Option<String>,
 }
@@ -329,6 +331,8 @@ fn write_metadata_and_cover(path: &Path, input: &SaveTrackInput) -> Result<(), S
         let picture = Picture::new_unchecked(PictureType::CoverFront, Some(mime), None, bytes);
         tag.remove_picture_type(PictureType::CoverFront);
         tag.push_picture(picture);
+    } else if input.remove_cover {
+        tag.remove_picture_type(PictureType::CoverFront);
     }
 
     tag.save_to_path(path, WriteOptions::default())

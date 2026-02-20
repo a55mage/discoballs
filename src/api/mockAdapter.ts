@@ -43,7 +43,8 @@ export const mockAdapter: MusicAdapter = {
     path: string,
     update: TrackUpdate,
     coverUrl?: string,
-    renameConfig?: RenameConfig
+    renameConfig?: RenameConfig,
+    removeCover?: boolean
   ): Promise<SaveTrackResult> {
     await wait(200);
     let nextPath = path;
@@ -65,8 +66,8 @@ export const mockAdapter: MusicAdapter = {
         ...update,
         id: nextPath,
         path: nextPath,
-        coverUrl: coverUrl ?? track.coverUrl,
-        hasCover: Boolean(coverUrl ?? track.coverUrl),
+        coverUrl: removeCover ? undefined : (coverUrl ?? track.coverUrl),
+        hasCover: removeCover ? false : Boolean(coverUrl ?? track.coverUrl),
       };
     });
     return { path: nextPath };

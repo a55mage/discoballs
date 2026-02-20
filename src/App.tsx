@@ -1,4 +1,4 @@
-import { type CSSProperties, type SVGProps, useEffect, useMemo, useRef, useState } from "react";
+import { type ChangeEvent, type CSSProperties, type MouseEvent, type SVGProps, useEffect, useMemo, useRef, useState } from "react";
 import { Card } from "./components/Card";
 import { createAdapter } from "./api/tauriAdapter";
 import { mockAdapter } from "./api/mockAdapter";
@@ -102,6 +102,23 @@ const IconClose = (props: SVGProps<SVGSVGElement>) => (
   </IconBase>
 );
 
+const IconPlus = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <line x1="12" y1="5" x2="12" y2="19" />
+    <line x1="5" y1="12" x2="19" y2="12" />
+  </IconBase>
+);
+
+const IconTrash = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <polyline points="3 6 5 6 21 6" />
+    <path d="M8 6v-1a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v1" />
+    <path d="M19 6l-1 14H6L5 6" />
+    <line x1="10" y1="11" x2="10" y2="17" />
+    <line x1="14" y1="11" x2="14" y2="17" />
+  </IconBase>
+);
+
 const IconArrowUp = (props: SVGProps<SVGSVGElement>) => (
   <IconBase {...props}>
     <polyline points="6 14 12 8 18 14" />
@@ -199,10 +216,12 @@ const IconMoon = (props: SVGProps<SVGSVGElement>) => (
 
 export function App() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const coverInputRef = useRef<HTMLInputElement | null>(null);
   const [tracks, setTracks] = useState<Track[]>([]);
   const [folderPath, setFolderPath] = useState("");
   const [query, setQuery] = useState("");
   const [selectedTrackId, setSelectedTrackId] = useState<string>("");
+  const [playbackTrackId, setPlaybackTrackId] = useState<string>("");
   const [trackDraft, setTrackDraft] = useState<Track | null>(null);
   const [onlineResults, setOnlineResults] = useState<OnlineMatch[]>([]);
   const [selectedResultId, setSelectedResultId] = useState<string>("");
@@ -222,12 +241,15 @@ export function App() {
   const [volume, setVolume] = useState(0.7);
   const [isMuted, setIsMuted] = useState(false);
   const [audioSrc, setAudioSrc] = useState("");
+  const [audioTrackId, setAudioTrackId] = useState("");
   const [audioError, setAudioError] = useState("");
+  const [shouldAutoplay, setShouldAutoplay] = useState(false);
   const [libraryViewMode, setLibraryViewMode] = useState<"card" | "compact">("card");
   const [accentIndex, setAccentIndex] = useState(0);
   const [colorMode, setColorMode] = useState<"light" | "dark">("light");
 
   const selectedTrack = tracks.find((t) => t.id === selectedTrackId) ?? null;
+  const playbackTrack = tracks.find((t) => t.id === playbackTrackId) ?? null;
   const editableTrack = trackDraft ?? selectedTrack;
   const selectedResult = onlineResults.find((r) => r.id === selectedResultId) ?? null;
   const accentTheme = ACCENT_THEMES[accentIndex % ACCENT_THEMES.length];
@@ -363,10 +385,12 @@ export function App() {
     setCurrentTime(0);
     setDuration(0);
 
-    const path = selectedTrack?.path;
+    const path = playbackTrack?.path;
     if (!path) {
       setAudioSrc("");
+      setAudioTrackId("");
       setAudioError("");
+      setShouldAutoplay(false);
       return;
     }
 
@@ -377,20 +401,59 @@ export function App() {
           return;
         }
         setAudioSrc(src);
+        setAudioTrackId(playbackTrackId);
         setAudioError("");
       } catch {
         if (cancelled) {
           return;
         }
         setAudioSrc("");
+        setAudioTrackId("");
         setAudioError("Playback unavailable for this track.");
+        setShouldAutoplay(false);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [selectedTrack?.path]);
+  }, [playbackTrack?.path, playbackTrackId]);
+
+  useEffect(() => {
+    if (!shouldAutoplay || !audioSrc || !audioTrackId || audioTrackId !== playbackTrackId) {
+      return;
+    }
+    const audio = audioRef.current;
+    if (!audio) {
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        await audio.play();
+        if (cancelled) {
+          return;
+        }
+        setIsPlaying(true);
+        setAudioError("");
+      } catch {
+        if (cancelled) {
+          return;
+        }
+        setAudioError("Unable to start playback in this environment.");
+        setIsPlaying(false);
+      } finally {
+        if (!cancelled) {
+          setShouldAutoplay(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [audioSrc, shouldAutoplay, audioTrackId, playbackTrackId]);
 
   const filteredTracks = useMemo(() => {
     if (!query.trim()) {
@@ -405,9 +468,9 @@ export function App() {
         t.path.toLowerCase().includes(q)
     );
   }, [tracks, query]);
-  const selectedTrackIndex = useMemo(
-    () => filteredTracks.findIndex((t) => t.id === selectedTrackId),
-    [filteredTracks, selectedTrackId]
+  const playbackTrackIndex = useMemo(
+    () => filteredTracks.findIndex((t) => t.id === playbackTrackId),
+    [filteredTracks, playbackTrackId]
   );
 
   async function handleScan() {
@@ -420,6 +483,8 @@ export function App() {
       setFolderPath(result.folderPath);
       setTracks(result.tracks);
       setSelectedTrackId(result.tracks[0]?.id ?? "");
+      setPlaybackTrackId("");
+      setShouldAutoplay(false);
       const firstTrack = result.tracks[0];
       if (firstTrack) {
         setSearchTitle(firstTrack.title);
@@ -471,6 +536,7 @@ export function App() {
     if (!editableTrack) {
       return;
     }
+    const shouldRemoveCover = Boolean(selectedTrack?.hasCover) && !editableTrack.hasCover && !editableTrack.coverUrl;
     try {
       const result = await adapter.saveTrack(
         editableTrack.id,
@@ -483,7 +549,9 @@ export function App() {
           year: editableTrack.year,
           genre: editableTrack.genre,
         },
-        editableTrack.coverUrl
+        editableTrack.coverUrl,
+        undefined,
+        shouldRemoveCover
       );
       commitTrackAfterTagSave(editableTrack.id, editableTrack, result.path);
       setSearchStatus("Tags saved to track");
@@ -496,6 +564,7 @@ export function App() {
     if (!editableTrack) {
       return;
     }
+    const shouldRemoveCover = Boolean(selectedTrack?.hasCover) && !editableTrack.hasCover && !editableTrack.coverUrl;
     try {
       const result = await adapter.saveTrack(
         editableTrack.id,
@@ -512,7 +581,8 @@ export function App() {
         {
           fields: renameFields,
           separator: renameSeparator,
-        }
+        },
+        shouldRemoveCover
       );
       commitTrackAfterTagSave(editableTrack.id, editableTrack, result.path);
       setSearchStatus("Tags saved and file renamed");
@@ -588,6 +658,7 @@ export function App() {
       return;
     }
 
+    const shouldRemoveCover = Boolean(selectedTrack?.hasCover) && !nextTrack.hasCover && !nextTrack.coverUrl;
     try {
       const result = await adapter.saveTrack(
         nextTrack.id,
@@ -600,7 +671,9 @@ export function App() {
           year: nextTrack.year,
           genre: nextTrack.genre,
         },
-        nextTrack.coverUrl
+        nextTrack.coverUrl,
+        undefined,
+        shouldRemoveCover
       );
       commitTrackAfterTagSave(editableTrack.id, nextTrack, result.path);
       setSearchStatus("Result applied and tags saved to track");
@@ -656,6 +729,36 @@ export function App() {
     }
   }
 
+  function handlePlayFromLibraryCover(event: MouseEvent<HTMLElement>, track: Track) {
+    event.stopPropagation();
+    if (track.id !== selectedTrackId) {
+      selectTrack(track);
+    }
+
+    if (track.id !== playbackTrackId) {
+      setPlaybackTrackId(track.id);
+      setShouldAutoplay(true);
+      return;
+    }
+
+    const audio = audioRef.current;
+    if (!audio || !audioSrc || audioTrackId !== track.id) {
+      setShouldAutoplay(true);
+      return;
+    }
+
+    void audio.play().then(
+      () => {
+        setIsPlaying(true);
+        setAudioError("");
+      },
+      () => {
+        setAudioError("Unable to start playback in this environment.");
+        setIsPlaying(false);
+      }
+    );
+  }
+
   function handleSeek(value: number) {
     const audio = audioRef.current;
     if (!audio) {
@@ -665,29 +768,85 @@ export function App() {
     setCurrentTime(value);
   }
 
-  function handlePrevTrack() {
-    if (selectedTrackIndex <= 0) {
+  function handleSelectCoverClick() {
+    if (!editableTrack) {
       return;
     }
-    const prev = filteredTracks[selectedTrackIndex - 1];
+    if (coverInputRef.current) {
+      coverInputRef.current.value = "";
+      coverInputRef.current.click();
+    }
+  }
+
+  function handleCoverFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !editableTrack) {
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      setSearchStatus("Invalid cover format. Select an image file.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result;
+      if (typeof dataUrl !== "string") {
+        setSearchStatus("Unable to read cover file.");
+        return;
+      }
+      setTrackDraft((prev) => (prev ? { ...prev, coverUrl: dataUrl, hasCover: true } : prev));
+      setSearchStatus("Cover loaded. Save the track to persist changes.");
+    };
+    reader.onerror = () => {
+      setSearchStatus("Unable to read cover file.");
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function handleRemoveCover() {
+    if (!editableTrack) {
+      return;
+    }
+    setTrackDraft((prev) => (prev ? { ...prev, coverUrl: undefined, hasCover: false } : prev));
+    setSearchStatus("Cover removed from draft. Save the track to persist changes.");
+  }
+
+  function selectTrack(track: Track) {
+    const isNewTrack = track.id !== selectedTrackId;
+    setSelectedTrackId(track.id);
+    setSearchTitle(track.title);
+    setSearchArtist(track.artist);
+    setSearchAlbum(track.album);
+    if (isNewTrack) {
+      setOnlineResults([]);
+      setSelectedResultId("");
+      setSearchStatus("Ready");
+    }
+  }
+
+  function handlePrevTrack() {
+    if (playbackTrackIndex <= 0) {
+      return;
+    }
+    const prev = filteredTracks[playbackTrackIndex - 1];
     if (prev) {
-      setSelectedTrackId(prev.id);
-      setSearchTitle(prev.title);
-      setSearchArtist(prev.artist);
-      setSearchAlbum(prev.album);
+      setPlaybackTrackId(prev.id);
+      setShouldAutoplay(true);
+      selectTrack(prev);
     }
   }
 
   function handleNextTrack() {
-    if (selectedTrackIndex < 0 || selectedTrackIndex >= filteredTracks.length - 1) {
+    if (playbackTrackIndex < 0 || playbackTrackIndex >= filteredTracks.length - 1) {
       return;
     }
-    const next = filteredTracks[selectedTrackIndex + 1];
+    const next = filteredTracks[playbackTrackIndex + 1];
     if (next) {
-      setSelectedTrackId(next.id);
-      setSearchTitle(next.title);
-      setSearchArtist(next.artist);
-      setSearchAlbum(next.album);
+      setPlaybackTrackId(next.id);
+      setShouldAutoplay(true);
+      selectTrack(next);
     }
   }
 
@@ -701,6 +860,9 @@ export function App() {
     setTracks((prev) => prev.map((track) => (track.id === currentId ? committed : track)));
     setTrackDraft(committed);
     setSelectedTrackId(finalPath);
+    if (playbackTrackId === currentId) {
+      setPlaybackTrackId(finalPath);
+    }
   }
 
   function commitPathAfterRename(currentId: string, newPath: string) {
@@ -713,6 +875,9 @@ export function App() {
     );
     setTrackDraft((prev) => (prev ? { ...prev, id: newPath, path: newPath } : prev));
     setSelectedTrackId(newPath);
+    if (playbackTrackId === currentId) {
+      setPlaybackTrackId(newPath);
+    }
   }
 
   function toggleRenameField(field: RenameField) {
@@ -756,10 +921,16 @@ export function App() {
         </h1>
         <div className="top-player">
           <audio ref={audioRef} src={audioSrc} preload="metadata" />
-          <button className="ghost-button player-btn" onClick={handlePrevTrack} disabled={selectedTrackIndex <= 0} title="Previous track" aria-label="Previous track">
+          <button className="ghost-button player-btn" onClick={handlePrevTrack} disabled={playbackTrackIndex <= 0} title="Previous track" aria-label="Previous track">
             <span className="btn-content"><IconPrev className="btn-icon" /></span>
           </button>
-          <button className="player-btn" onClick={handleTogglePlayPause} disabled={!audioSrc} title={isPlaying ? "Pause" : "Play"} aria-label={isPlaying ? "Pause" : "Play"}>
+          <button
+            className="player-btn"
+            onClick={handleTogglePlayPause}
+            disabled={!audioSrc || audioTrackId !== playbackTrackId}
+            title={isPlaying ? "Pause" : "Play"}
+            aria-label={isPlaying ? "Pause" : "Play"}
+          >
             <span className="btn-content">
               {isPlaying ? <IconPause className="btn-icon" /> : <IconPlay className="btn-icon" />}
             </span>
@@ -767,7 +938,7 @@ export function App() {
           <button
             className="ghost-button player-btn"
             onClick={handleNextTrack}
-            disabled={selectedTrackIndex < 0 || selectedTrackIndex >= filteredTracks.length - 1}
+            disabled={playbackTrackIndex < 0 || playbackTrackIndex >= filteredTracks.length - 1}
             title="Next track"
             aria-label="Next track"
           >
@@ -782,7 +953,7 @@ export function App() {
               step={0.1}
               value={Math.min(currentTime, duration || 0)}
               onChange={(e) => handleSeek(Number(e.target.value))}
-              disabled={!audioSrc || duration <= 0}
+              disabled={!audioSrc || audioTrackId !== playbackTrackId || duration <= 0}
             />
             <span className="player-time">{formatTime(duration)}</span>
           </div>
@@ -873,17 +1044,27 @@ export function App() {
                           : "track-item"
                     }
                     onClick={() => {
-                      setSelectedTrackId(track.id);
-                      setSearchTitle(track.title);
-                      setSearchArtist(track.artist);
-                      setSearchAlbum(track.album);
+                      selectTrack(track);
                     }}
                   >
-                    {track.coverUrl ? (
-                      <img src={track.coverUrl} alt={`Cover ${track.album || track.title}`} className="track-thumb" />
-                    ) : (
-                      <div className="track-thumb-placeholder">♪</div>
-                    )}
+                    <div
+                      className="track-thumb-trigger"
+                      onClick={(event) => handlePlayFromLibraryCover(event, track)}
+                      title="Play track"
+                    >
+                      {track.coverUrl ? (
+                        <img
+                          src={track.coverUrl}
+                          alt={`Cover ${track.album || track.title}`}
+                          className="track-thumb"
+                        />
+                      ) : (
+                        <div className="track-thumb-placeholder">♪</div>
+                      )}
+                      <span className="track-thumb-play-indicator" aria-hidden="true">
+                        <IconPlay className="track-thumb-play-icon" />
+                      </span>
+                    </div>
                     {libraryViewMode === "compact" ? (
                       <span className="track-text compact">
                         <strong>{track.title || "Untitled"}</strong>
@@ -918,11 +1099,40 @@ export function App() {
           >
             <div className="detail-layout">
               <div className="detail-cover-wrap">
-                {editableTrack?.coverUrl ? (
-                  <img src={editableTrack.coverUrl} alt="Track cover" className="cover detail-cover" />
-                ) : (
-                  <div className="cover-placeholder detail-cover">No cover</div>
-                )}
+                <input
+                  ref={coverInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleCoverFileChange}
+                  style={{ display: "none" }}
+                />
+                <div className="detail-cover-shell">
+                  {editableTrack?.coverUrl ? (
+                    <img src={editableTrack.coverUrl} alt="Track cover" className="cover detail-cover" />
+                  ) : (
+                    <div className="cover-placeholder detail-cover">No cover</div>
+                  )}
+                  <div className="cover-actions">
+                    <button
+                      className="ghost-button"
+                      onClick={handleSelectCoverClick}
+                      disabled={!editableTrack}
+                      title="Carica cover"
+                      aria-label="Carica cover"
+                    >
+                      <span className="btn-content"><IconPlus className="btn-icon" /></span>
+                    </button>
+                    <button
+                      className="ghost-button"
+                      onClick={handleRemoveCover}
+                      disabled={!editableTrack || !editableTrack.hasCover}
+                      title="Rimuovi cover"
+                      aria-label="Rimuovi cover"
+                    >
+                      <span className="btn-content"><IconTrash className="btn-icon" /></span>
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div className="detail-form">
