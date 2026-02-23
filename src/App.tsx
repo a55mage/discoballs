@@ -407,10 +407,17 @@ export function App() {
       setTrackListWidth(list.clientWidth || 0);
     };
     updateMetrics();
-    const observer = new ResizeObserver(updateMetrics);
-    observer.observe(list);
+    if (typeof window.ResizeObserver === "function") {
+      const observer = new window.ResizeObserver(updateMetrics);
+      observer.observe(list);
+      return () => {
+        observer.disconnect();
+      };
+    }
+
+    window.addEventListener("resize", updateMetrics);
     return () => {
-      observer.disconnect();
+      window.removeEventListener("resize", updateMetrics);
     };
   }, [libraryViewMode]);
 
@@ -1312,7 +1319,7 @@ export function App() {
 
             <div className="info-meta">
               <p><strong>App:</strong> DiscoBalls</p>
-              <p><strong>Version:</strong> 1.1</p>
+              <p><strong>Version:</strong> 1.2.0</p>
               <p>
                 <strong>Website:</strong>{" "}
                 <a
