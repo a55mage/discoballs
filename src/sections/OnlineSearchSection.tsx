@@ -54,18 +54,20 @@ export function OnlineSearchSection({
   return (
     <Card title="Online search" className="search-card" headerRight={<span className="search-status">{searchStatus}</span>}>
       <div className="form-grid">
-        <label>
-          Title query
-          <input className="input" value={searchTitle} onChange={(event) => onSearchTitleChange(event.target.value)} />
+        <label className="floating-field">
+          <input className="input" placeholder=" " value={searchTitle} onChange={(event) => onSearchTitleChange(event.target.value)} />
+          <span className="floating-label">Title query</span>
         </label>
-        <label>
-          Artist query
-          <input className="input" value={searchArtist} onChange={(event) => onSearchArtistChange(event.target.value)} />
+        <label className="floating-field">
+          <input className="input" placeholder=" " value={searchArtist} onChange={(event) => onSearchArtistChange(event.target.value)} />
+          <span className="floating-label">Artist query</span>
         </label>
-        <label>
-          Album query
+        <div className="query-field">
           <div className="query-with-action">
-            <input className="input" value={searchAlbum} onChange={(event) => onSearchAlbumChange(event.target.value)} />
+            <label className="floating-field">
+              <input className="input" placeholder=" " value={searchAlbum} onChange={(event) => onSearchAlbumChange(event.target.value)} />
+              <span className="floating-label">Album query</span>
+            </label>
             <div className="search-action-wrap">
               <button
                 onClick={onSearchButtonClick}
@@ -80,7 +82,7 @@ export function OnlineSearchSection({
               {isLoadingSearch && <span className="search-spinner" aria-hidden="true" />}
             </div>
           </div>
-        </label>
+        </div>
       </div>
 
       <div className="results-grid">

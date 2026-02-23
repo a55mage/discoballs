@@ -101,60 +101,68 @@ export function TrackDetailsSection({
         </div>
 
         <div className="detail-form">
-          <div className="detail-technical-row">
-            <span className="track-format-badge">{technicalBadge}</span>
-            <span className="detail-technical-text">{technicalSummary}</span>
-          </div>
-          <label>
-            Title
+          {editableTrack && (
+            <div className="detail-technical-row">
+              <span className="track-format-badge">{technicalBadge}</span>
+              <span className="detail-technical-text">{technicalSummary}</span>
+            </div>
+          )}
+          <label className="floating-field">
             <input
               className="input"
+              placeholder=" "
               value={editableTrack?.title ?? ""}
               onChange={(event) => onTrackFieldChange("title", event.target.value)}
             />
+            <span className="floating-label">Title</span>
           </label>
           <div className="detail-row-two">
-            <label>
-              Artist
+            <label className="floating-field">
               <input
                 className="input"
+                placeholder=" "
                 value={editableTrack?.artist ?? ""}
                 onChange={(event) => onTrackFieldChange("artist", event.target.value)}
               />
+              <span className="floating-label">Artist</span>
             </label>
-            <label>
-              Album
+            <label className="floating-field">
               <input
                 className="input"
+                placeholder=" "
                 value={editableTrack?.album ?? ""}
                 onChange={(event) => onTrackFieldChange("album", event.target.value)}
               />
+              <span className="floating-label">Album</span>
             </label>
           </div>
           <div className="short-fields">
-            <label>
-              Track #
+            <label className="floating-field">
               <input
                 className="input input-short"
+                placeholder=" "
                 value={editableTrack?.tracknumber ?? ""}
                 onChange={(event) => onTrackFieldChange("tracknumber", event.target.value)}
               />
+              <span className="floating-label">Track #</span>
             </label>
-            <label>
-              Year
+            <label className="floating-field">
               <input
                 className="input input-short"
+                placeholder=" "
                 value={editableTrack?.year ?? ""}
                 onChange={(event) => onTrackFieldChange("year", event.target.value)}
               />
+              <span className="floating-label">Year</span>
             </label>
-            <label>
-              Genre
+            <label className="floating-field">
               <input
                 className="input input-short"
+                placeholder=" "
                 value={editableTrack?.genre ?? ""}
                 onChange={(event) => onTrackFieldChange("genre", event.target.value)}
               />
+              <span className="floating-label">Genre</span>
             </label>
             <div className="inline-action-slot">
               <button onClick={onSaveTrack} disabled={!editableTrack} title="Save tags" aria-label="Save tags">

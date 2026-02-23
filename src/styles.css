@@ -481,12 +481,47 @@ button.track-item:hover:enabled {
   color: #334155;
 }
 
+.floating-field {
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+
+.floating-field .input {
+  margin-bottom: 0;
+  padding-top: 16px;
+  padding-bottom: 6px;
+}
+
+.floating-label {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 13px;
+  color: #5f5d56;
+  pointer-events: none;
+  transition: top 0.15s ease, transform 0.15s ease, font-size 0.15s ease, color 0.15s ease;
+}
+
+.floating-field:focus-within .floating-label,
+.floating-field .input:not(:placeholder-shown) + .floating-label {
+  top: 5px;
+  transform: translateY(0);
+  font-size: 10px;
+  color: var(--accent-strong);
+}
+
 .query-with-action {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 8px;
   align-items: center;
   overflow: visible;
+}
+
+.query-field {
+  min-width: 0;
 }
 
 .query-with-action .input {
@@ -619,7 +654,7 @@ img.detail-cover {
   color: #334155;
 }
 
-.detail-form .input {
+.detail-form .floating-field {
   margin-bottom: 4px;
 }
 
@@ -1069,6 +1104,15 @@ img.detail-cover {
 .app-shell.theme-dark .detail-form label,
 .app-shell.theme-dark .rename-preview-field {
   color: #c4d0dd;
+}
+
+.app-shell.theme-dark .floating-label {
+  color: #9eacbc;
+}
+
+.app-shell.theme-dark .floating-field:focus-within .floating-label,
+.app-shell.theme-dark .floating-field .input:not(:placeholder-shown) + .floating-label {
+  color: #ffb08e;
 }
 
 .app-shell.theme-dark .dirty-indicator {
