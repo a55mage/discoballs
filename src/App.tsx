@@ -1,8 +1,10 @@
 import { type ChangeEvent, type CSSProperties, type MouseEvent, type SVGProps, type UIEvent, useEffect, useMemo, useRef, useState } from "react";
-import { Card } from "./components/Card";
 import { createAdapter } from "./api/tauriAdapter";
 import { mockAdapter } from "./api/mockAdapter";
-import type { OnlineMatch, RenameField, Track } from "./types";
+import { LibrarySection } from "./sections/LibrarySection";
+import { OnlineSearchSection } from "./sections/OnlineSearchSection";
+import { TrackDetailsSection } from "./sections/TrackDetailsSection";
+import type { OnlineMatch, RenameField, SearchQuery, Track, TrackTechnicalInfo } from "./types";
 
 const adapter = createAdapter(mockAdapter);
 const ACCENT_THEMES = [
@@ -30,6 +32,10 @@ const TRACK_LIST_COMPACT_ROW_HEIGHT = 32;
 const TRACK_LIST_CARD_GAP = 8;
 const TRACK_LIST_COMPACT_GAP = 4;
 const TRACK_LIST_VIRTUALIZE_AFTER = 120;
+type ParsedOnlineMatchDate =
+  | { precision: "day"; year: number; month: number; day: number }
+  | { precision: "month"; year: number; month: number }
+  | { precision: "year"; year: number };
 
 function IconBase(props: SVGProps<SVGSVGElement>) {
   return (
@@ -225,6 +231,8 @@ export function App() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const coverInputRef = useRef<HTMLInputElement | null>(null);
   const trackListRef = useRef<HTMLUListElement | null>(null);
+  const searchRequestRef = useRef<{ id: number; canceled: boolean } | null>(null);
+  const searchRequestCounterRef = useRef(0);
   const [tracks, setTracks] = useState<Track[]>([]);
   const [folderPath, setFolderPath] = useState("");
   const [query, setQuery] = useState("");
@@ -251,6 +259,7 @@ export function App() {
   const [audioSrc, setAudioSrc] = useState("");
   const [audioTrackId, setAudioTrackId] = useState("");
   const [audioError, setAudioError] = useState("");
+  const [trackTechnicalInfo, setTrackTechnicalInfo] = useState<TrackTechnicalInfo | null>(null);
   const [shouldAutoplay, setShouldAutoplay] = useState(false);
   const [libraryViewMode, setLibraryViewMode] = useState<"card" | "compact">("card");
   const [trackListScrollTop, setTrackListScrollTop] = useState(0);
@@ -258,10 +267,51 @@ export function App() {
   const [trackListWidth, setTrackListWidth] = useState(0);
   const [accentIndex, setAccentIndex] = useState(0);
   const [colorMode, setColorMode] = useState<"light" | "dark">("light");
+  const userLocale = useMemo(() => getUserLocale(), []);
 
   const selectedTrack = tracks.find((t) => t.id === selectedTrackId) ?? null;
   const playbackTrack = tracks.find((t) => t.id === playbackTrackId) ?? null;
+  const playerInfoTrack = playbackTrack ?? selectedTrack;
   const editableTrack = trackDraft ?? selectedTrack;
+  const trackTechnicalBadge = useMemo(
+    () => formatTrackTechnicalBadge(trackTechnicalInfo, editableTrack?.path),
+    [trackTechnicalInfo, editableTrack?.path]
+  );
+  const trackTechnicalSummary = useMemo(
+    () => formatTrackTechnicalSummary(trackTechnicalInfo),
+    [trackTechnicalInfo]
+  );
+  const dateSortedOnlineResults = useMemo(
+    () =>
+      [...onlineResults].sort((a, b) => {
+        const aDate = getOnlineMatchDateSortKey(a.date);
+        const bDate = getOnlineMatchDateSortKey(b.date);
+        if (aDate === bDate) {
+          return 0;
+        }
+        return aDate < bDate ? -1 : 1;
+      }),
+    [onlineResults]
+  );
+  const bestMatchResultId = useMemo(
+    () => dateSortedOnlineResults.find((result) => isOnlineMatchBestMatchCandidate(result))?.id ?? "",
+    [dateSortedOnlineResults]
+  );
+  const sortedOnlineResults = useMemo(() => {
+    if (!bestMatchResultId) {
+      return dateSortedOnlineResults;
+    }
+    const bestMatchIndex = dateSortedOnlineResults.findIndex((result) => result.id === bestMatchResultId);
+    if (bestMatchIndex <= 0) {
+      return dateSortedOnlineResults;
+    }
+    const bestMatch = dateSortedOnlineResults[bestMatchIndex];
+    return [
+      bestMatch,
+      ...dateSortedOnlineResults.slice(0, bestMatchIndex),
+      ...dateSortedOnlineResults.slice(bestMatchIndex + 1),
+    ];
+  }, [bestMatchResultId, dateSortedOnlineResults]);
   const selectedResult = onlineResults.find((r) => r.id === selectedResultId) ?? null;
   const accentTheme = ACCENT_THEMES[accentIndex % ACCENT_THEMES.length];
   const appStyle: CSSProperties = {
@@ -324,7 +374,7 @@ export function App() {
   }, [renameSeparator]);
   const selectedFileName = editableTrack ? getFileName(editableTrack.path) : "No file selected";
   const hasUnsavedChanges = useMemo(() => {
-    if (!selectedTrack || !editableTrack) {
+    if (!selectedTrack || !editableTrack || selectedTrack.id !== editableTrack.id) {
       return false;
     }
     return !areTracksEqual(selectedTrack, editableTrack);
@@ -491,6 +541,32 @@ export function App() {
     };
   }, [audioSrc, shouldAutoplay, audioTrackId, playbackTrackId]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const path = editableTrack?.path;
+    if (!path) {
+      setTrackTechnicalInfo(null);
+      return;
+    }
+
+    (async () => {
+      try {
+        const info = await adapter.getTrackTechnicalInfo(path);
+        if (!cancelled) {
+          setTrackTechnicalInfo(info);
+        }
+      } catch {
+        if (!cancelled) {
+          setTrackTechnicalInfo(null);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [editableTrack?.path]);
+
   const filteredTracks = useMemo(() => {
     if (!query.trim()) {
       return tracks;
@@ -539,7 +615,19 @@ export function App() {
     [filteredTracks, playbackTrackId]
   );
 
+  function cancelOnlineSearch(reason = "Online search canceled.") {
+    const activeSearch = searchRequestRef.current;
+    if (!activeSearch) {
+      return;
+    }
+    activeSearch.canceled = true;
+    searchRequestRef.current = null;
+    setIsLoadingSearch(false);
+    setSearchStatus(reason);
+  }
+
   async function handleScan() {
+    cancelOnlineSearch();
     setIsLoadingScan(true);
     try {
       const result = await adapter.selectFolderAndScan();
@@ -567,28 +655,65 @@ export function App() {
     }
   }
 
+  async function runOnlineSearch(query: SearchQuery) {
+    const activeSearch = {
+      id: searchRequestCounterRef.current + 1,
+      canceled: false,
+    };
+    searchRequestCounterRef.current = activeSearch.id;
+    searchRequestRef.current = activeSearch;
+
+    setIsLoadingSearch(true);
+    setSearchStatus("Online search in progress...");
+    try {
+      const result = await adapter.searchOnline(query);
+      if (activeSearch.canceled || searchRequestRef.current?.id !== activeSearch.id) {
+        return;
+      }
+      setOnlineResults(result);
+      setSelectedResultId("");
+      setSearchStatus(
+        `Search: "${query.artist} ${query.title} ${query.album}". Online results: ${result.length}`
+      );
+    } catch (error) {
+      if (activeSearch.canceled || searchRequestRef.current?.id !== activeSearch.id) {
+        return;
+      }
+      setSearchStatus(`Online search error: ${formatError(error)}`);
+    } finally {
+      if (searchRequestRef.current?.id === activeSearch.id) {
+        searchRequestRef.current = null;
+        setIsLoadingSearch(false);
+      }
+    }
+  }
+
   async function handleSearchOnline() {
     if (!selectedTrack) {
       return;
     }
-    setIsLoadingSearch(true);
-    setSearchStatus("Online search in progress...");
-    try {
-      const result = await adapter.searchOnline({
-        title: searchTitle,
-        artist: searchArtist,
-        album: searchAlbum,
-      });
-      setOnlineResults(result);
-      setSelectedResultId("");
-      setSearchStatus(
-        `Search: "${searchArtist} ${searchTitle} ${searchAlbum}". Online results: ${result.length}`
-      );
-    } catch (error) {
-      setSearchStatus(`Online search error: ${formatError(error)}`);
-    } finally {
-      setIsLoadingSearch(false);
+    await runOnlineSearch({
+      title: searchTitle,
+      artist: searchArtist,
+      album: searchAlbum,
+    });
+  }
+
+  function handleSearchButtonClick() {
+    if (isLoadingSearch) {
+      cancelOnlineSearch();
+      return;
     }
+    void handleSearchOnline();
+  }
+
+  function handleQuickSearchTrack(track: Track) {
+    selectTrack(track);
+    void runOnlineSearch({
+      title: track.title,
+      artist: track.artist,
+      album: track.album,
+    });
   }
 
   function handleTrackFieldChange(field: keyof Track, value: string) {
@@ -777,7 +902,7 @@ export function App() {
 
   async function handleTogglePlayPause() {
     const audio = audioRef.current;
-    if (!audio || !audioSrc) {
+    if (!audio) {
       return;
     }
     if (isPlaying) {
@@ -785,6 +910,21 @@ export function App() {
       setIsPlaying(false);
       return;
     }
+
+    const targetTrack = selectedTrack ?? playbackTrack;
+    if (targetTrack && targetTrack.id !== playbackTrackId) {
+      setPlaybackTrackId(targetTrack.id);
+      setShouldAutoplay(true);
+      return;
+    }
+
+    if (!audioSrc || !audioTrackId || audioTrackId !== playbackTrackId) {
+      if (targetTrack) {
+        setShouldAutoplay(true);
+      }
+      return;
+    }
+
     try {
       await audio.play();
       setIsPlaying(true);
@@ -885,11 +1025,15 @@ export function App() {
 
   function selectTrack(track: Track) {
     const isNewTrack = track.id !== selectedTrackId;
+    if (isNewTrack) {
+      setTrackDraft({ ...track });
+    }
     setSelectedTrackId(track.id);
     setSearchTitle(track.title);
     setSearchArtist(track.artist);
     setSearchAlbum(track.album);
     if (isNewTrack) {
+      cancelOnlineSearch("Online search canceled: track changed.");
       setOnlineResults([]);
       setSelectedResultId("");
       setSearchStatus("Ready");
@@ -991,13 +1135,28 @@ export function App() {
         </h1>
         <div className="top-player">
           <audio ref={audioRef} src={audioSrc} preload="metadata" />
+          <div className="player-now-playing" title={playerInfoTrack ? `${playerInfoTrack.artist} - ${playerInfoTrack.title}` : "No track selected"}>
+            {playerInfoTrack?.coverUrl ? (
+              <img
+                src={playerInfoTrack.coverUrl}
+                alt={`Cover ${playerInfoTrack.album || playerInfoTrack.title}`}
+                className="player-now-cover"
+              />
+            ) : (
+              <div className="player-now-cover-placeholder">♪</div>
+            )}
+            <span className="player-now-text">
+              <strong className="player-now-title">{playerInfoTrack?.title || "No track selected"}</strong>
+              <small className="player-now-artist">{playerInfoTrack?.artist || "Select a track from library"}</small>
+            </span>
+          </div>
           <button className="ghost-button player-btn" onClick={handlePrevTrack} disabled={playbackTrackIndex <= 0} title="Previous track" aria-label="Previous track">
             <span className="btn-content"><IconPrev className="btn-icon" /></span>
           </button>
           <button
             className="player-btn"
             onClick={handleTogglePlayPause}
-            disabled={!audioSrc || audioTrackId !== playbackTrackId}
+            disabled={!selectedTrack && !audioSrc}
             title={isPlaying ? "Pause" : "Play"}
             aria-label={isPlaying ? "Pause" : "Play"}
           >
@@ -1063,321 +1222,81 @@ export function App() {
 
       <main className="two-col">
         <div className="col col-left">
-          <Card
-            title="Library files"
-            className="library-card"
-            headerAfterTitle={
-              <span className="library-path">{folderPath ? folderPath : "No folder selected"}</span>
-            }
-            headerRight={
-              <button onClick={handleScan} disabled={isLoadingScan} title={isLoadingScan ? "Scanning..." : "Select folder"} aria-label={isLoadingScan ? "Scanning..." : "Select folder"}>
-                <span className="btn-content"><IconFolder className="btn-icon" /></span>
-              </button>
-            }
-          >
-            <div className="library-filter-row">
-              <input
-                className="input"
-                placeholder="Filter files..."
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-              <div className="library-view-toggle">
-                <button
-                  className={libraryViewMode === "card" ? "view-mode-button" : "ghost-button view-mode-button"}
-                  onClick={() => setLibraryViewMode("card")}
-                  title="Card view"
-                >
-                  <span className="btn-content"><IconGrid className="btn-icon" /></span>
-                </button>
-                <button
-                  className={libraryViewMode === "compact" ? "view-mode-button" : "ghost-button view-mode-button"}
-                  onClick={() => setLibraryViewMode("compact")}
-                  title="Compact list view"
-                >
-                  <span className="btn-content"><IconListCompact className="btn-icon" /></span>
-                </button>
-              </div>
-              <span className="library-summary">{librarySummary}</span>
-            </div>
-            <ul
-              ref={trackListRef}
-              onScroll={handleTrackListScroll}
-              className={libraryViewMode === "compact" ? "track-list compact" : "track-list"}
-            >
-              {virtualTrackWindow.topSpacerHeight > 0 && (
-                <li
-                  className="track-list-spacer"
-                  style={{ height: virtualTrackWindow.topSpacerHeight, gridColumn: "1 / -1" }}
-                  aria-hidden="true"
-                />
-              )}
-              {virtualTrackWindow.visibleTracks.map((track) => (
-                <li key={track.id}>
-                  <button
-                    className={
-                      track.id === selectedTrackId
-                        ? libraryViewMode === "compact"
-                          ? "track-item compact active"
-                          : "track-item active"
-                        : libraryViewMode === "compact"
-                          ? "track-item compact"
-                          : "track-item"
-                    }
-                    onClick={() => {
-                      selectTrack(track);
-                    }}
-                  >
-                    <div
-                      className="track-thumb-trigger"
-                      onClick={(event) => handlePlayFromLibraryCover(event, track)}
-                      title="Play track"
-                    >
-                      {track.coverUrl ? (
-                        <img
-                          src={track.coverUrl}
-                          alt={`Cover ${track.album || track.title}`}
-                          className="track-thumb"
-                        />
-                      ) : (
-                        <div className="track-thumb-placeholder">♪</div>
-                      )}
-                      <span className="track-thumb-play-indicator" aria-hidden="true">
-                        <IconPlay className="track-thumb-play-icon" />
-                      </span>
-                    </div>
-                    {libraryViewMode === "compact" ? (
-                      <span className="track-text compact">
-                        <strong>{track.title || "Untitled"}</strong>
-                        <small className="muted compact-inline">
-                          {track.artist || "Unknown artist"} · {track.album || "Unknown album"} · {track.year || "n/a"} · #{track.tracknumber || "-"} · {track.genre || "Genre n/a"} · {getFileName(track.path)}
-                        </small>
-                      </span>
-                    ) : (
-                      <span className="track-text">
-                        <strong>{track.title || "Untitled"}</strong>
-                        <small>{track.artist || "Unknown artist"}</small>
-                        <small className="muted">{track.album || "Unknown album"}</small>
-                      </span>
-                    )}
-                  </button>
-                </li>
-              ))}
-              {virtualTrackWindow.bottomSpacerHeight > 0 && (
-                <li
-                  className="track-list-spacer"
-                  style={{ height: virtualTrackWindow.bottomSpacerHeight, gridColumn: "1 / -1" }}
-                  aria-hidden="true"
-                />
-              )}
-            </ul>
-          </Card>
+          <LibrarySection
+            folderPath={folderPath}
+            isLoadingScan={isLoadingScan}
+            onScan={handleScan}
+            query={query}
+            onQueryChange={setQuery}
+            libraryViewMode={libraryViewMode}
+            onLibraryViewModeChange={setLibraryViewMode}
+            librarySummary={librarySummary}
+            trackListRef={trackListRef}
+            onTrackListScroll={handleTrackListScroll}
+            virtualTrackWindow={virtualTrackWindow}
+            selectedTrackId={selectedTrackId}
+            onSelectTrack={selectTrack}
+            onSearchTrack={handleQuickSearchTrack}
+            onPlayFromLibraryCover={handlePlayFromLibraryCover}
+            getFileName={getFileName}
+            IconFolder={IconFolder}
+            IconGrid={IconGrid}
+            IconListCompact={IconListCompact}
+            IconPlay={IconPlay}
+            IconSearch={IconSearch}
+          />
         </div>
 
         <div className="col col-right">
-          <Card
-            title="Track details"
-            className="details-card"
-            headerAfterTitle={<span className="library-path">{selectedFileName}</span>}
-            headerRight={
-              <span className={hasUnsavedChanges ? "dirty-indicator" : "dirty-indicator is-hidden"}>
-                Unsaved changes
-              </span>
-            }
-          >
-            <div className="detail-layout">
-              <div className="detail-cover-wrap">
-                <input
-                  ref={coverInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleCoverFileChange}
-                  style={{ display: "none" }}
-                />
-                <div className="detail-cover-shell">
-                  {editableTrack?.coverUrl ? (
-                    <img src={editableTrack.coverUrl} alt="Track cover" className="cover detail-cover" />
-                  ) : (
-                    <div className="cover-placeholder detail-cover">No cover</div>
-                  )}
-                  <div className="cover-actions">
-                    <button
-                      className="ghost-button"
-                      onClick={handleSelectCoverClick}
-                      disabled={!editableTrack}
-                      title="Carica cover"
-                      aria-label="Carica cover"
-                    >
-                      <span className="btn-content"><IconPlus className="btn-icon" /></span>
-                    </button>
-                    <button
-                      className="ghost-button"
-                      onClick={handleRemoveCover}
-                      disabled={!editableTrack || !editableTrack.hasCover}
-                      title="Rimuovi cover"
-                      aria-label="Rimuovi cover"
-                    >
-                      <span className="btn-content"><IconTrash className="btn-icon" /></span>
-                    </button>
-                  </div>
-                </div>
-              </div>
+          <TrackDetailsSection
+            selectedFileName={selectedFileName}
+            hasUnsavedChanges={hasUnsavedChanges}
+            technicalBadge={trackTechnicalBadge}
+            technicalSummary={trackTechnicalSummary}
+            coverInputRef={coverInputRef}
+            onCoverFileChange={handleCoverFileChange}
+            editableTrack={editableTrack}
+            onSelectCoverClick={handleSelectCoverClick}
+            onRemoveCover={handleRemoveCover}
+            onTrackFieldChange={handleTrackFieldChange}
+            onSaveTrack={handleSaveTrack}
+            onSaveAndRenameTrack={handleSaveAndRenameTrack}
+            renamePreview={renamePreview}
+            onRenameOnlyTrack={handleRenameOnlyTrack}
+            onOpenRenameSettings={() => setShowRenameSettings(true)}
+            IconPlus={IconPlus}
+            IconTrash={IconTrash}
+            IconSave={IconSave}
+            IconSaveRename={IconSaveRename}
+            IconRename={IconRename}
+            IconSettings={IconSettings}
+          />
 
-              <div className="detail-form">
-                <label>
-                  Title
-                  <input
-                    className="input"
-                    value={editableTrack?.title ?? ""}
-                    onChange={(e) => handleTrackFieldChange("title", e.target.value)}
-                  />
-                </label>
-                <div className="detail-row-two">
-                  <label>
-                    Artist
-                    <input
-                      className="input"
-                      value={editableTrack?.artist ?? ""}
-                      onChange={(e) => handleTrackFieldChange("artist", e.target.value)}
-                    />
-                  </label>
-                  <label>
-                    Album
-                    <input
-                      className="input"
-                      value={editableTrack?.album ?? ""}
-                      onChange={(e) => handleTrackFieldChange("album", e.target.value)}
-                    />
-                  </label>
-                </div>
-                <div className="short-fields">
-                  <label>
-                    Track #
-                    <input
-                      className="input input-short"
-                      value={editableTrack?.tracknumber ?? ""}
-                      onChange={(e) => handleTrackFieldChange("tracknumber", e.target.value)}
-                    />
-                  </label>
-                  <label>
-                    Year
-                    <input
-                      className="input input-short"
-                      value={editableTrack?.year ?? ""}
-                      onChange={(e) => handleTrackFieldChange("year", e.target.value)}
-                    />
-                  </label>
-                  <label>
-                    Genre
-                    <input
-                      className="input input-short"
-                      value={editableTrack?.genre ?? ""}
-                      onChange={(e) => handleTrackFieldChange("genre", e.target.value)}
-                    />
-                  </label>
-                  <div className="inline-action-slot">
-                    <button onClick={handleSaveTrack} disabled={!editableTrack} title="Save tags" aria-label="Save tags">
-                      <span className="btn-content"><IconSave className="btn-icon" /></span>
-                    </button>
-                    <button onClick={handleSaveAndRenameTrack} disabled={!editableTrack} title="Save tags + rename file" aria-label="Save tags + rename file">
-                      <span className="btn-content"><IconSaveRename className="btn-icon" /></span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="rename-preview-row">
-              <label className="rename-preview-field">
-                Renamed filename preview
-                <input className="input" readOnly value={renamePreview} />
-              </label>
-              <div className="rename-preview-actions">
-                <button onClick={handleRenameOnlyTrack} disabled={!editableTrack} title="Rename file" aria-label="Rename file">
-                  <span className="btn-content"><IconRename className="btn-icon" /></span>
-                </button>
-                <button className="ghost-button" onClick={() => setShowRenameSettings(true)} disabled={!editableTrack} title="Rename settings" aria-label="Rename settings">
-                  <span className="btn-content"><IconSettings className="btn-icon" /></span>
-                </button>
-              </div>
-            </div>
-          </Card>
-
-          <Card title="Online search" className="search-card" headerRight={<span className="search-status">{searchStatus}</span>}>
-            <div className="form-grid">
-              <label>
-                Title query
-                <input className="input" value={searchTitle} onChange={(e) => setSearchTitle(e.target.value)} />
-              </label>
-              <label>
-                Artist query
-                <input className="input" value={searchArtist} onChange={(e) => setSearchArtist(e.target.value)} />
-              </label>
-              <label>
-                Album query
-                <div className="query-with-action">
-                  <input className="input" value={searchAlbum} onChange={(e) => setSearchAlbum(e.target.value)} />
-                  <button onClick={handleSearchOnline} disabled={!selectedTrack || isLoadingSearch} title={isLoadingSearch ? "Searching..." : "Search online"} aria-label={isLoadingSearch ? "Searching..." : "Search online"}>
-                    <span className="btn-content"><IconSearch className="btn-icon" /></span>
-                  </button>
-                </div>
-              </label>
-            </div>
-
-            <div className="results-grid">
-              {onlineResults.map((result) => (
-                <article
-                  key={result.id}
-                  className={result.id === selectedResultId ? "result-card selected" : "result-card"}
-                  onClick={() => setSelectedResultId(result.id)}
-                >
-                  <div className="result-row">
-                    {result.coverUrl ? (
-                      <img src={result.coverUrl} alt={`Cover ${result.album}`} className="result-cover" />
-                    ) : (
-                      <div className="result-cover-placeholder">No cover</div>
-                    )}
-                    <div className="result-content">
-                      <div className="result-main">
-                        <h3>{result.artist} - {result.title}</h3>
-                        <p>Album: {result.album}</p>
-                        <p>Date: {result.date || "n/a"}</p>
-                        <p className="muted">Source: {result.source ?? "N/A"}</p>
-                      </div>
-                      <div className="result-actions">
-                        <button
-                          className="ghost-button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedResultId(result.id);
-                            handleApplyOnlineResult(result);
-                          }}
-                          disabled={!selectedTrack}
-                          title="Apply"
-                          aria-label="Apply"
-                        >
-                          <span className="btn-content"><IconCheck className="btn-icon" /></span>
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedResultId(result.id);
-                            void handleApplyAndSaveOnlineResult(result);
-                          }}
-                          disabled={!selectedTrack}
-                          title="Apply & save"
-                          aria-label="Apply & save"
-                        >
-                          <span className="btn-content"><IconSave className="btn-icon" /></span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </article>
-              ))}
-              {!onlineResults.length && <p className="muted">No results. Start an online search.</p>}
-            </div>
-          </Card>
+          <OnlineSearchSection
+            searchStatus={searchStatus}
+            searchTitle={searchTitle}
+            onSearchTitleChange={setSearchTitle}
+            searchArtist={searchArtist}
+            onSearchArtistChange={setSearchArtist}
+            searchAlbum={searchAlbum}
+            onSearchAlbumChange={setSearchAlbum}
+            onSearchButtonClick={handleSearchButtonClick}
+            canSearch={Boolean(selectedTrack)}
+            isLoadingSearch={isLoadingSearch}
+            sortedOnlineResults={sortedOnlineResults}
+            selectedResultId={selectedResultId}
+            onSelectResult={setSelectedResultId}
+            bestMatchResultId={bestMatchResultId}
+            formatResultDate={(date) => formatOnlineMatchDate(date, userLocale)}
+            onApplyOnlineResult={handleApplyOnlineResult}
+            onApplyAndSaveOnlineResult={(result) => {
+              void handleApplyAndSaveOnlineResult(result);
+            }}
+            IconSearch={IconSearch}
+            IconClose={IconClose}
+            IconCheck={IconCheck}
+            IconSave={IconSave}
+          />
         </div>
       </main>
 
@@ -1560,6 +1479,202 @@ function formatTime(value: number): string {
   const minutes = Math.floor(total / 60);
   const seconds = total % 60;
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+function formatTrackTechnicalBadge(info: TrackTechnicalInfo | null, path?: string): string {
+  const format =
+    info?.format?.trim() ||
+    getExtension(path || "")
+      .replace(/^\./, "")
+      .toUpperCase() ||
+    "N/A";
+  const bitrate = info?.bitrateKbps ? `${Math.round(info.bitrateKbps)} kbps` : "bitrate n/a";
+  return `${format} · ${bitrate}`;
+}
+
+function formatTrackTechnicalSummary(info: TrackTechnicalInfo | null): string {
+  if (!info) {
+    return "Duration: n/a · Sample rate: n/a · Size: n/a · Channels: n/a · Depth: n/a";
+  }
+
+  const duration = info.durationSeconds && info.durationSeconds > 0 ? formatDurationLabel(info.durationSeconds) : "n/a";
+  const sampleRate = info.sampleRateHz ? formatSampleRate(info.sampleRateHz) : "n/a";
+  const fileSize = info.fileSizeBytes ? formatFileSize(info.fileSizeBytes) : "n/a";
+  const channels = info.channels ? `${info.channels} ch` : "n/a";
+  const bitDepth = info.bitDepth ? `${info.bitDepth}-bit` : "n/a";
+
+  return `Duration: ${duration} · Sample rate: ${sampleRate} · Size: ${fileSize} · Channels: ${channels} · Depth: ${bitDepth}`;
+}
+
+function formatDurationLabel(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds <= 0) {
+    return "n/a";
+  }
+  const total = Math.round(seconds);
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const secs = total % 60;
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+  }
+  return `${minutes}:${String(secs).padStart(2, "0")}`;
+}
+
+function formatSampleRate(sampleRateHz: number): string {
+  const khz = sampleRateHz / 1000;
+  const decimals = sampleRateHz % 1000 === 0 ? 0 : 1;
+  return `${khz.toFixed(decimals)} kHz`;
+}
+
+function formatFileSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return "n/a";
+  }
+  const units = ["B", "KB", "MB", "GB"];
+  let value = bytes;
+  let index = 0;
+  while (value >= 1024 && index < units.length - 1) {
+    value /= 1024;
+    index += 1;
+  }
+  const decimals = value >= 100 || index === 0 ? 0 : 1;
+  return `${value.toFixed(decimals)} ${units[index]}`;
+}
+
+function getOnlineMatchDateSortKey(date: string): number {
+  const parsedDate = parseOnlineMatchDate(date);
+  if (parsedDate?.precision === "day") {
+    return Date.UTC(parsedDate.year, parsedDate.month - 1, parsedDate.day);
+  }
+  if (parsedDate?.precision === "month") {
+    return Date.UTC(parsedDate.year, parsedDate.month - 1, 1);
+  }
+  if (parsedDate?.precision === "year") {
+    return Date.UTC(parsedDate.year, 0, 1);
+  }
+
+  const normalized = date.trim();
+  if (!normalized) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  const fallback = Date.parse(normalized);
+  if (!Number.isNaN(fallback)) {
+    return fallback;
+  }
+
+  return Number.POSITIVE_INFINITY;
+}
+
+function isOnlineMatchBestMatchCandidate(result: OnlineMatch): boolean {
+  return Boolean(result.coverUrl?.trim()) && hasCompleteOnlineMatchDate(result.date);
+}
+
+function hasCompleteOnlineMatchDate(date: string): boolean {
+  return parseOnlineMatchDate(date)?.precision === "day";
+}
+
+function formatOnlineMatchDate(date: string, locale: string): string {
+  const normalized = date.trim();
+  if (!normalized) {
+    return "n/a";
+  }
+
+  const parsedDate = parseOnlineMatchDate(normalized);
+  if (!parsedDate) {
+    return normalized;
+  }
+
+  try {
+    if (parsedDate.precision === "day") {
+      return new Intl.DateTimeFormat(locale, {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        timeZone: "UTC",
+      }).format(Date.UTC(parsedDate.year, parsedDate.month - 1, parsedDate.day));
+    }
+    if (parsedDate.precision === "month") {
+      return new Intl.DateTimeFormat(locale, {
+        year: "numeric",
+        month: "2-digit",
+        timeZone: "UTC",
+      }).format(Date.UTC(parsedDate.year, parsedDate.month - 1, 1));
+    }
+    return String(parsedDate.year);
+  } catch {
+    return normalized;
+  }
+}
+
+function parseOnlineMatchDate(date: string): ParsedOnlineMatchDate | null {
+  const normalized = date.trim();
+  if (!normalized) {
+    return null;
+  }
+
+  const fullDateMatch = normalized.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s].*)?$/);
+  if (fullDateMatch) {
+    const year = Number(fullDateMatch[1]);
+    const month = Number(fullDateMatch[2]);
+    const day = Number(fullDateMatch[3]);
+    if (isValidYearMonthDay(year, month, day)) {
+      return { precision: "day", year, month, day };
+    }
+  }
+
+  const yearMonthMatch = normalized.match(/^(\d{4})-(\d{2})$/);
+  if (yearMonthMatch) {
+    const year = Number(yearMonthMatch[1]);
+    const month = Number(yearMonthMatch[2]);
+    if (isValidYearMonth(year, month)) {
+      return { precision: "month", year, month };
+    }
+  }
+
+  const yearMatch = normalized.match(/^(\d{4})$/);
+  if (yearMatch) {
+    const year = Number(yearMatch[1]);
+    if (Number.isInteger(year) && year > 0) {
+      return { precision: "year", year };
+    }
+  }
+
+  const fallback = Date.parse(normalized);
+  if (!Number.isNaN(fallback)) {
+    const fallbackDate = new Date(fallback);
+    return {
+      precision: "day",
+      year: fallbackDate.getUTCFullYear(),
+      month: fallbackDate.getUTCMonth() + 1,
+      day: fallbackDate.getUTCDate(),
+    };
+  }
+
+  return null;
+}
+
+function isValidYearMonth(year: number, month: number): boolean {
+  return Number.isInteger(year) && year > 0 && Number.isInteger(month) && month >= 1 && month <= 12;
+}
+
+function isValidYearMonthDay(year: number, month: number, day: number): boolean {
+  if (!isValidYearMonth(year, month) || !Number.isInteger(day) || day < 1 || day > 31) {
+    return false;
+  }
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() + 1 === month &&
+    date.getUTCDate() === day
+  );
+}
+
+function getUserLocale(): string {
+  if (typeof navigator !== "undefined" && navigator.language) {
+    return navigator.language;
+  }
+  return "en-US";
 }
 
 function formatError(error: unknown): string {

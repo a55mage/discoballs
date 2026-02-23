@@ -1,4 +1,4 @@
-import type { OnlineMatch, RenameConfig, SaveTrackResult, ScanResult, SearchQuery, TrackUpdate } from "../types";
+import type { OnlineMatch, RenameConfig, SaveTrackResult, ScanResult, SearchQuery, TrackTechnicalInfo, TrackUpdate } from "../types";
 
 export interface MusicAdapter {
   selectFolderAndScan(): Promise<ScanResult>;
@@ -12,5 +12,6 @@ export interface MusicAdapter {
   ): Promise<SaveTrackResult>;
   renameTrack(path: string, update: TrackUpdate, renameConfig: RenameConfig): Promise<SaveTrackResult>;
   getAudioSource(path: string): Promise<string>;
+  getTrackTechnicalInfo(path: string): Promise<TrackTechnicalInfo | null>;
   searchOnline(query: SearchQuery): Promise<OnlineMatch[]>;
 }

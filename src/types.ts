@@ -11,6 +11,16 @@ export type Track = {
   coverUrl?: string;
 };
 
+export type TrackTechnicalInfo = {
+  format: string;
+  bitrateKbps?: number;
+  durationSeconds?: number;
+  sampleRateHz?: number;
+  fileSizeBytes?: number;
+  channels?: number;
+  bitDepth?: number;
+};
+
 export type OnlineMatch = {
   id: string;
   title: string;

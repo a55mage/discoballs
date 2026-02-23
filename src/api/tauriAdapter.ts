@@ -1,5 +1,5 @@
 import type { MusicAdapter } from "./adapter";
-import type { OnlineMatch, RenameConfig, SaveTrackResult, ScanResult, SearchQuery, Track, TrackUpdate } from "../types";
+import type { OnlineMatch, RenameConfig, SaveTrackResult, ScanResult, SearchQuery, Track, TrackTechnicalInfo, TrackUpdate } from "../types";
 
 type TauriInvoke = <T>(command: string, args?: Record<string, unknown>) => Promise<T>;
 type TauriInternals = {
@@ -52,6 +52,16 @@ type TauriOnlineMatch = {
   release_id?: string;
 };
 
+type TauriTrackTechnicalInfo = {
+  format: string;
+  bitrate_kbps?: number | null;
+  duration_seconds?: number | null;
+  sample_rate_hz?: number | null;
+  file_size_bytes?: number | null;
+  channels?: number | null;
+  bit_depth?: number | null;
+};
+
 function mapTrack(t: TauriTrack): Track {
   return {
     id: t.id,
@@ -78,6 +88,18 @@ function mapOnlineMatch(m: TauriOnlineMatch): OnlineMatch {
     tracknumber: m.tracknumber,
     coverUrl: m.cover_data_url ?? undefined,
     releaseId: m.release_id,
+  };
+}
+
+function mapTrackTechnicalInfo(info: TauriTrackTechnicalInfo): TrackTechnicalInfo {
+  return {
+    format: info.format,
+    bitrateKbps: info.bitrate_kbps ?? undefined,
+    durationSeconds: info.duration_seconds ?? undefined,
+    sampleRateHz: info.sample_rate_hz ?? undefined,
+    fileSizeBytes: info.file_size_bytes ?? undefined,
+    channels: info.channels ?? undefined,
+    bitDepth: info.bit_depth ?? undefined,
   };
 }
 
@@ -148,6 +170,12 @@ export const tauriAdapter: MusicAdapter = {
   async getAudioSource(path: string): Promise<string> {
     const invoke = getInvoke();
     return await invoke<string>("get_audio_data_url", { path });
+  },
+
+  async getTrackTechnicalInfo(path: string): Promise<TrackTechnicalInfo | null> {
+    const invoke = getInvoke();
+    const result = await invoke<TauriTrackTechnicalInfo | null>("get_track_technical_info", { path });
+    return result ? mapTrackTechnicalInfo(result) : null;
   },
 };
 

@@ -1,6 +1,7 @@
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
 use lofty::config::WriteOptions;
+use lofty::file::AudioFile;
 use lofty::file::TaggedFileExt;
 use lofty::picture::{MimeType, Picture, PictureType};
 use lofty::prelude::Accessor;
@@ -75,6 +76,17 @@ struct SaveTrackInput {
 #[derive(Debug, Serialize, Deserialize)]
 struct SaveTrackOutput {
     path: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct TrackTechnicalInfo {
+    format: String,
+    bitrate_kbps: Option<u32>,
+    duration_seconds: Option<f64>,
+    sample_rate_hz: Option<u32>,
+    file_size_bytes: Option<u64>,
+    channels: Option<u8>,
+    bit_depth: Option<u8>,
 }
 
 #[tauri::command]
@@ -187,6 +199,50 @@ fn get_audio_data_url(path: String) -> Result<String, String> {
     let bytes = fs::read(&path).map_err(|e| format!("Audio read error: {e}"))?;
     let mime = mime_from_audio_path(&path);
     Ok(format!("data:{};base64,{}", mime, BASE64.encode(bytes)))
+}
+
+#[tauri::command]
+fn get_track_technical_info(path: String) -> Result<TrackTechnicalInfo, String> {
+    let audio_path = PathBuf::from(&path);
+    if !audio_path.exists() {
+        return Err(format!("File not found: {path}"));
+    }
+
+    let format = audio_path
+        .extension()
+        .and_then(|s| s.to_str())
+        .map(|s| s.to_uppercase())
+        .unwrap_or_else(|| "N/A".to_string());
+
+    let file_size_bytes = fs::metadata(&audio_path).ok().map(|m| m.len());
+
+    let mut bitrate_kbps = None;
+    let mut duration_seconds = None;
+    let mut sample_rate_hz = None;
+    let mut channels = None;
+    let mut bit_depth = None;
+
+    if let Ok(tagged_file) = Probe::open(&audio_path).and_then(|p| p.read()) {
+        let properties = tagged_file.properties();
+        bitrate_kbps = properties.audio_bitrate().or(properties.overall_bitrate());
+        let seconds = properties.duration().as_secs_f64();
+        if seconds > 0.0 {
+            duration_seconds = Some(seconds);
+        }
+        sample_rate_hz = properties.sample_rate();
+        channels = properties.channels();
+        bit_depth = properties.bit_depth();
+    }
+
+    Ok(TrackTechnicalInfo {
+        format,
+        bitrate_kbps,
+        duration_seconds,
+        sample_rate_hz,
+        file_size_bytes,
+        channels,
+        bit_depth,
+    })
 }
 
 #[tauri::command]
@@ -787,6 +843,7 @@ fn main() {
             save_track,
             rename_track,
             get_audio_data_url,
+            get_track_technical_info,
             open_external_url
         ])
         .run(tauri::generate_context!())

@@ -1,0 +1,187 @@
+import { type ChangeEvent, type ComponentType, type RefObject, type SVGProps } from "react";
+import { Card } from "../components/Card";
+import type { Track } from "../types";
+
+type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
+
+type TrackDetailsSectionProps = {
+  selectedFileName: string;
+  hasUnsavedChanges: boolean;
+  technicalBadge: string;
+  technicalSummary: string;
+  coverInputRef: RefObject<HTMLInputElement | null>;
+  onCoverFileChange: (event: ChangeEvent<HTMLInputElement>) => void;
+  editableTrack: Track | null;
+  onSelectCoverClick: () => void;
+  onRemoveCover: () => void;
+  onTrackFieldChange: (field: keyof Track, value: string) => void;
+  onSaveTrack: () => void;
+  onSaveAndRenameTrack: () => void;
+  renamePreview: string;
+  onRenameOnlyTrack: () => void;
+  onOpenRenameSettings: () => void;
+  IconPlus: IconComponent;
+  IconTrash: IconComponent;
+  IconSave: IconComponent;
+  IconSaveRename: IconComponent;
+  IconRename: IconComponent;
+  IconSettings: IconComponent;
+};
+
+export function TrackDetailsSection({
+  selectedFileName,
+  hasUnsavedChanges,
+  technicalBadge,
+  technicalSummary,
+  coverInputRef,
+  onCoverFileChange,
+  editableTrack,
+  onSelectCoverClick,
+  onRemoveCover,
+  onTrackFieldChange,
+  onSaveTrack,
+  onSaveAndRenameTrack,
+  renamePreview,
+  onRenameOnlyTrack,
+  onOpenRenameSettings,
+  IconPlus,
+  IconTrash,
+  IconSave,
+  IconSaveRename,
+  IconRename,
+  IconSettings,
+}: TrackDetailsSectionProps) {
+  return (
+    <Card
+      title="Track details"
+      className="details-card"
+      headerAfterTitle={<span className="library-path">{selectedFileName}</span>}
+      headerRight={
+        <span className={hasUnsavedChanges ? "dirty-indicator" : "dirty-indicator is-hidden"}>
+          Unsaved changes
+        </span>
+      }
+    >
+      <div className="detail-layout">
+        <div className="detail-cover-wrap">
+          <input
+            ref={coverInputRef}
+            type="file"
+            accept="image/*"
+            onChange={onCoverFileChange}
+            style={{ display: "none" }}
+          />
+          <div className="detail-cover-shell">
+            {editableTrack?.coverUrl ? (
+              <img src={editableTrack.coverUrl} alt="Track cover" className="cover detail-cover" />
+            ) : (
+              <div className="cover-placeholder detail-cover">No cover</div>
+            )}
+            <div className="cover-actions">
+              <button
+                className="ghost-button"
+                onClick={onSelectCoverClick}
+                disabled={!editableTrack}
+                title="Carica cover"
+                aria-label="Carica cover"
+              >
+                <span className="btn-content"><IconPlus className="btn-icon" /></span>
+              </button>
+              <button
+                className="ghost-button"
+                onClick={onRemoveCover}
+                disabled={!editableTrack || !editableTrack.hasCover}
+                title="Rimuovi cover"
+                aria-label="Rimuovi cover"
+              >
+                <span className="btn-content"><IconTrash className="btn-icon" /></span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="detail-form">
+          <div className="detail-technical-row">
+            <span className="track-format-badge">{technicalBadge}</span>
+            <span className="detail-technical-text">{technicalSummary}</span>
+          </div>
+          <label>
+            Title
+            <input
+              className="input"
+              value={editableTrack?.title ?? ""}
+              onChange={(event) => onTrackFieldChange("title", event.target.value)}
+            />
+          </label>
+          <div className="detail-row-two">
+            <label>
+              Artist
+              <input
+                className="input"
+                value={editableTrack?.artist ?? ""}
+                onChange={(event) => onTrackFieldChange("artist", event.target.value)}
+              />
+            </label>
+            <label>
+              Album
+              <input
+                className="input"
+                value={editableTrack?.album ?? ""}
+                onChange={(event) => onTrackFieldChange("album", event.target.value)}
+              />
+            </label>
+          </div>
+          <div className="short-fields">
+            <label>
+              Track #
+              <input
+                className="input input-short"
+                value={editableTrack?.tracknumber ?? ""}
+                onChange={(event) => onTrackFieldChange("tracknumber", event.target.value)}
+              />
+            </label>
+            <label>
+              Year
+              <input
+                className="input input-short"
+                value={editableTrack?.year ?? ""}
+                onChange={(event) => onTrackFieldChange("year", event.target.value)}
+              />
+            </label>
+            <label>
+              Genre
+              <input
+                className="input input-short"
+                value={editableTrack?.genre ?? ""}
+                onChange={(event) => onTrackFieldChange("genre", event.target.value)}
+              />
+            </label>
+            <div className="inline-action-slot">
+              <button onClick={onSaveTrack} disabled={!editableTrack} title="Save tags" aria-label="Save tags">
+                <span className="btn-content"><IconSave className="btn-icon" /></span>
+              </button>
+              <button onClick={onSaveAndRenameTrack} disabled={!editableTrack} title="Save tags + rename file" aria-label="Save tags + rename file">
+                <span className="btn-content"><IconSaveRename className="btn-icon" /></span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="rename-preview-row">
+        <label className="rename-preview-field">
+          Renamed filename preview
+          <input className="input" readOnly value={renamePreview} />
+        </label>
+        <div className="rename-preview-actions">
+          <button onClick={onRenameOnlyTrack} disabled={!editableTrack} title="Rename file" aria-label="Rename file">
+            <span className="btn-content"><IconRename className="btn-icon" /></span>
+          </button>
+          <button className="ghost-button" onClick={onOpenRenameSettings} disabled={!editableTrack} title="Rename settings" aria-label="Rename settings">
+            <span className="btn-content"><IconSettings className="btn-icon" /></span>
+          </button>
+        </div>
+      </div>
+    </Card>
+  );
+}

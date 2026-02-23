@@ -1,0 +1,144 @@
+import { type ComponentType, type SVGProps } from "react";
+import { Card } from "../components/Card";
+import type { OnlineMatch } from "../types";
+
+type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
+
+type OnlineSearchSectionProps = {
+  searchStatus: string;
+  searchTitle: string;
+  onSearchTitleChange: (value: string) => void;
+  searchArtist: string;
+  onSearchArtistChange: (value: string) => void;
+  searchAlbum: string;
+  onSearchAlbumChange: (value: string) => void;
+  onSearchButtonClick: () => void;
+  canSearch: boolean;
+  isLoadingSearch: boolean;
+  sortedOnlineResults: OnlineMatch[];
+  selectedResultId: string;
+  onSelectResult: (id: string) => void;
+  bestMatchResultId: string;
+  formatResultDate: (date: string) => string;
+  onApplyOnlineResult: (result: OnlineMatch) => void;
+  onApplyAndSaveOnlineResult: (result: OnlineMatch) => void;
+  IconSearch: IconComponent;
+  IconClose: IconComponent;
+  IconCheck: IconComponent;
+  IconSave: IconComponent;
+};
+
+export function OnlineSearchSection({
+  searchStatus,
+  searchTitle,
+  onSearchTitleChange,
+  searchArtist,
+  onSearchArtistChange,
+  searchAlbum,
+  onSearchAlbumChange,
+  onSearchButtonClick,
+  canSearch,
+  isLoadingSearch,
+  sortedOnlineResults,
+  selectedResultId,
+  onSelectResult,
+  bestMatchResultId,
+  formatResultDate,
+  onApplyOnlineResult,
+  onApplyAndSaveOnlineResult,
+  IconSearch,
+  IconClose,
+  IconCheck,
+  IconSave,
+}: OnlineSearchSectionProps) {
+  return (
+    <Card title="Online search" className="search-card" headerRight={<span className="search-status">{searchStatus}</span>}>
+      <div className="form-grid">
+        <label>
+          Title query
+          <input className="input" value={searchTitle} onChange={(event) => onSearchTitleChange(event.target.value)} />
+        </label>
+        <label>
+          Artist query
+          <input className="input" value={searchArtist} onChange={(event) => onSearchArtistChange(event.target.value)} />
+        </label>
+        <label>
+          Album query
+          <div className="query-with-action">
+            <input className="input" value={searchAlbum} onChange={(event) => onSearchAlbumChange(event.target.value)} />
+            <div className="search-action-wrap">
+              <button
+                onClick={onSearchButtonClick}
+                disabled={!canSearch && !isLoadingSearch}
+                title={isLoadingSearch ? "Cancel search" : "Search online"}
+                aria-label={isLoadingSearch ? "Cancel search" : "Search online"}
+              >
+                <span className="btn-content">
+                  {isLoadingSearch ? <IconClose className="btn-icon" /> : <IconSearch className="btn-icon" />}
+                </span>
+              </button>
+              {isLoadingSearch && <span className="search-spinner" aria-hidden="true" />}
+            </div>
+          </div>
+        </label>
+      </div>
+
+      <div className="results-grid">
+        {sortedOnlineResults.map((result) => (
+          <article
+            key={result.id}
+            className={result.id === selectedResultId ? "result-card selected" : "result-card"}
+            onClick={() => onSelectResult(result.id)}
+          >
+            <div className="result-row">
+              {result.coverUrl ? (
+                <img src={result.coverUrl} alt={`Cover ${result.album}`} className="result-cover" />
+              ) : (
+                <div className="result-cover-placeholder">No cover</div>
+              )}
+              <div className="result-content">
+                <div className="result-main">
+                  <div className="result-title-row">
+                    <h3>{result.artist} - {result.title}</h3>
+                    {result.id === bestMatchResultId && <span className="best-match-badge">best match</span>}
+                  </div>
+                  <p>Album: {result.album}</p>
+                  <p>Date: {formatResultDate(result.date)}</p>
+                  <p className="muted">Source: {result.source ?? "N/A"}</p>
+                </div>
+                <div className="result-actions">
+                  <button
+                    className="ghost-button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onSelectResult(result.id);
+                      onApplyOnlineResult(result);
+                    }}
+                    disabled={!canSearch}
+                    title="Apply"
+                    aria-label="Apply"
+                  >
+                    <span className="btn-content"><IconCheck className="btn-icon" /></span>
+                  </button>
+                  <button
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onSelectResult(result.id);
+                      onApplyAndSaveOnlineResult(result);
+                    }}
+                    disabled={!canSearch}
+                    title="Apply & save"
+                    aria-label="Apply & save"
+                  >
+                    <span className="btn-content"><IconSave className="btn-icon" /></span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </article>
+        ))}
+        {!sortedOnlineResults.length && <p className="muted">No results. Start an online search.</p>}
+      </div>
+    </Card>
+  );
+}

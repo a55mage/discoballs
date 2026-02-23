@@ -1,5 +1,5 @@
 import type { MusicAdapter } from "./adapter";
-import type { OnlineMatch, RenameConfig, SaveTrackResult, ScanResult, SearchQuery, Track, TrackUpdate } from "../types";
+import type { OnlineMatch, RenameConfig, SaveTrackResult, ScanResult, SearchQuery, Track, TrackTechnicalInfo, TrackUpdate } from "../types";
 
 let tracks: Track[] = [
   {
@@ -99,6 +99,22 @@ export const mockAdapter: MusicAdapter = {
 
   async getAudioSource(_path: string): Promise<string> {
     return "";
+  },
+
+  async getTrackTechnicalInfo(path: string): Promise<TrackTechnicalInfo | null> {
+    const extension = path.split(".").pop()?.toUpperCase() || "N/A";
+    if (extension === "N/A") {
+      return null;
+    }
+    return {
+      format: extension,
+      bitrateKbps: extension === "FLAC" ? 980 : 320,
+      durationSeconds: 245,
+      sampleRateHz: 44100,
+      fileSizeBytes: extension === "FLAC" ? 34500000 : 9500000,
+      channels: 2,
+      bitDepth: extension === "FLAC" ? 24 : 16,
+    };
   },
 
   async searchOnline(query: SearchQuery): Promise<OnlineMatch[]> {
