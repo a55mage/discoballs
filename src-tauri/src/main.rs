@@ -363,12 +363,17 @@ fn read_track(path: &Path) -> Track {
 fn write_metadata_and_cover(path: &Path, input: &SaveTrackInput) -> Result<(), String> {
     let tag_type = primary_tag_type_for_path(path)?;
 
-    let mut tag = Probe::open(path)
-        .and_then(|p| p.read())
-        .map_err(|e| format!("Metadata read error: {e}"))?
-        .primary_tag()
-        .cloned()
-        .unwrap_or_else(|| Tag::new(tag_type));
+    let mut tag = match Probe::open(path).and_then(|p| p.read()) {
+        Ok(tagged_file) => tagged_file
+            .primary_tag()
+            .cloned()
+            .unwrap_or_else(|| Tag::new(tag_type)),
+        Err(_) => {
+            // Some files contain malformed/truncated metadata blocks (e.g. broken ID3v2 frames).
+            // In that case, start from a clean tag so users can still save updated fields.
+            Tag::new(tag_type)
+        }
+    };
 
     tag.set_title(input.title.clone());
     tag.set_artist(input.artist.clone());

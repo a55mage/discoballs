@@ -1208,7 +1208,7 @@ export function App() {
               onChange={(e) => setVolume(Number(e.target.value))}
             />
           </div>
-          {audioError && <span className="player-error">{audioError}</span>}
+          {audioError && (selectedTrack || playbackTrack) && <span className="player-error">{audioError}</span>}
         </div>
         <div className="top-actions">
           <button
@@ -1340,6 +1340,17 @@ export function App() {
                   onClick={(e) => void handleOpenExternalLink(e, "https://a55mage.github.io/")}
                 >
                   https://a55mage.github.io/
+                </a>
+              </p>
+              <p>
+                <strong>Donate:</strong>{" "}
+                <a
+                  href="https://www.paypal.com/donate/?business=r.macis%40live.it"
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={(e) => void handleOpenExternalLink(e, "https://www.paypal.com/donate/?business=r.macis%40live.it")}
+                >
+                  Donate via PayPal
                 </a>
               </p>
             </div>
