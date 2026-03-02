@@ -13,6 +13,7 @@ type VirtualTrackWindow = {
 
 type LibrarySectionProps = {
   folderPath: string;
+  onOpenFolderPathClick: () => void;
   isLoadingScan: boolean;
   onScan: () => void;
   query: string;
@@ -37,6 +38,7 @@ type LibrarySectionProps = {
 
 export function LibrarySection({
   folderPath,
+  onOpenFolderPathClick,
   isLoadingScan,
   onScan,
   query,
@@ -62,7 +64,18 @@ export function LibrarySection({
     <Card
       title="Library files"
       className="library-card"
-      headerAfterTitle={<span className="library-path">{folderPath ? folderPath : "No folder selected"}</span>}
+      headerAfterTitle={
+        <button
+          type="button"
+          className="library-path library-path-link"
+          onClick={onOpenFolderPathClick}
+          disabled={!folderPath}
+          title={folderPath || "No folder selected"}
+          aria-label="Open library folder"
+        >
+          {folderPath ? folderPath : "No folder selected"}
+        </button>
+      }
       headerRight={
         <button onClick={onScan} disabled={isLoadingScan} title={isLoadingScan ? "Scanning..." : "Select folder"} aria-label={isLoadingScan ? "Scanning..." : "Select folder"}>
           <span className="btn-content"><IconFolder className="btn-icon" /></span>

@@ -6,6 +6,7 @@ type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
 
 type TrackDetailsSectionProps = {
   selectedFileName: string;
+  selectedFilePath: string;
   hasUnsavedChanges: boolean;
   technicalBadge: string;
   technicalSummary: string;
@@ -19,6 +20,7 @@ type TrackDetailsSectionProps = {
   onSaveAndRenameTrack: () => void;
   renamePreview: string;
   onRenameOnlyTrack: () => void;
+  onOpenTrackPathClick: () => void;
   onOpenRenameSettings: () => void;
   IconPlus: IconComponent;
   IconTrash: IconComponent;
@@ -30,6 +32,7 @@ type TrackDetailsSectionProps = {
 
 export function TrackDetailsSection({
   selectedFileName,
+  selectedFilePath,
   hasUnsavedChanges,
   technicalBadge,
   technicalSummary,
@@ -43,6 +46,7 @@ export function TrackDetailsSection({
   onSaveAndRenameTrack,
   renamePreview,
   onRenameOnlyTrack,
+  onOpenTrackPathClick,
   onOpenRenameSettings,
   IconPlus,
   IconTrash,
@@ -55,7 +59,18 @@ export function TrackDetailsSection({
     <Card
       title="Track details"
       className="details-card"
-      headerAfterTitle={<span className="library-path">{selectedFileName}</span>}
+      headerAfterTitle={
+        <button
+          type="button"
+          className="library-path library-path-link"
+          onClick={onOpenTrackPathClick}
+          disabled={!selectedFilePath}
+          title={selectedFilePath || selectedFileName}
+          aria-label="Open containing folder"
+        >
+          {selectedFilePath || selectedFileName}
+        </button>
+      }
       headerRight={
         <span className={hasUnsavedChanges ? "dirty-indicator" : "dirty-indicator is-hidden"}>
           Unsaved changes

@@ -283,6 +283,61 @@ fn open_external_url(url: String) -> Result<(), String> {
     Err("Unsupported platform".to_string())
 }
 
+#[tauri::command]
+fn open_track_in_file_manager(path: String) -> Result<(), String> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return Err("Path is empty".to_string());
+    }
+
+    let track_path = PathBuf::from(trimmed);
+    let folder_path = if track_path.is_dir() {
+        track_path
+    } else {
+        track_path
+            .parent()
+            .map(Path::to_path_buf)
+            .ok_or_else(|| format!("Cannot resolve parent folder for: {trimmed}"))?
+    };
+
+    if !folder_path.exists() {
+        return Err(format!(
+            "Folder not found: {}",
+            folder_path.to_string_lossy()
+        ));
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        Command::new("open")
+            .arg(&folder_path)
+            .spawn()
+            .map_err(|e| format!("Unable to open folder: {e}"))?;
+        return Ok(());
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        Command::new("explorer")
+            .arg(folder_path.to_string_lossy().to_string())
+            .spawn()
+            .map_err(|e| format!("Unable to open folder: {e}"))?;
+        return Ok(());
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        Command::new("xdg-open")
+            .arg(&folder_path)
+            .spawn()
+            .map_err(|e| format!("Unable to open folder: {e}"))?;
+        return Ok(());
+    }
+
+    #[allow(unreachable_code)]
+    Err("Unsupported platform".to_string())
+}
+
 fn is_supported_audio_path(path: &Path) -> bool {
     let file_name = path
         .file_name()
@@ -849,7 +904,8 @@ fn main() {
             rename_track,
             get_audio_data_url,
             get_track_technical_info,
-            open_external_url
+            open_external_url,
+            open_track_in_file_manager
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

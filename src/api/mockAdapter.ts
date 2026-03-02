@@ -159,4 +159,8 @@ export const mockAdapter: MusicAdapter = {
       },
     ];
   },
+
+  async openTrackInFileManager(_path: string): Promise<void> {
+    await wait(50);
+  },
 };

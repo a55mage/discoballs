@@ -5,6 +5,7 @@ import { LibrarySection } from "./sections/LibrarySection";
 import { OnlineSearchSection } from "./sections/OnlineSearchSection";
 import { TrackDetailsSection } from "./sections/TrackDetailsSection";
 import type { OnlineMatch, RenameField, SearchQuery, Track, TrackTechnicalInfo } from "./types";
+import appIcon from "./assets/discoballs-icon.png";
 
 const adapter = createAdapter(mockAdapter);
 const ACCENT_THEMES = [
@@ -99,6 +100,14 @@ const IconSearch = (props: SVGProps<SVGSVGElement>) => (
   <IconBase {...props}>
     <circle cx="11" cy="11" r="6" />
     <line x1="16" y1="16" x2="21" y2="21" />
+  </IconBase>
+);
+
+const IconCover = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <rect x="3.5" y="5" width="17" height="14" rx="2" />
+    <circle cx="9" cy="10" r="1.5" fill="currentColor" stroke="none" />
+    <polyline points="6 16 11 12 14 14 18 10 20.5 12.5" />
   </IconBase>
 );
 
@@ -293,10 +302,35 @@ export function App() {
       }),
     [onlineResults]
   );
-  const bestMatchResultId = useMemo(
-    () => dateSortedOnlineResults.find((result) => isOnlineMatchBestMatchCandidate(result))?.id ?? "",
-    [dateSortedOnlineResults]
-  );
+  const bestMatchResultId = useMemo(() => {
+    let bestMatch: OnlineMatch | null = null;
+    let bestScore = Number.NEGATIVE_INFINITY;
+    for (const result of onlineResults) {
+      const score = scoreOnlineMatch(result, {
+        title: searchTitle,
+        artist: searchArtist,
+        album: searchAlbum,
+      });
+      if (score === null || score < bestScore) {
+        continue;
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = result;
+        continue;
+      }
+      if (!bestMatch) {
+        bestMatch = result;
+        continue;
+      }
+      const dateSortKey = getOnlineMatchDateSortKey(result.date);
+      const bestDateSortKey = getOnlineMatchDateSortKey(bestMatch.date);
+      if (dateSortKey < bestDateSortKey) {
+        bestMatch = result;
+      }
+    }
+    return bestMatch?.id ?? "";
+  }, [onlineResults, searchTitle, searchArtist, searchAlbum]);
   const sortedOnlineResults = useMemo(() => {
     if (!bestMatchResultId) {
       return dateSortedOnlineResults;
@@ -846,6 +880,18 @@ export function App() {
     setSearchStatus("Result applied. Save the track to confirm changes.");
   }
 
+  function handleApplyOnlineCoverOnly(result: OnlineMatch) {
+    if (!editableTrack) {
+      return;
+    }
+    if (!result.coverUrl?.trim()) {
+      setSearchStatus("Selected result has no cover image.");
+      return;
+    }
+    setTrackDraft((prev) => (prev ? { ...prev, coverUrl: result.coverUrl, hasCover: true } : prev));
+    setSearchStatus("Cover applied. Save the track to persist changes.");
+  }
+
   async function handleApplyAndSaveOnlineResult(result: OnlineMatch) {
     if (!editableTrack) {
       return;
@@ -907,6 +953,28 @@ export function App() {
     window.open(url, "_blank", "noopener,noreferrer");
   }
 
+  async function handleOpenTrackFolder() {
+    if (!editableTrack?.path) {
+      return;
+    }
+    try {
+      await adapter.openTrackInFileManager(editableTrack.path);
+    } catch (error) {
+      setSearchStatus(`Open folder error: ${formatError(error)}`);
+    }
+  }
+
+  async function handleOpenLibraryFolder() {
+    if (!folderPath) {
+      return;
+    }
+    try {
+      await adapter.openTrackInFileManager(folderPath);
+    } catch (error) {
+      setSearchStatus(`Open folder error: ${formatError(error)}`);
+    }
+  }
+
   async function handleTogglePlayPause() {
     const audio = audioRef.current;
     if (!audio) {
@@ -918,7 +986,7 @@ export function App() {
       return;
     }
 
-    const targetTrack = selectedTrack ?? playbackTrack;
+    const targetTrack = playbackTrack ?? selectedTrack;
     if (targetTrack && targetTrack.id !== playbackTrackId) {
       setPlaybackTrackId(targetTrack.id);
       setShouldAutoplay(true);
@@ -1134,12 +1202,15 @@ export function App() {
   return (
     <div className={colorMode === "dark" ? "app-shell theme-dark" : "app-shell"} style={appStyle}>
       <header className="top-bar">
-        <h1
+        <button
+          type="button"
+          className="app-brand"
           onClick={() => setAccentIndex((prev) => (prev + 1) % ACCENT_THEMES.length)}
           title="Change accent color"
+          aria-label="Change accent color"
         >
-          DiscoBalls
-        </h1>
+          <img src={appIcon} alt="DiscoBalls" className="app-brand-icon" />
+        </button>
         <div className="top-player">
           <audio ref={audioRef} src={audioSrc} preload="metadata" />
           <div className="player-now-playing" title={playerInfoTrack ? `${playerInfoTrack.artist} - ${playerInfoTrack.title}` : "No track selected"}>
@@ -1231,6 +1302,9 @@ export function App() {
         <div className="col col-left">
           <LibrarySection
             folderPath={folderPath}
+            onOpenFolderPathClick={() => {
+              void handleOpenLibraryFolder();
+            }}
             isLoadingScan={isLoadingScan}
             onScan={handleScan}
             query={query}
@@ -1257,6 +1331,7 @@ export function App() {
         <div className="col col-right">
           <TrackDetailsSection
             selectedFileName={selectedFileName}
+            selectedFilePath={editableTrack?.path ?? ""}
             hasUnsavedChanges={hasUnsavedChanges}
             technicalBadge={trackTechnicalBadge}
             technicalSummary={trackTechnicalSummary}
@@ -1270,6 +1345,9 @@ export function App() {
             onSaveAndRenameTrack={handleSaveAndRenameTrack}
             renamePreview={renamePreview}
             onRenameOnlyTrack={handleRenameOnlyTrack}
+            onOpenTrackPathClick={() => {
+              void handleOpenTrackFolder();
+            }}
             onOpenRenameSettings={() => setShowRenameSettings(true)}
             IconPlus={IconPlus}
             IconTrash={IconTrash}
@@ -1293,15 +1371,16 @@ export function App() {
             sortedOnlineResults={sortedOnlineResults}
             selectedResultId={selectedResultId}
             onSelectResult={setSelectedResultId}
-            bestMatchResultId={bestMatchResultId}
             formatResultDate={(date) => formatOnlineMatchDate(date, userLocale)}
             onApplyOnlineResult={handleApplyOnlineResult}
+            onApplyOnlineCoverOnly={handleApplyOnlineCoverOnly}
             onApplyAndSaveOnlineResult={(result) => {
               void handleApplyAndSaveOnlineResult(result);
             }}
             IconSearch={IconSearch}
             IconClose={IconClose}
             IconCheck={IconCheck}
+            IconCover={IconCover}
             IconSave={IconSave}
           />
         </div>
@@ -1319,7 +1398,7 @@ export function App() {
 
             <div className="info-meta">
               <p><strong>App:</strong> DiscoBalls</p>
-              <p><strong>Version:</strong> 1.2.0</p>
+              <p><strong>Version:</strong> 1.3.0</p>
               <p>
                 <strong>Website:</strong>{" "}
                 <a
@@ -1584,8 +1663,57 @@ function getOnlineMatchDateSortKey(date: string): number {
   return Number.POSITIVE_INFINITY;
 }
 
-function isOnlineMatchBestMatchCandidate(result: OnlineMatch): boolean {
-  return Boolean(result.coverUrl?.trim()) && hasCompleteOnlineMatchDate(result.date);
+function scoreOnlineMatch(result: OnlineMatch, query: SearchQuery): number | null {
+  const titleQuery = normalizeSearchText(query.title);
+  const artistQuery = normalizeSearchText(query.artist);
+  const albumQuery = normalizeSearchText(query.album);
+  const resultTitle = normalizeSearchText(result.title);
+  const resultArtist = normalizeSearchText(result.artist);
+  const resultAlbum = normalizeSearchText(result.album);
+
+  const titleScore = computeTextMatchScore(titleQuery, resultTitle);
+  if (titleQuery && titleScore < 0.55) {
+    return null;
+  }
+
+  const artistScore = computeTextMatchScore(artistQuery, resultArtist);
+  const albumScore = computeTextMatchScore(albumQuery, resultAlbum);
+  const dateCompletenessBonus = hasCompleteOnlineMatchDate(result.date) ? 3 : result.date.trim() ? 1 : 0;
+  const coverBonus = result.coverUrl?.trim() ? 2 : 0;
+
+  return titleScore * 70 + artistScore * 20 + albumScore * 10 + dateCompletenessBonus + coverBonus;
+}
+
+function normalizeSearchText(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function computeTextMatchScore(query: string, candidate: string): number {
+  if (!query) {
+    return 0;
+  }
+  if (!candidate) {
+    return 0;
+  }
+  if (query === candidate) {
+    return 1;
+  }
+
+  const queryTokens = query.split(" ").filter(Boolean);
+  const candidateTokens = candidate.split(" ").filter(Boolean);
+  const queryTokenSet = new Set(queryTokens);
+  const candidateTokenSet = new Set(candidateTokens);
+  const overlapCount = [...queryTokenSet].filter((token) => candidateTokenSet.has(token)).length;
+  const overlapRatio = overlapCount / Math.max(1, queryTokenSet.size);
+  const includesBonus = candidate.includes(query) || query.includes(candidate) ? 0.2 : 0;
+  const prefixBonus = candidate.startsWith(query) || query.startsWith(candidate) ? 0.1 : 0;
+
+  return Math.min(1, overlapRatio + includesBonus + prefixBonus);
 }
 
 function hasCompleteOnlineMatchDate(date: string): boolean {

@@ -177,6 +177,11 @@ export const tauriAdapter: MusicAdapter = {
     const result = await invoke<TauriTrackTechnicalInfo | null>("get_track_technical_info", { path });
     return result ? mapTrackTechnicalInfo(result) : null;
   },
+
+  async openTrackInFileManager(path: string): Promise<void> {
+    const invoke = getInvoke();
+    await invoke<void>("open_track_in_file_manager", { path });
+  },
 };
 
 export function createAdapter(fallback: MusicAdapter): MusicAdapter {

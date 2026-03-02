@@ -14,4 +14,5 @@ export interface MusicAdapter {
   getAudioSource(path: string): Promise<string>;
   getTrackTechnicalInfo(path: string): Promise<TrackTechnicalInfo | null>;
   searchOnline(query: SearchQuery): Promise<OnlineMatch[]>;
+  openTrackInFileManager(path: string): Promise<void>;
 }

@@ -18,13 +18,14 @@ type OnlineSearchSectionProps = {
   sortedOnlineResults: OnlineMatch[];
   selectedResultId: string;
   onSelectResult: (id: string) => void;
-  bestMatchResultId: string;
   formatResultDate: (date: string) => string;
   onApplyOnlineResult: (result: OnlineMatch) => void;
+  onApplyOnlineCoverOnly: (result: OnlineMatch) => void;
   onApplyAndSaveOnlineResult: (result: OnlineMatch) => void;
   IconSearch: IconComponent;
   IconClose: IconComponent;
   IconCheck: IconComponent;
+  IconCover: IconComponent;
   IconSave: IconComponent;
 };
 
@@ -42,13 +43,14 @@ export function OnlineSearchSection({
   sortedOnlineResults,
   selectedResultId,
   onSelectResult,
-  bestMatchResultId,
   formatResultDate,
   onApplyOnlineResult,
+  onApplyOnlineCoverOnly,
   onApplyAndSaveOnlineResult,
   IconSearch,
   IconClose,
   IconCheck,
+  IconCover,
   IconSave,
 }: OnlineSearchSectionProps) {
   return (
@@ -102,7 +104,6 @@ export function OnlineSearchSection({
                 <div className="result-main">
                   <div className="result-title-row">
                     <h3>{result.artist} - {result.title}</h3>
-                    {result.id === bestMatchResultId && <span className="best-match-badge">best match</span>}
                   </div>
                   <p>Album: {result.album}</p>
                   <p>Date: {formatResultDate(result.date)}</p>
@@ -121,6 +122,19 @@ export function OnlineSearchSection({
                     aria-label="Apply"
                   >
                     <span className="btn-content"><IconCheck className="btn-icon" /></span>
+                  </button>
+                  <button
+                    className="ghost-button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onSelectResult(result.id);
+                      onApplyOnlineCoverOnly(result);
+                    }}
+                    disabled={!canSearch || !result.coverUrl}
+                    title="Apply cover only"
+                    aria-label="Apply cover only"
+                  >
+                    <span className="btn-content"><IconCover className="btn-icon" /></span>
                   </button>
                   <button
                     onClick={(event) => {
