@@ -18,6 +18,7 @@ type OnlineSearchSectionProps = {
   sortedOnlineResults: OnlineMatch[];
   selectedResultId: string;
   onSelectResult: (id: string) => void;
+  bestMatchResultId: string;
   formatResultDate: (date: string) => string;
   onApplyOnlineResult: (result: OnlineMatch) => void;
   onApplyOnlineCoverOnly: (result: OnlineMatch) => void;
@@ -43,6 +44,7 @@ export function OnlineSearchSection({
   sortedOnlineResults,
   selectedResultId,
   onSelectResult,
+  bestMatchResultId,
   formatResultDate,
   onApplyOnlineResult,
   onApplyOnlineCoverOnly,
@@ -110,44 +112,49 @@ export function OnlineSearchSection({
                   <p className="muted">Source: {result.source ?? "N/A"}</p>
                 </div>
                 <div className="result-actions">
-                  <button
-                    className="ghost-button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onSelectResult(result.id);
-                      onApplyOnlineResult(result);
-                    }}
-                    disabled={!canSearch}
-                    title="Apply"
-                    aria-label="Apply"
-                  >
-                    <span className="btn-content"><IconCheck className="btn-icon" /></span>
-                  </button>
-                  <button
-                    className="ghost-button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onSelectResult(result.id);
-                      onApplyOnlineCoverOnly(result);
-                    }}
-                    disabled={!canSearch || !result.coverUrl}
-                    title="Apply cover only"
-                    aria-label="Apply cover only"
-                  >
-                    <span className="btn-content"><IconCover className="btn-icon" /></span>
-                  </button>
-                  <button
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onSelectResult(result.id);
-                      onApplyAndSaveOnlineResult(result);
-                    }}
-                    disabled={!canSearch}
-                    title="Apply & save"
-                    aria-label="Apply & save"
-                  >
-                    <span className="btn-content"><IconSave className="btn-icon" /></span>
-                  </button>
+                  <div className="result-actions-top">
+                    {result.id === bestMatchResultId && <span className="best-match-badge">best match</span>}
+                  </div>
+                  <div className="result-actions-row">
+                    <button
+                      className="ghost-button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onSelectResult(result.id);
+                        onApplyOnlineResult(result);
+                      }}
+                      disabled={!canSearch}
+                      title="Apply"
+                      aria-label="Apply"
+                    >
+                      <span className="btn-content"><IconCheck className="btn-icon" /></span>
+                    </button>
+                    <button
+                      className="ghost-button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onSelectResult(result.id);
+                        onApplyOnlineCoverOnly(result);
+                      }}
+                      disabled={!canSearch || !result.coverUrl}
+                      title="Apply cover only"
+                      aria-label="Apply cover only"
+                    >
+                      <span className="btn-content"><IconCover className="btn-icon" /></span>
+                    </button>
+                    <button
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onSelectResult(result.id);
+                        onApplyAndSaveOnlineResult(result);
+                      }}
+                      disabled={!canSearch}
+                      title="Apply & save"
+                      aria-label="Apply & save"
+                    >
+                      <span className="btn-content"><IconSave className="btn-icon" /></span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

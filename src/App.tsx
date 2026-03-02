@@ -1371,6 +1371,7 @@ export function App() {
             sortedOnlineResults={sortedOnlineResults}
             selectedResultId={selectedResultId}
             onSelectResult={setSelectedResultId}
+            bestMatchResultId={bestMatchResultId}
             formatResultDate={(date) => formatOnlineMatchDate(date, userLocale)}
             onApplyOnlineResult={handleApplyOnlineResult}
             onApplyOnlineCoverOnly={handleApplyOnlineCoverOnly}
@@ -1398,7 +1399,7 @@ export function App() {
 
             <div className="info-meta">
               <p><strong>App:</strong> DiscoBalls</p>
-              <p><strong>Version:</strong> 1.3.0</p>
+              <p><strong>Version:</strong> 1.3.1</p>
               <p>
                 <strong>Website:</strong>{" "}
                 <a
