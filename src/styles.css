@@ -418,7 +418,7 @@ button.app-brand:hover:enabled {
 }
 
 .track-list.compact {
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 4px;
 }
 
@@ -904,7 +904,7 @@ img.detail-cover {
 
 .library-filter-row {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) auto auto;
+  grid-template-columns: minmax(220px, 1fr) auto auto auto;
   align-items: center;
   gap: 10px;
   margin-bottom: 8px;
@@ -919,15 +919,51 @@ img.detail-cover {
   gap: 6px;
 }
 
+.library-sort-toggle {
+  display: flex;
+  gap: 6px;
+}
+
 .view-mode-button {
   min-width: 34px;
   padding: 5px 8px;
 }
 
+.sort-icon-button {
+  min-width: 34px;
+  padding: 5px 8px;
+}
+
+.sort-direction-glyph {
+  display: inline-block;
+  min-width: 10px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  opacity: 1;
+  color: currentColor;
+}
+
 .library-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   font-size: 12px;
   color: var(--ink-secondary);
   white-space: nowrap;
+}
+
+.library-summary-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.library-summary-icon {
+  width: 13px;
+  height: 13px;
+  opacity: 0.85;
 }
 
 .track-item.compact .track-thumb,
@@ -1381,11 +1417,18 @@ img.detail-cover {
 
   .library-view-toggle {
     width: 100%;
+    display: flex;
+  }
+
+  .library-sort-toggle {
+    width: 100%;
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(4, 1fr);
   }
 
   .library-summary {
+    display: flex;
+    flex-wrap: wrap;
     white-space: normal;
   }
 

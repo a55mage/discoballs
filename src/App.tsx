@@ -28,6 +28,7 @@ const RENAME_FIELD_OPTIONS: Array<{ key: RenameField; label: string }> = [
 const RENAME_FIELD_KEYS = new Set<RenameField>(RENAME_FIELD_OPTIONS.map((option) => option.key));
 const TRACK_LIST_OVERSCAN_ROWS = 4;
 const TRACK_LIST_CARD_MIN_WIDTH = 250;
+const TRACK_LIST_COMPACT_MIN_WIDTH = 320;
 const TRACK_LIST_CARD_ROW_HEIGHT = 68;
 const TRACK_LIST_COMPACT_ROW_HEIGHT = 32;
 const TRACK_LIST_CARD_GAP = 8;
@@ -37,6 +38,8 @@ type ParsedOnlineMatchDate =
   | { precision: "day"; year: number; month: number; day: number }
   | { precision: "month"; year: number; month: number }
   | { precision: "year"; year: number };
+type LibrarySortMode = "title" | "artist" | "added" | "release";
+type SortDirection = "asc" | "desc";
 
 function IconBase(props: SVGProps<SVGSVGElement>) {
   return (
@@ -55,6 +58,46 @@ const IconInfo = (props: SVGProps<SVGSVGElement>) => (
 const IconFolder = (props: SVGProps<SVGSVGElement>) => (
   <IconBase {...props}>
     <path d="M3 7h6l2 2h10v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+  </IconBase>
+);
+
+const IconMusicNote = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <path d="M9 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" />
+    <path d="M16 17a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" />
+    <path d="M11 17V7l7-2v8" />
+  </IconBase>
+);
+
+const IconSortTitle = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <line x1="5" y1="7" x2="19" y2="7" />
+    <line x1="5" y1="12" x2="16" y2="12" />
+    <line x1="5" y1="17" x2="13" y2="17" />
+  </IconBase>
+);
+
+const IconSortArtist = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <circle cx="12" cy="8" r="3" />
+    <path d="M6 19a6 6 0 0 1 12 0" />
+  </IconBase>
+);
+
+const IconSortAdded = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <circle cx="12" cy="12" r="8" />
+    <line x1="12" y1="8" x2="12" y2="12" />
+    <line x1="12" y1="12" x2="15" y2="14" />
+  </IconBase>
+);
+
+const IconSortRelease = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <rect x="4" y="6" width="16" height="14" rx="2" />
+    <line x1="8" y1="4" x2="8" y2="8" />
+    <line x1="16" y1="4" x2="16" y2="8" />
+    <line x1="4" y1="10" x2="20" y2="10" />
   </IconBase>
 );
 
@@ -245,6 +288,8 @@ export function App() {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [folderPath, setFolderPath] = useState("");
   const [query, setQuery] = useState("");
+  const [librarySortMode, setLibrarySortMode] = useState<LibrarySortMode>("added");
+  const [librarySortDirection, setLibrarySortDirection] = useState<SortDirection>("asc");
   const [selectedTrackId, setSelectedTrackId] = useState<string>("");
   const [playbackTrackId, setPlaybackTrackId] = useState<string>("");
   const [trackDraft, setTrackDraft] = useState<Track | null>(null);
@@ -414,12 +459,6 @@ export function App() {
     return !areTracksEqual(selectedTrack, editableTrack);
   }, [selectedTrack, editableTrack]);
   const folderCount = useMemo(() => countFoldersAndSubfolders(tracks, folderPath), [tracks, folderPath]);
-  const librarySummary = useMemo(() => {
-    if (!tracks.length) {
-      return "No audio files";
-    }
-    return `Found ${tracks.length} audio files in ${folderCount} folders/subfolders`;
-  }, [tracks.length, folderCount]);
   const renamePreview = useMemo(() => {
     if (!editableTrack) {
       return "";
@@ -609,25 +648,58 @@ export function App() {
   }, [editableTrack?.path]);
 
   const filteredTracks = useMemo(() => {
-    if (!query.trim()) {
-      return tracks;
-    }
     const q = query.toLowerCase();
-    return tracks.filter(
-      (t) =>
-        t.title.toLowerCase().includes(q) ||
-        t.artist.toLowerCase().includes(q) ||
-        t.album.toLowerCase().includes(q) ||
-        t.path.toLowerCase().includes(q)
-    );
-  }, [tracks, query]);
+    const sourceTracks = query.trim()
+      ? tracks.filter(
+          (t) =>
+            t.title.toLowerCase().includes(q) ||
+            t.artist.toLowerCase().includes(q) ||
+            t.album.toLowerCase().includes(q) ||
+            t.path.toLowerCase().includes(q)
+      )
+      : tracks;
+    const collator = new Intl.Collator(undefined, { sensitivity: "base" });
+    const tracksInScanOrder = [...sourceTracks];
+    let sortedTracks = tracksInScanOrder;
+    switch (librarySortMode) {
+      case "title":
+        sortedTracks = [...sourceTracks].sort((a, b) => collator.compare(a.title || "", b.title || ""));
+        break;
+      case "artist":
+        sortedTracks = [...sourceTracks].sort((a, b) => collator.compare(a.artist || "", b.artist || ""));
+        break;
+      case "release":
+        sortedTracks = [...sourceTracks].sort((a, b) => {
+          const aYear = getTrackReleaseSortKey(a.year);
+          const bYear = getTrackReleaseSortKey(b.year);
+          if (aYear !== bYear) {
+            return aYear - bYear;
+          }
+          return collator.compare(a.title || "", b.title || "");
+        });
+        break;
+      case "added":
+      default:
+        sortedTracks = tracksInScanOrder;
+        break;
+    }
+    return librarySortDirection === "desc" ? [...sortedTracks].reverse() : sortedTracks;
+  }, [tracks, query, librarySortMode, librarySortDirection]);
+
+  function handleLibrarySortClick(mode: LibrarySortMode) {
+    if (mode === librarySortMode) {
+      setLibrarySortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setLibrarySortMode(mode);
+    setLibrarySortDirection("asc");
+  }
   const virtualTrackWindow = useMemo(() => {
     const isCompact = libraryViewMode === "compact";
     const gap = isCompact ? TRACK_LIST_COMPACT_GAP : TRACK_LIST_CARD_GAP;
     const rowHeight = isCompact ? TRACK_LIST_COMPACT_ROW_HEIGHT : TRACK_LIST_CARD_ROW_HEIGHT;
-    const columns = isCompact
-      ? 1
-      : Math.max(1, Math.floor((trackListWidth + gap) / (TRACK_LIST_CARD_MIN_WIDTH + gap)));
+    const minWidth = isCompact ? TRACK_LIST_COMPACT_MIN_WIDTH : TRACK_LIST_CARD_MIN_WIDTH;
+    const columns = Math.max(1, Math.floor((trackListWidth + gap) / (minWidth + gap)));
     const totalRows = Math.ceil(filteredTracks.length / columns);
     const shouldVirtualize = filteredTracks.length > TRACK_LIST_VIRTUALIZE_AFTER;
 
@@ -1311,7 +1383,11 @@ export function App() {
             onQueryChange={setQuery}
             libraryViewMode={libraryViewMode}
             onLibraryViewModeChange={setLibraryViewMode}
-            librarySummary={librarySummary}
+            librarySortMode={librarySortMode}
+            librarySortDirection={librarySortDirection}
+            onLibrarySortClick={handleLibrarySortClick}
+            trackCount={tracks.length}
+            folderCount={folderCount}
             trackListRef={trackListRef}
             onTrackListScroll={handleTrackListScroll}
             virtualTrackWindow={virtualTrackWindow}
@@ -1319,8 +1395,12 @@ export function App() {
             onSelectTrack={selectTrack}
             onSearchTrack={handleQuickSearchTrack}
             onPlayFromLibraryCover={handlePlayFromLibraryCover}
-            getFileName={getFileName}
             IconFolder={IconFolder}
+            IconMusicNote={IconMusicNote}
+            IconSortTitle={IconSortTitle}
+            IconSortArtist={IconSortArtist}
+            IconSortAdded={IconSortAdded}
+            IconSortRelease={IconSortRelease}
             IconGrid={IconGrid}
             IconListCompact={IconListCompact}
             IconPlay={IconPlay}
@@ -1637,6 +1717,18 @@ function formatFileSize(bytes: number): string {
   }
   const decimals = value >= 100 || index === 0 ? 0 : 1;
   return `${value.toFixed(decimals)} ${units[index]}`;
+}
+
+function getTrackReleaseSortKey(year: string): number {
+  const match = year.trim().match(/^(\d{4})/);
+  if (!match) {
+    return Number.POSITIVE_INFINITY;
+  }
+  const parsed = Number(match[1]);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    return Number.POSITIVE_INFINITY;
+  }
+  return parsed;
 }
 
 function getOnlineMatchDateSortKey(date: string): number {

@@ -3,6 +3,8 @@ import { Card } from "../components/Card";
 import type { Track } from "../types";
 
 type LibraryViewMode = "card" | "compact";
+type LibrarySortMode = "title" | "artist" | "added" | "release";
+type SortDirection = "asc" | "desc";
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
 
 type VirtualTrackWindow = {
@@ -20,7 +22,11 @@ type LibrarySectionProps = {
   onQueryChange: (value: string) => void;
   libraryViewMode: LibraryViewMode;
   onLibraryViewModeChange: (mode: LibraryViewMode) => void;
-  librarySummary: string;
+  librarySortMode: LibrarySortMode;
+  librarySortDirection: SortDirection;
+  onLibrarySortClick: (mode: LibrarySortMode) => void;
+  trackCount: number;
+  folderCount: number;
   trackListRef: RefObject<HTMLUListElement | null>;
   onTrackListScroll: (event: UIEvent<HTMLUListElement>) => void;
   virtualTrackWindow: VirtualTrackWindow;
@@ -28,8 +34,12 @@ type LibrarySectionProps = {
   onSelectTrack: (track: Track) => void;
   onSearchTrack: (track: Track) => void;
   onPlayFromLibraryCover: (event: MouseEvent<HTMLDivElement>, track: Track) => void;
-  getFileName: (path: string) => string;
   IconFolder: IconComponent;
+  IconMusicNote: IconComponent;
+  IconSortTitle: IconComponent;
+  IconSortArtist: IconComponent;
+  IconSortAdded: IconComponent;
+  IconSortRelease: IconComponent;
   IconGrid: IconComponent;
   IconListCompact: IconComponent;
   IconPlay: IconComponent;
@@ -45,7 +55,11 @@ export function LibrarySection({
   onQueryChange,
   libraryViewMode,
   onLibraryViewModeChange,
-  librarySummary,
+  librarySortMode,
+  librarySortDirection,
+  onLibrarySortClick,
+  trackCount,
+  folderCount,
   trackListRef,
   onTrackListScroll,
   virtualTrackWindow,
@@ -53,13 +67,21 @@ export function LibrarySection({
   onSelectTrack,
   onSearchTrack,
   onPlayFromLibraryCover,
-  getFileName: resolveFileName,
   IconFolder,
+  IconMusicNote,
+  IconSortTitle,
+  IconSortArtist,
+  IconSortAdded,
+  IconSortRelease,
   IconGrid,
   IconListCompact,
   IconPlay,
   IconSearch,
 }: LibrarySectionProps) {
+  const sortDirectionSymbol = librarySortDirection === "asc" ? "↑" : "↓";
+  const sortDirectionLabel = librarySortDirection === "asc" ? "ascending" : "descending";
+  const isCompactView = libraryViewMode === "compact";
+
   return (
     <Card
       title="Library files"
@@ -89,23 +111,78 @@ export function LibrarySection({
           value={query}
           onChange={(event) => onQueryChange(event.target.value)}
         />
-        <div className="library-view-toggle">
+        <div className="library-sort-toggle" role="group" aria-label="Library sort options">
           <button
-            className={libraryViewMode === "card" ? "view-mode-button" : "ghost-button view-mode-button"}
-            onClick={() => onLibraryViewModeChange("card")}
-            title="Card view"
+            type="button"
+            className={librarySortMode === "title" ? "sort-icon-button active" : "ghost-button sort-icon-button"}
+            onClick={() => onLibrarySortClick("title")}
+            title={`Sort by title (${sortDirectionLabel})`}
+            aria-label={`Sort by title (${sortDirectionLabel})`}
           >
-            <span className="btn-content"><IconGrid className="btn-icon" /></span>
+            <span className="btn-content">
+              <IconSortTitle className="btn-icon" />
+              {librarySortMode === "title" && <span className="sort-direction-glyph" aria-hidden="true">{sortDirectionSymbol}</span>}
+            </span>
           </button>
           <button
-            className={libraryViewMode === "compact" ? "view-mode-button" : "ghost-button view-mode-button"}
-            onClick={() => onLibraryViewModeChange("compact")}
-            title="Compact list view"
+            type="button"
+            className={librarySortMode === "artist" ? "sort-icon-button active" : "ghost-button sort-icon-button"}
+            onClick={() => onLibrarySortClick("artist")}
+            title={`Sort by artist (${sortDirectionLabel})`}
+            aria-label={`Sort by artist (${sortDirectionLabel})`}
           >
-            <span className="btn-content"><IconListCompact className="btn-icon" /></span>
+            <span className="btn-content">
+              <IconSortArtist className="btn-icon" />
+              {librarySortMode === "artist" && <span className="sort-direction-glyph" aria-hidden="true">{sortDirectionSymbol}</span>}
+            </span>
+          </button>
+          <button
+            type="button"
+            className={librarySortMode === "added" ? "sort-icon-button active" : "ghost-button sort-icon-button"}
+            onClick={() => onLibrarySortClick("added")}
+            title={`Sort by date added (${sortDirectionLabel})`}
+            aria-label={`Sort by date added (${sortDirectionLabel})`}
+          >
+            <span className="btn-content">
+              <IconSortAdded className="btn-icon" />
+              {librarySortMode === "added" && <span className="sort-direction-glyph" aria-hidden="true">{sortDirectionSymbol}</span>}
+            </span>
+          </button>
+          <button
+            type="button"
+            className={librarySortMode === "release" ? "sort-icon-button active" : "ghost-button sort-icon-button"}
+            onClick={() => onLibrarySortClick("release")}
+            title={`Sort by release date (${sortDirectionLabel})`}
+            aria-label={`Sort by release date (${sortDirectionLabel})`}
+          >
+            <span className="btn-content">
+              <IconSortRelease className="btn-icon" />
+              {librarySortMode === "release" && <span className="sort-direction-glyph" aria-hidden="true">{sortDirectionSymbol}</span>}
+            </span>
           </button>
         </div>
-        <span className="library-summary">{librarySummary}</span>
+        <div className="library-view-toggle">
+          <button
+            className={isCompactView ? "view-mode-button" : "ghost-button view-mode-button"}
+            onClick={() => onLibraryViewModeChange(isCompactView ? "card" : "compact")}
+            title={isCompactView ? "Switch to card view" : "Switch to compact view"}
+            aria-label={isCompactView ? "Switch to card view" : "Switch to compact view"}
+          >
+            <span className="btn-content">
+              {isCompactView ? <IconGrid className="btn-icon" /> : <IconListCompact className="btn-icon" />}
+            </span>
+          </button>
+        </div>
+        <div className="library-summary" aria-label={`Tracks: ${trackCount}, folders and subfolders: ${folderCount}`}>
+          <span className="library-summary-item" title="Tracks">
+            <IconMusicNote className="library-summary-icon" />
+            <strong>{trackCount}</strong>
+          </span>
+          <span className="library-summary-item" title="Folders and subfolders">
+            <IconFolder className="library-summary-icon" />
+            <strong>{folderCount}</strong>
+          </span>
+        </div>
       </div>
       <ul
         ref={trackListRef}
@@ -157,9 +234,7 @@ export function LibrarySection({
                 {libraryViewMode === "compact" ? (
                   <span className="track-text compact">
                     <strong>{track.title || "Untitled"}</strong>
-                    <small className="muted compact-inline">
-                      {track.artist || "Unknown artist"} · {track.album || "Unknown album"} · {track.year || "n/a"} · #{track.tracknumber || "-"} · {track.genre || "Genre n/a"} · {resolveFileName(track.path)}
-                    </small>
+                    <small className="muted compact-inline">{track.artist || "Unknown artist"}</small>
                   </span>
                 ) : (
                   <span className="track-text">
