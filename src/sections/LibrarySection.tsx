@@ -1,4 +1,4 @@
-import { type ComponentType, type MouseEvent, type RefObject, type SVGProps, type UIEvent } from "react";
+import { type ComponentType, type DragEvent, type MouseEvent, type PointerEvent, type RefObject, type SVGProps, type UIEvent } from "react";
 import { Card } from "../components/Card";
 import type { Track } from "../types";
 
@@ -33,7 +33,16 @@ type LibrarySectionProps = {
   selectedTrackId: string;
   onSelectTrack: (track: Track) => void;
   onSearchTrack: (track: Track) => void;
+  onTrackAction?: (track: Track) => void;
+  trackActionTitle?: string;
+  trackActionAriaLabel?: string;
   onPlayFromLibraryCover: (event: MouseEvent<HTMLDivElement>, track: Track) => void;
+  enableTrackDrag?: boolean;
+  useNativeTrackDrag?: boolean;
+  onTrackDragStart?: (event: DragEvent<HTMLElement>, track: Track) => void;
+  onTrackDragEnd?: () => void;
+  onTrackPointerDown?: (event: PointerEvent<HTMLElement>, track: Track) => void;
+  draggingTrackId?: string;
   IconFolder: IconComponent;
   IconMusicNote: IconComponent;
   IconSortTitle: IconComponent;
@@ -44,6 +53,7 @@ type LibrarySectionProps = {
   IconListCompact: IconComponent;
   IconPlay: IconComponent;
   IconSearch: IconComponent;
+  IconTrackAction?: IconComponent;
 };
 
 export function LibrarySection({
@@ -66,7 +76,16 @@ export function LibrarySection({
   selectedTrackId,
   onSelectTrack,
   onSearchTrack,
+  onTrackAction,
+  trackActionTitle,
+  trackActionAriaLabel,
   onPlayFromLibraryCover,
+  enableTrackDrag = false,
+  useNativeTrackDrag = true,
+  onTrackDragStart,
+  onTrackDragEnd,
+  onTrackPointerDown,
+  draggingTrackId = "",
   IconFolder,
   IconMusicNote,
   IconSortTitle,
@@ -77,10 +96,16 @@ export function LibrarySection({
   IconListCompact,
   IconPlay,
   IconSearch,
+  IconTrackAction,
 }: LibrarySectionProps) {
   const sortDirectionSymbol = librarySortDirection === "asc" ? "↑" : "↓";
   const sortDirectionLabel = librarySortDirection === "asc" ? "ascending" : "descending";
   const isCompactView = libraryViewMode === "compact";
+
+  const trackActionHandler = onTrackAction ?? onSearchTrack;
+  const resolvedTrackActionTitle = trackActionTitle ?? "Search online for this track";
+  const resolvedTrackActionAriaLabel = trackActionAriaLabel ?? "Search online for this track";
+  const TrackActionIcon = IconTrackAction ?? IconSearch;
 
   return (
     <Card
@@ -198,7 +223,36 @@ export function LibrarySection({
         )}
         {virtualTrackWindow.visibleTracks.map((track) => (
           <li key={track.id}>
-            <div className={libraryViewMode === "compact" ? "track-item-shell compact" : "track-item-shell"}>
+            <div
+              className={
+                track.id === draggingTrackId
+                  ? libraryViewMode === "compact"
+                    ? "track-item-shell compact dragging"
+                    : "track-item-shell dragging"
+                  : libraryViewMode === "compact"
+                    ? "track-item-shell compact"
+                    : "track-item-shell"
+              }
+              draggable={enableTrackDrag && useNativeTrackDrag}
+              onDragStart={(event) => {
+                if (!enableTrackDrag || !useNativeTrackDrag) {
+                  return;
+                }
+                event.dataTransfer.effectAllowed = "copyMove";
+                event.dataTransfer.setData("text/plain", track.id);
+                event.dataTransfer.setData("application/x-musicmanager-track-id", track.id);
+                onTrackDragStart?.(event, track);
+              }}
+              onDragEnd={() => {
+                onTrackDragEnd?.();
+              }}
+              onPointerDown={(event) => {
+                if (!enableTrackDrag) {
+                  return;
+                }
+                onTrackPointerDown?.(event, track);
+              }}
+            >
               <button
                 className={
                   track.id === selectedTrackId
@@ -248,12 +302,12 @@ export function LibrarySection({
                 className={libraryViewMode === "compact" ? "ghost-button track-item-search-button compact" : "ghost-button track-item-search-button"}
                 onClick={(event) => {
                   event.stopPropagation();
-                  onSearchTrack(track);
+                  trackActionHandler(track);
                 }}
-                title="Search online for this track"
-                aria-label="Search online for this track"
+                title={resolvedTrackActionTitle}
+                aria-label={resolvedTrackActionAriaLabel}
               >
-                <span className="btn-content"><IconSearch className="btn-icon" /></span>
+                <span className="btn-content"><TrackActionIcon className="btn-icon" /></span>
               </button>
             </div>
           </li>

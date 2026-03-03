@@ -1,11 +1,25 @@
-import { type ChangeEvent, type CSSProperties, type MouseEvent, type SVGProps, type UIEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type ChangeEvent, type CSSProperties, type MouseEvent, type PointerEvent, type SVGProps, type UIEvent, useEffect, useMemo, useRef, useState } from "react";
 import { createAdapter } from "./api/tauriAdapter";
 import { mockAdapter } from "./api/mockAdapter";
+import { Card } from "./components/Card";
 import { LibrarySection } from "./sections/LibrarySection";
+import { MusicVisualizerSection } from "./sections/MusicVisualizerSection";
 import { OnlineSearchSection } from "./sections/OnlineSearchSection";
 import { TrackDetailsSection } from "./sections/TrackDetailsSection";
 import type { OnlineMatch, RenameField, SearchQuery, Track, TrackTechnicalInfo } from "./types";
 import appIcon from "./assets/discoballs-icon.png";
+import {
+  formatDurationLabel,
+  formatError,
+  formatFileSize,
+  formatSampleRate,
+  formatTime,
+  getExtension,
+  getFileName,
+  getUserLocale,
+  normalizePath,
+  sanitizeFilePart,
+} from "./utils/common";
 
 const adapter = createAdapter(mockAdapter);
 const ACCENT_THEMES = [
@@ -40,6 +54,9 @@ type ParsedOnlineMatchDate =
   | { precision: "year"; year: number };
 type LibrarySortMode = "title" | "artist" | "added" | "release";
 type SortDirection = "asc" | "desc";
+type AppScreen = "tagging" | "dashboard" | "settings" | "player";
+type PlaylistEntry = { id: string; trackId: string };
+type Playlist = { id: string; name: string; entries: PlaylistEntry[] };
 
 function IconBase(props: SVGProps<SVGSVGElement>) {
   return (
@@ -285,13 +302,23 @@ export function App() {
   const trackListRef = useRef<HTMLUListElement | null>(null);
   const searchRequestRef = useRef<{ id: number; canceled: boolean } | null>(null);
   const searchRequestCounterRef = useRef(0);
+  const pointerDragStateRef = useRef<{
+    kind: "none" | "library-track" | "playlist-entry";
+    id: string;
+    startX: number;
+    startY: number;
+    moved: boolean;
+  }>({ kind: "none", id: "", startX: 0, startY: 0, moved: false });
+  const suppressNextPlaylistItemClickRef = useRef(false);
   const [tracks, setTracks] = useState<Track[]>([]);
   const [folderPath, setFolderPath] = useState("");
+  const [activeScreen, setActiveScreen] = useState<AppScreen>("tagging");
   const [query, setQuery] = useState("");
   const [librarySortMode, setLibrarySortMode] = useState<LibrarySortMode>("added");
   const [librarySortDirection, setLibrarySortDirection] = useState<SortDirection>("asc");
   const [selectedTrackId, setSelectedTrackId] = useState<string>("");
   const [playbackTrackId, setPlaybackTrackId] = useState<string>("");
+  const [playbackPlaylistId, setPlaybackPlaylistId] = useState<string>("");
   const [trackDraft, setTrackDraft] = useState<Track | null>(null);
   const [onlineResults, setOnlineResults] = useState<OnlineMatch[]>([]);
   const [selectedResultId, setSelectedResultId] = useState<string>("");
@@ -301,8 +328,15 @@ export function App() {
   const [searchTitle, setSearchTitle] = useState("");
   const [searchArtist, setSearchArtist] = useState("");
   const [searchAlbum, setSearchAlbum] = useState("");
-  const [showInfoModal, setShowInfoModal] = useState(false);
   const [showRenameSettings, setShowRenameSettings] = useState(false);
+  const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [activePlaylistId, setActivePlaylistId] = useState("");
+  const [playlistNameDraft, setPlaylistNameDraft] = useState("");
+  const [autoOpenDefaultFolder, setAutoOpenDefaultFolder] = useState(false);
+  const [defaultFolderPath, setDefaultFolderPath] = useState("");
+  const [accentRotateOnLaunch, setAccentRotateOnLaunch] = useState(false);
+  const [audioNormalizeVolume, setAudioNormalizeVolume] = useState(false);
+  const [audioSmartCrossfade, setAudioSmartCrossfade] = useState(false);
   const [renameFields, setRenameFields] = useState<RenameField[]>(["tracknumber", "artist", "title"]);
   const [renameSeparator, setRenameSeparator] = useState(" - ");
   const [isPlaying, setIsPlaying] = useState(false);
@@ -321,7 +355,18 @@ export function App() {
   const [trackListWidth, setTrackListWidth] = useState(0);
   const [accentIndex, setAccentIndex] = useState(0);
   const [colorMode, setColorMode] = useState<"light" | "dark">("light");
+  const [isDashboardDragging, setIsDashboardDragging] = useState(false);
+  const [dashboardDropArea, setDashboardDropArea] = useState<"none" | "dropzone" | "playlist">("none");
+  const [dashboardDropEntryId, setDashboardDropEntryId] = useState("");
   const userLocale = useMemo(() => getUserLocale(), []);
+  const activePlaylist = useMemo(
+    () => playlists.find((playlist) => playlist.id === activePlaylistId) ?? null,
+    [playlists, activePlaylistId]
+  );
+  const playbackPlaylist = useMemo(
+    () => playlists.find((playlist) => playlist.id === playbackPlaylistId) ?? null,
+    [playlists, playbackPlaylistId]
+  );
 
   const selectedTrack = tracks.find((t) => t.id === selectedTrackId) ?? null;
   const playbackTrack = tracks.find((t) => t.id === playbackTrackId) ?? null;
@@ -434,6 +479,64 @@ export function App() {
     if (savedRenameSeparator !== null) {
       setRenameSeparator(savedRenameSeparator);
     }
+
+    const savedPlaylists = window.localStorage.getItem("musicmanager-playlists");
+    if (savedPlaylists) {
+      try {
+        const parsed = JSON.parse(savedPlaylists) as Playlist[];
+        if (Array.isArray(parsed) && parsed.length) {
+          setPlaylists(parsed);
+          setActivePlaylistId(parsed[0].id);
+          setPlaylistNameDraft(parsed[0].name);
+        }
+      } catch {
+        // Ignore invalid playlists.
+      }
+    }
+
+    const savedAutoOpen = window.localStorage.getItem("musicmanager-auto-open-default-folder");
+    if (savedAutoOpen === "true") {
+      setAutoOpenDefaultFolder(true);
+    }
+
+    const savedDefaultFolderPath = window.localStorage.getItem("musicmanager-default-folder-path");
+    if (savedDefaultFolderPath) {
+      setDefaultFolderPath(savedDefaultFolderPath);
+    }
+
+    const savedAccentRotate = window.localStorage.getItem("musicmanager-accent-rotate-on-launch");
+    if (savedAccentRotate === "true") {
+      setAccentRotateOnLaunch(true);
+      setAccentIndex((prev) => (prev + 1) % ACCENT_THEMES.length);
+    }
+
+    const savedNormalizeVolume = window.localStorage.getItem("musicmanager-audio-normalize-volume");
+    if (savedNormalizeVolume === "true") {
+      setAudioNormalizeVolume(true);
+    }
+
+    const savedSmartCrossfade = window.localStorage.getItem("musicmanager-audio-smart-crossfade");
+    if (savedSmartCrossfade === "true") {
+      setAudioSmartCrossfade(true);
+    }
+
+    const savedLibrarySnapshot = window.localStorage.getItem("musicmanager-library-snapshot");
+    if (savedAutoOpen === "true" && savedLibrarySnapshot) {
+      try {
+        const snapshot = JSON.parse(savedLibrarySnapshot) as { folderPath?: unknown; tracks?: unknown };
+        if (typeof snapshot.folderPath === "string" && Array.isArray(snapshot.tracks)) {
+          const restoredTracks = snapshot.tracks as Track[];
+          setFolderPath(snapshot.folderPath);
+          setTracks(restoredTracks);
+          setSelectedTrackId(restoredTracks[0]?.id ?? "");
+          setPlaybackTrackId("");
+          setShouldAutoplay(false);
+          setSearchStatus("Ready");
+        }
+      } catch {
+        // Ignore invalid snapshot.
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -451,6 +554,117 @@ export function App() {
   useEffect(() => {
     window.localStorage.setItem("musicmanager-rename-separator", renameSeparator);
   }, [renameSeparator]);
+
+  useEffect(() => {
+    window.localStorage.setItem("musicmanager-playlists", JSON.stringify(playlists));
+  }, [playlists]);
+
+  useEffect(() => {
+    if (activePlaylist) {
+      setPlaylistNameDraft(activePlaylist.name);
+    } else {
+      setPlaylistNameDraft("");
+    }
+  }, [activePlaylist]);
+
+  useEffect(() => {
+    if (!playbackPlaylistId) {
+      return;
+    }
+    const stillExists = playlists.some((playlist) => playlist.id === playbackPlaylistId);
+    if (!stillExists) {
+      setPlaybackPlaylistId("");
+    }
+  }, [playbackPlaylistId, playlists]);
+
+  useEffect(() => {
+    window.localStorage.setItem("musicmanager-auto-open-default-folder", String(autoOpenDefaultFolder));
+  }, [autoOpenDefaultFolder]);
+
+  useEffect(() => {
+    window.localStorage.setItem("musicmanager-default-folder-path", defaultFolderPath);
+  }, [defaultFolderPath]);
+
+  useEffect(() => {
+    window.localStorage.setItem("musicmanager-accent-rotate-on-launch", String(accentRotateOnLaunch));
+  }, [accentRotateOnLaunch]);
+
+  useEffect(() => {
+    window.localStorage.setItem("musicmanager-audio-normalize-volume", String(audioNormalizeVolume));
+  }, [audioNormalizeVolume]);
+
+  useEffect(() => {
+    window.localStorage.setItem("musicmanager-audio-smart-crossfade", String(audioSmartCrossfade));
+  }, [audioSmartCrossfade]);
+
+  useEffect(() => {
+    if (!folderPath || !tracks.length) {
+      return;
+    }
+    try {
+      // Keep snapshot lightweight to avoid localStorage quota crashes on large libraries/covers.
+      const snapshotTracks = tracks.map(({ coverUrl: _coverUrl, ...track }) => track);
+      window.localStorage.setItem("musicmanager-library-snapshot", JSON.stringify({ folderPath, tracks: snapshotTracks }));
+    } catch {
+      // Ignore quota/serialization failures to keep UI responsive.
+    }
+  }, [folderPath, tracks]);
+
+  useEffect(() => {
+    const onPointerMove = (event: PointerEvent) => {
+      const state = pointerDragStateRef.current;
+      if (state.kind === "none") {
+        return;
+      }
+      const distance = Math.hypot(event.clientX - state.startX, event.clientY - state.startY);
+      if (!state.moved && distance > 6) {
+        state.moved = true;
+        setIsDashboardDragging(true);
+      }
+      if (!state.moved || activeScreen !== "dashboard") {
+        return;
+      }
+      const hoveredElement = document.elementFromPoint(event.clientX, event.clientY) as HTMLElement | null;
+      const hoveredEntry = hoveredElement?.closest<HTMLElement>("[data-playlist-entry-id]");
+      const hoveredDropzone = hoveredElement?.closest<HTMLElement>("[data-playlist-dropzone]");
+      const hoveredList = hoveredElement?.closest<HTMLElement>("[data-playlist-list]");
+      const nextDropArea = hoveredDropzone ? "dropzone" : hoveredList ? "playlist" : "none";
+      const nextDropEntryId = hoveredEntry?.dataset.playlistEntryId ?? "";
+      setDashboardDropArea((prev) => (prev === nextDropArea ? prev : nextDropArea));
+      setDashboardDropEntryId((prev) => (prev === nextDropEntryId ? prev : nextDropEntryId));
+    };
+
+    const onPointerUp = (event: PointerEvent) => {
+      const state = pointerDragStateRef.current;
+      if (activeScreen !== "dashboard" || state.kind === "none") {
+        clearDragState();
+        return;
+      }
+      if (!state.moved) {
+        clearDragState();
+        return;
+      }
+      const target = document.elementFromPoint(event.clientX, event.clientY);
+      const payload =
+        state.kind === "library-track"
+          ? ({ kind: "library-track", trackId: state.id } as const)
+          : ({ kind: "playlist-entry", entryId: state.id } as const);
+      const applied = applyDashboardPointerDrop(payload, target);
+      if (applied) {
+        suppressNextPlaylistItemClickRef.current = true;
+      }
+      clearDragState();
+    };
+
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointercancel", onPointerUp);
+    return () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerUp);
+    };
+  }, [activeScreen, activePlaylistId, playlists.length]);
   const selectedFileName = editableTrack ? getFileName(editableTrack.path) : "No file selected";
   const hasUnsavedChanges = useMemo(() => {
     if (!selectedTrack || !editableTrack || selectedTrack.id !== editableTrack.id) {
@@ -492,7 +706,7 @@ export function App() {
     return () => {
       window.removeEventListener("resize", updateMetrics);
     };
-  }, [libraryViewMode]);
+  }, [libraryViewMode, activeScreen]);
 
   useEffect(() => {
     const list = trackListRef.current;
@@ -500,7 +714,7 @@ export function App() {
       list.scrollTop = 0;
     }
     setTrackListScrollTop(0);
-  }, [query, libraryViewMode, tracks.length]);
+  }, [query, libraryViewMode, tracks.length, activeScreen]);
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) {
@@ -723,9 +937,17 @@ export function App() {
       bottomSpacerHeight: Math.max(0, (totalRows - endRow) * rowHeight),
     };
   }, [filteredTracks, libraryViewMode, trackListScrollTop, trackListViewportHeight, trackListWidth]);
+  const playbackQueueTracks = useMemo(() => {
+    if (!playbackPlaylist) {
+      return filteredTracks;
+    }
+    return playbackPlaylist.entries
+      .map((entry) => tracks.find((track) => track.id === entry.trackId) ?? null)
+      .filter((track): track is Track => Boolean(track));
+  }, [playbackPlaylist, filteredTracks, tracks]);
   const playbackTrackIndex = useMemo(
-    () => filteredTracks.findIndex((t) => t.id === playbackTrackId),
-    [filteredTracks, playbackTrackId]
+    () => playbackQueueTracks.findIndex((t) => t.id === playbackTrackId),
+    [playbackQueueTracks, playbackTrackId]
   );
 
   function cancelOnlineSearch(reason = "Online search canceled.") {
@@ -748,6 +970,9 @@ export function App() {
         return;
       }
       setFolderPath(result.folderPath);
+      if (!defaultFolderPath) {
+        setDefaultFolderPath(result.folderPath);
+      }
       setTracks(result.tracks);
       setSelectedTrackId(result.tracks[0]?.id ?? "");
       setPlaybackTrackId("");
@@ -998,10 +1223,6 @@ export function App() {
     }
   }
 
-  function handleInfoClick() {
-    setShowInfoModal(true);
-  }
-
   async function handleOpenExternalLink(
     event: { preventDefault: () => void },
     url: string
@@ -1060,6 +1281,10 @@ export function App() {
 
     const targetTrack = playbackTrack ?? selectedTrack;
     if (targetTrack && targetTrack.id !== playbackTrackId) {
+      if (selectedTrack && targetTrack.id === selectedTrack.id) {
+        // Explicit single-track playback from library selection interrupts playlist mode.
+        setPlaybackPlaylistId("");
+      }
       setPlaybackTrackId(targetTrack.id);
       setShouldAutoplay(true);
       return;
@@ -1084,6 +1309,7 @@ export function App() {
 
   function handlePlayFromLibraryCover(event: MouseEvent<HTMLElement>, track: Track) {
     event.stopPropagation();
+    setPlaybackPlaylistId("");
     if (track.id !== selectedTrackId) {
       selectTrack(track);
     }
@@ -1191,7 +1417,7 @@ export function App() {
     if (playbackTrackIndex <= 0) {
       return;
     }
-    const prev = filteredTracks[playbackTrackIndex - 1];
+    const prev = playbackQueueTracks[playbackTrackIndex - 1];
     if (prev) {
       setPlaybackTrackId(prev.id);
       setShouldAutoplay(true);
@@ -1200,15 +1426,230 @@ export function App() {
   }
 
   function handleNextTrack() {
-    if (playbackTrackIndex < 0 || playbackTrackIndex >= filteredTracks.length - 1) {
+    if (playbackTrackIndex < 0 || playbackTrackIndex >= playbackQueueTracks.length - 1) {
       return;
     }
-    const next = filteredTracks[playbackTrackIndex + 1];
+    const next = playbackQueueTracks[playbackTrackIndex + 1];
     if (next) {
       setPlaybackTrackId(next.id);
       setShouldAutoplay(true);
       selectTrack(next);
     }
+  }
+
+  function handlePlayTrackFromQueue(track: Track, playlistId?: string) {
+    setPlaybackPlaylistId(playlistId ?? "");
+    if (track.id !== selectedTrackId) {
+      selectTrack(track);
+    }
+    if (track.id !== playbackTrackId) {
+      setPlaybackTrackId(track.id);
+      setShouldAutoplay(true);
+      return;
+    }
+    const audio = audioRef.current;
+    if (!audio || !audioSrc || audioTrackId !== track.id) {
+      setShouldAutoplay(true);
+      return;
+    }
+    void audio.play().then(
+      () => {
+        setIsPlaying(true);
+        setAudioError("");
+      },
+      () => {
+        setAudioError("Unable to start playback in this environment.");
+        setIsPlaying(false);
+      }
+    );
+  }
+
+  function handlePlayActivePlaylist() {
+    if (!activePlaylist) {
+      return;
+    }
+    const firstPlayableTrack = activePlaylist.entries
+      .map((entry) => tracks.find((track) => track.id === entry.trackId) ?? null)
+      .find((track): track is Track => Boolean(track));
+    if (!firstPlayableTrack) {
+      return;
+    }
+    setPlaybackPlaylistId(activePlaylist.id);
+    selectTrack(firstPlayableTrack);
+    setPlaybackTrackId(firstPlayableTrack.id);
+    setShouldAutoplay(true);
+  }
+
+  function handleCreatePlaylist() {
+    const trimmedName = playlistNameDraft.trim();
+    const name = trimmedName || `Playlist ${playlists.length + 1}`;
+    const nextPlaylist: Playlist = {
+      id: `playlist-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      name,
+      entries: [],
+    };
+    setPlaylists((prev) => [...prev, nextPlaylist]);
+    setActivePlaylistId(nextPlaylist.id);
+    setPlaylistNameDraft(nextPlaylist.name);
+  }
+
+  function handleRenamePlaylist() {
+    if (!activePlaylist) {
+      return;
+    }
+    const nextName = playlistNameDraft.trim();
+    if (!nextName) {
+      return;
+    }
+    setPlaylists((prev) => prev.map((playlist) => (
+      playlist.id === activePlaylist.id ? { ...playlist, name: nextName } : playlist
+    )));
+  }
+
+  function handleDeletePlaylist() {
+    if (!activePlaylist) {
+      return;
+    }
+    setPlaylists((prev) => {
+      const next = prev.filter((playlist) => playlist.id !== activePlaylist.id);
+      setActivePlaylistId(next[0]?.id ?? "");
+      return next;
+    });
+  }
+
+  function handlePlaylistDraftChange(value: string) {
+    setPlaylistNameDraft(value);
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) {
+      return;
+    }
+    const matchedPlaylist = playlists.find((playlist) => playlist.name.trim().toLowerCase() === normalized);
+    if (matchedPlaylist && matchedPlaylist.id !== activePlaylistId) {
+      setActivePlaylistId(matchedPlaylist.id);
+    }
+  }
+
+  function handleLibraryTrackPointerDown(event: PointerEvent<HTMLElement>, track: Track) {
+    pointerDragStateRef.current = {
+      kind: "library-track",
+      id: track.id,
+      startX: event.clientX,
+      startY: event.clientY,
+      moved: false,
+    };
+  }
+
+  function handlePlaylistEntryPointerDown(event: PointerEvent<HTMLElement>, entryId: string) {
+    pointerDragStateRef.current = {
+      kind: "playlist-entry",
+      id: entryId,
+      startX: event.clientX,
+      startY: event.clientY,
+      moved: false,
+    };
+  }
+
+  function insertTrackIntoActivePlaylist(trackId: string, beforeEntryId?: string | null) {
+    const nextEntry: PlaylistEntry = {
+      id: `entry-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      trackId,
+    };
+    if (!activePlaylist) {
+      const nextPlaylist: Playlist = {
+        id: `playlist-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        name: `Playlist ${playlists.length + 1}`,
+        entries: [nextEntry],
+      };
+      setPlaylists((prev) => [...prev, nextPlaylist]);
+      setActivePlaylistId(nextPlaylist.id);
+      setPlaylistNameDraft(nextPlaylist.name);
+      return;
+    }
+    setPlaylists((prev) =>
+      prev.map((playlist) => {
+        if (playlist.id !== activePlaylist.id) {
+          return playlist;
+        }
+        if (!beforeEntryId) {
+          return { ...playlist, entries: [...playlist.entries, nextEntry] };
+        }
+        const atIndex = playlist.entries.findIndex((entry) => entry.id === beforeEntryId);
+        if (atIndex < 0) {
+          return { ...playlist, entries: [...playlist.entries, nextEntry] };
+        }
+        const nextEntries = [...playlist.entries];
+        nextEntries.splice(atIndex, 0, nextEntry);
+        return { ...playlist, entries: nextEntries };
+      })
+    );
+  }
+
+  function appendTrackToActivePlaylist(trackId: string) {
+    insertTrackIntoActivePlaylist(trackId, null);
+  }
+
+  function movePlaylistEntry(draggedEntryId: string, targetEntryId?: string | null) {
+    if (!activePlaylist) {
+      return;
+    }
+    setPlaylists((prev) => prev.map((playlist) => {
+      if (playlist.id !== activePlaylist.id) {
+        return playlist;
+      }
+      const fromIndex = playlist.entries.findIndex((entry) => entry.id === draggedEntryId);
+      if (fromIndex < 0) {
+        return playlist;
+      }
+      let toIndex = targetEntryId
+        ? playlist.entries.findIndex((entry) => entry.id === targetEntryId)
+        : playlist.entries.length - 1;
+      if (toIndex < 0) {
+        toIndex = playlist.entries.length - 1;
+      }
+      if (fromIndex === toIndex) {
+        return playlist;
+      }
+      const nextEntries = [...playlist.entries];
+      const [moved] = nextEntries.splice(fromIndex, 1);
+      nextEntries.splice(toIndex, 0, moved);
+      return { ...playlist, entries: nextEntries };
+    }));
+  }
+
+  function applyDashboardPointerDrop(
+    payload: { kind: "library-track"; trackId: string } | { kind: "playlist-entry"; entryId: string },
+    target: Element | null
+  ): boolean {
+    if (activeScreen !== "dashboard") {
+      return false;
+    }
+    const targetElement = target instanceof HTMLElement ? target : null;
+    if (!targetElement) {
+      return false;
+    }
+    const entryElement = targetElement.closest<HTMLElement>("[data-playlist-entry-id]");
+    const listElement = targetElement.closest<HTMLElement>("[data-playlist-list]");
+    const dropzoneElement = targetElement.closest<HTMLElement>("[data-playlist-dropzone]");
+    if (!entryElement && !listElement && !dropzoneElement) {
+      return false;
+    }
+    const targetEntryId = entryElement?.dataset.playlistEntryId ?? null;
+    if (payload.kind === "library-track") {
+      insertTrackIntoActivePlaylist(payload.trackId, targetEntryId);
+      return true;
+    }
+    if (payload.kind === "playlist-entry") {
+      movePlaylistEntry(payload.entryId, targetEntryId);
+      return true;
+    }
+    return false;
+  }
+
+  function clearDragState() {
+    pointerDragStateRef.current = { kind: "none", id: "", startX: 0, startY: 0, moved: false };
+    setIsDashboardDragging(false);
+    setDashboardDropArea("none");
+    setDashboardDropEntryId("");
   }
 
   function commitTrackAfterTagSave(currentId: string, source: Track, newPath: string) {
@@ -1271,6 +1712,8 @@ export function App() {
     });
   }
 
+  const hasAudioLoaded = Boolean(audioSrc && audioTrackId === playbackTrackId);
+
   return (
     <div className={colorMode === "dark" ? "app-shell theme-dark" : "app-shell"} style={appStyle}>
       <header className="top-bar">
@@ -1317,7 +1760,7 @@ export function App() {
           <button
             className="ghost-button player-btn"
             onClick={handleNextTrack}
-            disabled={playbackTrackIndex < 0 || playbackTrackIndex >= filteredTracks.length - 1}
+            disabled={playbackTrackIndex < 0 || playbackTrackIndex >= playbackQueueTracks.length - 1}
             title="Next track"
             aria-label="Next track"
           >
@@ -1364,119 +1807,345 @@ export function App() {
               {colorMode === "light" ? <IconMoon className="btn-icon" /> : <IconSun className="btn-icon" />}
             </span>
           </button>
-          <button className="ghost-button" onClick={handleInfoClick} title="Info" aria-label="Info">
-            <span className="btn-content"><IconInfo className="btn-icon" /></span>
+          <button className="ghost-button" onClick={() => setAccentIndex((prev) => (prev + 1) % ACCENT_THEMES.length)} title="Rotate accent palette" aria-label="Rotate accent palette">
+            <span className="btn-content"><IconGrid className="btn-icon" /></span>
           </button>
         </div>
       </header>
 
-      <main className="two-col">
-        <div className="col col-left">
-          <LibrarySection
-            folderPath={folderPath}
-            onOpenFolderPathClick={() => {
-              void handleOpenLibraryFolder();
-            }}
-            isLoadingScan={isLoadingScan}
-            onScan={handleScan}
-            query={query}
-            onQueryChange={setQuery}
-            libraryViewMode={libraryViewMode}
-            onLibraryViewModeChange={setLibraryViewMode}
-            librarySortMode={librarySortMode}
-            librarySortDirection={librarySortDirection}
-            onLibrarySortClick={handleLibrarySortClick}
-            trackCount={tracks.length}
-            folderCount={folderCount}
-            trackListRef={trackListRef}
-            onTrackListScroll={handleTrackListScroll}
-            virtualTrackWindow={virtualTrackWindow}
-            selectedTrackId={selectedTrackId}
-            onSelectTrack={selectTrack}
-            onSearchTrack={handleQuickSearchTrack}
-            onPlayFromLibraryCover={handlePlayFromLibraryCover}
-            IconFolder={IconFolder}
-            IconMusicNote={IconMusicNote}
-            IconSortTitle={IconSortTitle}
-            IconSortArtist={IconSortArtist}
-            IconSortAdded={IconSortAdded}
-            IconSortRelease={IconSortRelease}
-            IconGrid={IconGrid}
-            IconListCompact={IconListCompact}
-            IconPlay={IconPlay}
-            IconSearch={IconSearch}
-          />
-        </div>
+      <nav className="app-nav">
+        <button className={activeScreen === "dashboard" ? "app-nav-btn active" : "ghost-button app-nav-btn"} onClick={() => setActiveScreen("dashboard")}>Dashboard</button>
+        <button className={activeScreen === "tagging" ? "app-nav-btn active" : "ghost-button app-nav-btn"} onClick={() => setActiveScreen("tagging")}>Music Tagging</button>
+        <button className={activeScreen === "player" ? "app-nav-btn active" : "ghost-button app-nav-btn"} onClick={() => setActiveScreen("player")}>Player</button>
+        <button className={activeScreen === "settings" ? "app-nav-btn active" : "ghost-button app-nav-btn"} onClick={() => setActiveScreen("settings")}>Settings</button>
+      </nav>
 
-        <div className="col col-right">
-          <TrackDetailsSection
-            selectedFileName={selectedFileName}
-            selectedFilePath={editableTrack?.path ?? ""}
-            hasUnsavedChanges={hasUnsavedChanges}
-            technicalBadge={trackTechnicalBadge}
-            technicalSummary={trackTechnicalSummary}
-            coverInputRef={coverInputRef}
-            onCoverFileChange={handleCoverFileChange}
-            editableTrack={editableTrack}
-            onSelectCoverClick={handleSelectCoverClick}
-            onRemoveCover={handleRemoveCover}
-            onTrackFieldChange={handleTrackFieldChange}
-            onSaveTrack={handleSaveTrack}
-            onSaveAndRenameTrack={handleSaveAndRenameTrack}
-            renamePreview={renamePreview}
-            onRenameOnlyTrack={handleRenameOnlyTrack}
-            onOpenTrackPathClick={() => {
-              void handleOpenTrackFolder();
-            }}
-            onOpenRenameSettings={() => setShowRenameSettings(true)}
-            IconPlus={IconPlus}
-            IconTrash={IconTrash}
-            IconSave={IconSave}
-            IconSaveRename={IconSaveRename}
-            IconRename={IconRename}
-            IconSettings={IconSettings}
-          />
+      {activeScreen === "tagging" && (
+        <main className="two-col">
+          <div className="col col-left">
+            <LibrarySection
+              folderPath={folderPath}
+              onOpenFolderPathClick={() => {
+                void handleOpenLibraryFolder();
+              }}
+              isLoadingScan={isLoadingScan}
+              onScan={handleScan}
+              query={query}
+              onQueryChange={setQuery}
+              libraryViewMode={libraryViewMode}
+              onLibraryViewModeChange={setLibraryViewMode}
+              librarySortMode={librarySortMode}
+              librarySortDirection={librarySortDirection}
+              onLibrarySortClick={handleLibrarySortClick}
+              trackCount={tracks.length}
+              folderCount={folderCount}
+              trackListRef={trackListRef}
+              onTrackListScroll={handleTrackListScroll}
+              virtualTrackWindow={virtualTrackWindow}
+              selectedTrackId={selectedTrackId}
+              onSelectTrack={selectTrack}
+              onSearchTrack={handleQuickSearchTrack}
+              onPlayFromLibraryCover={handlePlayFromLibraryCover}
+              IconFolder={IconFolder}
+              IconMusicNote={IconMusicNote}
+              IconSortTitle={IconSortTitle}
+              IconSortArtist={IconSortArtist}
+              IconSortAdded={IconSortAdded}
+              IconSortRelease={IconSortRelease}
+              IconGrid={IconGrid}
+              IconListCompact={IconListCompact}
+              IconPlay={IconPlay}
+              IconSearch={IconSearch}
+            />
+          </div>
 
-          <OnlineSearchSection
-            searchStatus={searchStatus}
-            searchTitle={searchTitle}
-            onSearchTitleChange={setSearchTitle}
-            searchArtist={searchArtist}
-            onSearchArtistChange={setSearchArtist}
-            searchAlbum={searchAlbum}
-            onSearchAlbumChange={setSearchAlbum}
-            onSearchButtonClick={handleSearchButtonClick}
-            canSearch={Boolean(selectedTrack)}
-            isLoadingSearch={isLoadingSearch}
-            sortedOnlineResults={sortedOnlineResults}
-            selectedResultId={selectedResultId}
-            onSelectResult={setSelectedResultId}
-            bestMatchResultId={bestMatchResultId}
-            formatResultDate={(date) => formatOnlineMatchDate(date, userLocale)}
-            onApplyOnlineResult={handleApplyOnlineResult}
-            onApplyOnlineCoverOnly={handleApplyOnlineCoverOnly}
-            onApplyAndSaveOnlineResult={(result) => {
-              void handleApplyAndSaveOnlineResult(result);
-            }}
-            IconSearch={IconSearch}
-            IconClose={IconClose}
-            IconCheck={IconCheck}
-            IconCover={IconCover}
-            IconSave={IconSave}
-          />
-        </div>
-      </main>
+          <div className="col col-right">
+            <TrackDetailsSection
+              selectedFileName={selectedFileName}
+              selectedFilePath={editableTrack?.path ?? ""}
+              hasUnsavedChanges={hasUnsavedChanges}
+              technicalBadge={trackTechnicalBadge}
+              technicalSummary={trackTechnicalSummary}
+              coverInputRef={coverInputRef}
+              onCoverFileChange={handleCoverFileChange}
+              editableTrack={editableTrack}
+              onSelectCoverClick={handleSelectCoverClick}
+              onRemoveCover={handleRemoveCover}
+              onTrackFieldChange={handleTrackFieldChange}
+              onSaveTrack={handleSaveTrack}
+              onSaveAndRenameTrack={handleSaveAndRenameTrack}
+              renamePreview={renamePreview}
+              onRenameOnlyTrack={handleRenameOnlyTrack}
+              onOpenTrackPathClick={() => {
+                void handleOpenTrackFolder();
+              }}
+              onOpenRenameSettings={() => setShowRenameSettings(true)}
+              IconPlus={IconPlus}
+              IconTrash={IconTrash}
+              IconSave={IconSave}
+              IconSaveRename={IconSaveRename}
+              IconRename={IconRename}
+              IconSettings={IconSettings}
+            />
 
-      {showInfoModal && (
-        <div className="modal-backdrop" onClick={() => setShowInfoModal(false)}>
-          <div className="modal-card info-modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>About DiscoBalls</h3>
-              <button className="ghost-button" onClick={() => setShowInfoModal(false)} title="Close" aria-label="Close">
-                <span className="btn-content"><IconClose className="btn-icon" /></span>
-              </button>
+            <OnlineSearchSection
+              searchStatus={searchStatus}
+              searchTitle={searchTitle}
+              onSearchTitleChange={setSearchTitle}
+              searchArtist={searchArtist}
+              onSearchArtistChange={setSearchArtist}
+              searchAlbum={searchAlbum}
+              onSearchAlbumChange={setSearchAlbum}
+              onSearchButtonClick={handleSearchButtonClick}
+              canSearch={Boolean(selectedTrack)}
+              isLoadingSearch={isLoadingSearch}
+              sortedOnlineResults={sortedOnlineResults}
+              selectedResultId={selectedResultId}
+              onSelectResult={setSelectedResultId}
+              bestMatchResultId={bestMatchResultId}
+              formatResultDate={(date) => formatOnlineMatchDate(date, userLocale)}
+              onApplyOnlineResult={handleApplyOnlineResult}
+              onApplyOnlineCoverOnly={handleApplyOnlineCoverOnly}
+              onApplyAndSaveOnlineResult={(result) => {
+                void handleApplyAndSaveOnlineResult(result);
+              }}
+              IconSearch={IconSearch}
+              IconClose={IconClose}
+              IconCheck={IconCheck}
+              IconCover={IconCover}
+              IconSave={IconSave}
+            />
+          </div>
+        </main>
+      )}
+
+      {activeScreen === "dashboard" && (
+        <main className="two-col">
+          <div className="col col-left">
+            <LibrarySection
+              folderPath={folderPath}
+              onOpenFolderPathClick={() => {
+                void handleOpenLibraryFolder();
+              }}
+              isLoadingScan={isLoadingScan}
+              onScan={handleScan}
+              query={query}
+              onQueryChange={setQuery}
+              libraryViewMode={libraryViewMode}
+              onLibraryViewModeChange={setLibraryViewMode}
+              librarySortMode={librarySortMode}
+              librarySortDirection={librarySortDirection}
+              onLibrarySortClick={handleLibrarySortClick}
+              trackCount={tracks.length}
+              folderCount={folderCount}
+              trackListRef={trackListRef}
+              onTrackListScroll={handleTrackListScroll}
+              virtualTrackWindow={virtualTrackWindow}
+              selectedTrackId={selectedTrackId}
+              onSelectTrack={selectTrack}
+              onSearchTrack={handleQuickSearchTrack}
+              onTrackAction={(track) => appendTrackToActivePlaylist(track.id)}
+              trackActionTitle="Add track to playlist"
+              trackActionAriaLabel="Add track to playlist"
+              onPlayFromLibraryCover={handlePlayFromLibraryCover}
+              enableTrackDrag={true}
+              useNativeTrackDrag={false}
+              onTrackPointerDown={handleLibraryTrackPointerDown}
+              draggingTrackId={
+                isDashboardDragging && pointerDragStateRef.current.kind === "library-track"
+                  ? pointerDragStateRef.current.id
+                  : ""
+              }
+              IconFolder={IconFolder}
+              IconMusicNote={IconMusicNote}
+              IconSortTitle={IconSortTitle}
+              IconSortArtist={IconSortArtist}
+              IconSortAdded={IconSortAdded}
+              IconSortRelease={IconSortRelease}
+              IconGrid={IconGrid}
+              IconListCompact={IconListCompact}
+              IconPlay={IconPlay}
+              IconSearch={IconSearch}
+              IconTrackAction={IconPlus}
+            />
+          </div>
+          <div className="col col-right">
+            <Card title="Playlist Editor">
+              <div className="playlist-toolbar">
+                <input
+                  className="input"
+                  list="playlist-options"
+                  value={playlistNameDraft}
+                  onChange={(e) => handlePlaylistDraftChange(e.target.value)}
+                  placeholder="Select or type playlist name"
+                />
+                <datalist id="playlist-options">
+                  {playlists.map((playlist) => (
+                    <option key={playlist.id} value={playlist.name} />
+                  ))}
+                </datalist>
+                <button className="ghost-button" onClick={handleCreatePlaylist} title="Create playlist" aria-label="Create playlist">
+                  <span className="btn-content"><IconPlus className="btn-icon" /></span>
+                </button>
+                <button className="ghost-button" onClick={handleRenamePlaylist} disabled={!activePlaylist} title="Rename playlist" aria-label="Rename playlist">
+                  <span className="btn-content"><IconRename className="btn-icon" /></span>
+                </button>
+                <button className="ghost-button" onClick={handleDeletePlaylist} disabled={!activePlaylist} title="Delete playlist" aria-label="Delete playlist">
+                  <span className="btn-content"><IconTrash className="btn-icon" /></span>
+                </button>
+                <button className="ghost-button" onClick={handlePlayActivePlaylist} disabled={!activePlaylist?.entries.length} title="Play playlist" aria-label="Play playlist">
+                  <span className="btn-content"><IconPlay className="btn-icon" /></span>
+                </button>
+              </div>
+              <div
+                className={
+                  isDashboardDragging && dashboardDropArea === "dropzone"
+                    ? "playlist-dropzone is-dragging"
+                    : "playlist-dropzone"
+                }
+                data-playlist-dropzone="true"
+              >
+                {isDashboardDragging
+                  ? "Release here to add/reorder tracks"
+                  : "Drag tracks from Library and drop them here"}
+              </div>
+
+              <ul
+                className={
+                  isDashboardDragging && dashboardDropArea === "playlist"
+                    ? "playlist-list is-dragging"
+                    : "playlist-list"
+                }
+                data-playlist-list="true"
+              >
+                {(activePlaylist?.entries ?? []).map((entry) => {
+                  const track = tracks.find((item) => item.id === entry.trackId);
+                  if (!track) {
+                    return null;
+                  }
+                  return (
+                    <li key={entry.id}>
+                      <button
+                        className={
+                          isDashboardDragging && pointerDragStateRef.current.kind === "playlist-entry" && pointerDragStateRef.current.id === entry.id
+                            ? "playlist-item dragging"
+                            : dashboardDropEntryId === entry.id
+                              ? "playlist-item drop-target"
+                              : "playlist-item"
+                        }
+                        data-playlist-entry-id={entry.id}
+                        onPointerDown={(event) => {
+                          handlePlaylistEntryPointerDown(event, entry.id);
+                        }}
+                        onClick={() => {
+                          if (suppressNextPlaylistItemClickRef.current) {
+                            suppressNextPlaylistItemClickRef.current = false;
+                            return;
+                          }
+                          handlePlayTrackFromQueue(track, activePlaylist?.id);
+                        }}
+                      >
+                        <span className="playlist-item-drag" aria-hidden="true">::</span>
+                        <span className="playlist-item-text">
+                          <strong>{track.title || "Untitled"}</strong>
+                          <small>{track.artist || "Unknown artist"}</small>
+                        </span>
+                        <span className="playlist-item-actions">
+                          <span className="ghost-button mini-icon">
+                            <IconPlay className="btn-icon" />
+                          </span>
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </Card>
+          </div>
+        </main>
+      )}
+
+      {activeScreen === "player" && (
+        <main className="player-layout">
+          <div className="player-main">
+            <MusicVisualizerSection
+              audioRef={audioRef}
+              isActive={activeScreen === "player"}
+              hasAudio={hasAudioLoaded}
+              isPlaying={isPlaying}
+              coverUrl={playerInfoTrack?.coverUrl}
+              currentTime={currentTime}
+              duration={duration}
+              title={playerInfoTrack?.title || ""}
+              artist={playerInfoTrack?.artist || ""}
+              accentColor={accentTheme.accent}
+              isDarkMode={colorMode === "dark"}
+            />
+          </div>
+          <div className="player-queue">
+            <Card title="Playback Queue">
+              <ul className="queue-list">
+                {filteredTracks.map((track) => (
+                  <li key={track.id}>
+                    <button
+                      className={track.id === playbackTrackId ? "queue-item active" : "queue-item"}
+                      onClick={() => handlePlayTrackFromQueue(track)}
+                    >
+                      <strong>{track.title || "Untitled"}</strong>
+                      <small>{track.artist || "Unknown artist"}</small>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          </div>
+        </main>
+      )}
+
+      {activeScreen === "settings" && (
+        <main className="settings-layout">
+          <Card title="General">
+            <div className="settings-grid">
+              <label className="settings-toggle">
+                <input type="checkbox" checked={autoOpenDefaultFolder} onChange={(e) => setAutoOpenDefaultFolder(e.target.checked)} />
+                <span>Auto-open default folder on launch</span>
+              </label>
+              <label>
+                Default folder
+                <input className="input" value={defaultFolderPath} onChange={(e) => setDefaultFolderPath(e.target.value)} placeholder="/Music" />
+              </label>
+              <button className="ghost-button" onClick={() => setDefaultFolderPath(folderPath)} disabled={!folderPath}>Use current library folder</button>
             </div>
+          </Card>
 
+          <Card title="Audio Settings">
+            <div className="settings-grid">
+              <label className="settings-toggle">
+                <input type="checkbox" checked={audioNormalizeVolume} onChange={(e) => setAudioNormalizeVolume(e.target.checked)} />
+                <span>Normalize playback volume (planned)</span>
+              </label>
+              <label className="settings-toggle">
+                <input type="checkbox" checked={audioSmartCrossfade} onChange={(e) => setAudioSmartCrossfade(e.target.checked)} />
+                <span>Smart crossfade between tracks (planned)</span>
+              </label>
+            </div>
+          </Card>
+
+          <Card title="Appearance">
+            <div className="settings-grid">
+              <label className="settings-toggle">
+                <input type="checkbox" checked={colorMode === "dark"} onChange={(e) => setColorMode(e.target.checked ? "dark" : "light")} />
+                <span>Enable dark mode</span>
+              </label>
+              <label className="settings-toggle">
+                <input type="checkbox" checked={accentRotateOnLaunch} onChange={(e) => setAccentRotateOnLaunch(e.target.checked)} />
+                <span>Rotate accent palette on launch</span>
+              </label>
+              <button className="ghost-button" onClick={() => setAccentIndex((prev) => (prev + 1) % ACCENT_THEMES.length)}>Rotate accent now</button>
+            </div>
+          </Card>
+
+          <Card title="App Info">
             <div className="info-meta">
               <p><strong>App:</strong> DiscoBalls</p>
               <p><strong>Version:</strong> 1.3.1</p>
@@ -1514,17 +2183,8 @@ export function App() {
                 </a>
               </p>
             </div>
-
-            <h4>Quick Manual</h4>
-            <ul className="info-manual">
-              <li>Select a folder to load your audio files library.</li>
-              <li>Pick a track, edit fields in Track details, then save tags.</li>
-              <li>Use rename actions to rename with your configured pattern.</li>
-              <li>Run online search to fetch metadata and cover art from MusicBrainz/iTunes.</li>
-              <li>Apply an online result, then save to persist metadata to file.</li>
-            </ul>
-          </div>
-        </div>
+          </Card>
+        </main>
       )}
 
       {showRenameSettings && (
@@ -1578,19 +2238,6 @@ export function App() {
   );
 }
 
-function normalizePath(path: string): string {
-  return path.replace(/\\/g, "/").replace(/\/+$/, "");
-}
-
-function getFileName(path: string): string {
-  const normalized = normalizePath(path);
-  const index = normalized.lastIndexOf("/");
-  if (index < 0) {
-    return normalized;
-  }
-  return normalized.slice(index + 1);
-}
-
 function areTracksEqual(a: Track, b: Track): boolean {
   return (
     a.id === b.id &&
@@ -1626,37 +2273,9 @@ function buildRenamePreview(track: Track, fields: RenameField[], separator: stri
   return `${parts.join(separator || " - ")}${ext}`;
 }
 
-function getExtension(path: string): string {
-  const file = getFileName(path);
-  const index = file.lastIndexOf(".");
-  if (index < 0) {
-    return "";
-  }
-  return file.slice(index);
-}
-
-function sanitizeFilePart(value: string): string {
-  const normalized = value
-    .replace(/[<>:"/\\|?*]/g, "_")
-    .replace(/[\r\n]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  return normalized.replace(/[.\s]+$/g, "");
-}
-
 function renameFieldLabel(field: RenameField): string {
   const found = RENAME_FIELD_OPTIONS.find((f) => f.key === field);
   return found?.label ?? field;
-}
-
-function formatTime(value: number): string {
-  if (!Number.isFinite(value) || value <= 0) {
-    return "0:00";
-  }
-  const total = Math.floor(value);
-  const minutes = Math.floor(total / 60);
-  const seconds = total % 60;
-  return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
 function formatTrackTechnicalBadge(info: TrackTechnicalInfo | null, path?: string): string {
@@ -1684,40 +2303,6 @@ function formatTrackTechnicalSummary(info: TrackTechnicalInfo | null): string {
   return `Duration: ${duration} · Sample rate: ${sampleRate} · Size: ${fileSize} · Channels: ${channels} · Depth: ${bitDepth}`;
 }
 
-function formatDurationLabel(seconds: number): string {
-  if (!Number.isFinite(seconds) || seconds <= 0) {
-    return "n/a";
-  }
-  const total = Math.round(seconds);
-  const hours = Math.floor(total / 3600);
-  const minutes = Math.floor((total % 3600) / 60);
-  const secs = total % 60;
-  if (hours > 0) {
-    return `${hours}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
-  }
-  return `${minutes}:${String(secs).padStart(2, "0")}`;
-}
-
-function formatSampleRate(sampleRateHz: number): string {
-  const khz = sampleRateHz / 1000;
-  const decimals = sampleRateHz % 1000 === 0 ? 0 : 1;
-  return `${khz.toFixed(decimals)} kHz`;
-}
-
-function formatFileSize(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes <= 0) {
-    return "n/a";
-  }
-  const units = ["B", "KB", "MB", "GB"];
-  let value = bytes;
-  let index = 0;
-  while (value >= 1024 && index < units.length - 1) {
-    value /= 1024;
-    index += 1;
-  }
-  const decimals = value >= 100 || index === 0 ? 0 : 1;
-  return `${value.toFixed(decimals)} ${units[index]}`;
-}
 
 function getTrackReleaseSortKey(year: string): number {
   const match = year.trim().match(/^(\d{4})/);
@@ -1907,32 +2492,6 @@ function isValidYearMonthDay(year: number, month: number, day: number): boolean 
     date.getUTCMonth() + 1 === month &&
     date.getUTCDate() === day
   );
-}
-
-function getUserLocale(): string {
-  if (typeof navigator !== "undefined" && navigator.language) {
-    return navigator.language;
-  }
-  return "en-US";
-}
-
-function formatError(error: unknown): string {
-  if (typeof error === "string") {
-    return error;
-  }
-  if (error && typeof error === "object") {
-    const candidate = error as { message?: unknown; toString?: () => string };
-    if (typeof candidate.message === "string" && candidate.message.trim()) {
-      return candidate.message;
-    }
-    if (typeof candidate.toString === "function") {
-      const text = candidate.toString();
-      if (text && text !== "[object Object]") {
-        return text;
-      }
-    }
-  }
-  return "Unknown error";
 }
 
 function countFoldersAndSubfolders(items: Track[], rootPath: string): number {

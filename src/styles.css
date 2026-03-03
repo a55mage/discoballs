@@ -85,6 +85,17 @@ button:disabled {
   margin-bottom: 12px;
 }
 
+.app-nav {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.app-nav-btn {
+  padding: 8px 12px;
+}
+
 .app-brand {
   all: unset;
   flex: 0 0 auto;
@@ -245,6 +256,206 @@ button.app-brand:hover:enabled {
   gap: 12px;
   flex: 1;
   min-height: 0;
+}
+
+.settings-layout {
+  display: grid;
+  gap: 12px;
+}
+
+.settings-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.settings-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.player-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+}
+
+.player-main,
+.player-queue {
+  min-height: 0;
+}
+
+.player-queue .card {
+  height: 100%;
+}
+
+.queue-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  max-height: 70vh;
+  overflow: auto;
+}
+
+.queue-item {
+  width: 100%;
+  text-align: left;
+  background: #fdf9ef;
+  color: var(--ink-primary);
+  border: 1px solid #e2e8e4;
+  padding: 8px 10px;
+  display: grid;
+  gap: 2px;
+}
+
+.queue-item.active {
+  background: var(--accent-soft);
+  border-color: #d0b98e;
+}
+
+.queue-item small {
+  color: var(--ink-secondary);
+}
+
+.dashboard-now-playing {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.dashboard-player-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.dashboard-player-progress {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.playlist-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.playlist-toolbar .ghost-button {
+  min-width: 34px;
+  padding: 6px 8px;
+}
+
+.playlist-dropzone {
+  border: 1px dashed var(--border-strong);
+  border-radius: 10px;
+  padding: 10px;
+  font-size: 12px;
+  color: var(--ink-secondary);
+  margin-bottom: 8px;
+}
+
+.playlist-dropzone.is-dragging {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.playlist-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  max-height: 420px;
+  overflow: auto;
+}
+
+.playlist-list.is-dragging {
+  outline: 2px dashed var(--accent);
+  outline-offset: 2px;
+}
+
+.playlist-item {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  text-align: left;
+  background: #fdf9ef;
+  color: var(--ink-primary);
+  border: 1px solid #e2e8e4;
+  padding: 6px 8px;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  transition: transform 0.09s ease, box-shadow 0.09s ease, border-color 0.09s ease, background-color 0.09s ease;
+}
+
+.playlist-item:hover:enabled {
+  background: #f5ebd9;
+  border-color: #dcc7a2;
+}
+
+.playlist-item.dragging {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent);
+  transform: scale(0.99);
+}
+
+.playlist-item.drop-target {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.track-item-shell.dragging .track-item {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  opacity: 0.86;
+  transform: scale(0.99);
+}
+
+.playlist-item-drag {
+  font-weight: 700;
+  color: var(--ink-secondary);
+  letter-spacing: 0.02em;
+}
+
+.playlist-item-text {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.playlist-item-text strong,
+.playlist-item-text small {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.playlist-item-text small {
+  color: var(--ink-secondary);
+}
+
+.playlist-item-actions {
+  display: flex;
+  align-items: center;
+}
+
+.mini-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  padding: 4px 6px;
 }
 
 .visualizer-main {
@@ -1386,6 +1597,14 @@ img.detail-cover {
   }
 
   .two-col {
+    grid-template-columns: 1fr;
+  }
+
+  .player-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .playlist-toolbar {
     grid-template-columns: 1fr;
   }
 
