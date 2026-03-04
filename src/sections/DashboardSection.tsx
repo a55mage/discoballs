@@ -1,4 +1,4 @@
-import { type ComponentType, type PointerEvent, type SVGProps } from "react";
+import { type ComponentType, type KeyboardEvent, type PointerEvent, type SVGProps } from "react";
 import { Card } from "../components/Card";
 import type { Track } from "../types";
 import { LibrarySection, type LibrarySectionProps } from "./LibrarySection";
@@ -7,6 +7,7 @@ type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
 
 type DashboardSectionProps = {
   activePlaylistId: string;
+  isPlaylistRenaming: boolean;
   libraryProps: LibrarySectionProps;
   playlistNameDraft: string;
   playlists: Array<{ id: string; name: string }>;
@@ -22,6 +23,7 @@ type DashboardSectionProps = {
   onPlaylistDraftChange: (value: string) => void;
   onCreatePlaylist: () => void;
   onRenamePlaylist: () => void;
+  onPlaylistRenameInputKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void;
   onDeletePlaylist: () => void;
   onPlayActivePlaylist: () => void;
   onPlaylistEntryPointerDown: (event: PointerEvent<HTMLElement>, entryId: string) => void;
@@ -35,6 +37,7 @@ type DashboardSectionProps = {
 
 export function DashboardSection({
   activePlaylistId,
+  isPlaylistRenaming,
   libraryProps,
   playlistNameDraft,
   playlists,
@@ -50,6 +53,7 @@ export function DashboardSection({
   onPlaylistDraftChange,
   onCreatePlaylist,
   onRenamePlaylist,
+  onPlaylistRenameInputKeyDown,
   onDeletePlaylist,
   onPlayActivePlaylist,
   onPlaylistEntryPointerDown,
@@ -60,59 +64,77 @@ export function DashboardSection({
   IconTrash,
   IconPlay,
 }: DashboardSectionProps) {
+  const showDropzone = activePlaylistEntries.length === 0;
+
+  const playlistToolbar = (
+    <div className="playlist-toolbar">
+      {isPlaylistRenaming ? (
+        <input
+          className="input playlist-control"
+          value={playlistNameDraft}
+          onChange={(event) => onPlaylistDraftChange(event.target.value)}
+          onKeyDown={onPlaylistRenameInputKeyDown}
+          placeholder="Playlist name"
+          aria-label="Playlist name"
+          autoFocus
+        />
+      ) : (
+        <select
+          className="input playlist-control"
+          value={activePlaylistId}
+          onChange={(event) => onActivePlaylistChange(event.target.value)}
+          disabled={!playlists.length}
+          aria-label="Select playlist"
+          title="Select playlist"
+        >
+          {!playlists.length && <option value="">No playlists available</option>}
+          {playlists.map((playlist) => (
+            <option key={playlist.id} value={playlist.id}>{playlist.name}</option>
+          ))}
+        </select>
+      )}
+      <button className="ghost-button" onClick={onCreatePlaylist} title="Create playlist" aria-label="Create playlist">
+        <span className="btn-content"><IconPlus className="btn-icon" /></span>
+      </button>
+      <button
+        className="ghost-button"
+        onClick={onRenamePlaylist}
+        disabled={!hasActivePlaylist}
+        title={isPlaylistRenaming ? "Confirm rename" : "Rename playlist"}
+        aria-label={isPlaylistRenaming ? "Confirm rename" : "Rename playlist"}
+      >
+        <span className="btn-content"><IconRename className="btn-icon" /></span>
+      </button>
+      <button className="ghost-button" onClick={onDeletePlaylist} disabled={!hasActivePlaylist} title="Delete playlist" aria-label="Delete playlist">
+        <span className="btn-content"><IconTrash className="btn-icon" /></span>
+      </button>
+      <button className="ghost-button" onClick={onPlayActivePlaylist} disabled={!canPlayActivePlaylist} title="Play playlist" aria-label="Play playlist">
+        <span className="btn-content"><IconPlay className="btn-icon" /></span>
+      </button>
+    </div>
+  );
+
   return (
     <main className="two-col">
       <div className="col col-left">
         <LibrarySection {...libraryProps} />
       </div>
       <div className="col col-right">
-        <Card title="Playlist Editor">
-          <div className="playlist-toolbar">
-            <select
-              className="input playlist-select"
-              value={activePlaylistId}
-              onChange={(event) => onActivePlaylistChange(event.target.value)}
-              disabled={!playlists.length}
-              aria-label="Select playlist"
-              title="Select playlist"
+        <Card title="Playlist Editor" headerRight={playlistToolbar}>
+          {showDropzone && (
+            <div
+              className={
+                isDashboardDragging && dashboardDropArea === "dropzone"
+                  ? "playlist-dropzone is-dragging"
+                  : "playlist-dropzone"
+              }
+              data-playlist-dropzone="true"
             >
-              {!playlists.length && <option value="">No playlists available</option>}
-              {playlists.map((playlist) => (
-                <option key={playlist.id} value={playlist.id}>{playlist.name}</option>
-              ))}
-            </select>
-            <input
-              className="input"
-              value={playlistNameDraft}
-              onChange={(event) => onPlaylistDraftChange(event.target.value)}
-              placeholder="Playlist name"
-              aria-label="Playlist name"
-            />
-            <button className="ghost-button" onClick={onCreatePlaylist} title="Create playlist" aria-label="Create playlist">
-              <span className="btn-content"><IconPlus className="btn-icon" /></span>
-            </button>
-            <button className="ghost-button" onClick={onRenamePlaylist} disabled={!hasActivePlaylist} title="Rename playlist" aria-label="Rename playlist">
-              <span className="btn-content"><IconRename className="btn-icon" /></span>
-            </button>
-            <button className="ghost-button" onClick={onDeletePlaylist} disabled={!hasActivePlaylist} title="Delete playlist" aria-label="Delete playlist">
-              <span className="btn-content"><IconTrash className="btn-icon" /></span>
-            </button>
-            <button className="ghost-button" onClick={onPlayActivePlaylist} disabled={!canPlayActivePlaylist} title="Play playlist" aria-label="Play playlist">
-              <span className="btn-content"><IconPlay className="btn-icon" /></span>
-            </button>
-          </div>
-          <div
-            className={
-              isDashboardDragging && dashboardDropArea === "dropzone"
-                ? "playlist-dropzone is-dragging"
-                : "playlist-dropzone"
-            }
-            data-playlist-dropzone="true"
-          >
-            {isDashboardDragging
-              ? "Release here to add/reorder tracks"
-              : "Drag tracks from Library and drop them here"}
-          </div>
+              {isDashboardDragging
+                ? "Release here to add/reorder tracks"
+                : "Drag tracks from Library and drop them here"}
+            </div>
+          )}
 
           <ul
             className={

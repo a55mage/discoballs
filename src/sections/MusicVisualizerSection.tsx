@@ -1,5 +1,6 @@
 import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { Card } from "../components/Card";
+import { getOrCreateMediaAudioGraph, type MediaAudioGraph } from "../utils/audioGraph";
 
 type VisualizerPresetId = "xp-bars" | "alchemy" | "scope" | "turntable";
 
@@ -17,52 +18,12 @@ type MusicVisualizerSectionProps = {
   isDarkMode: boolean;
 };
 
-type VisualizerGraph = {
-  context: AudioContext;
-  source: MediaElementAudioSourceNode;
-  analyser: AnalyserNode;
-  frequencyData: Uint8Array;
-  timeData: Uint8Array;
-};
-
 const PRESETS: Array<{ id: VisualizerPresetId; label: string }> = [
   { id: "scope", label: "Scope Line" },
   { id: "alchemy", label: "Alchemy" },
   { id: "xp-bars", label: "XP Bars" },
   { id: "turntable", label: "Turntable" },
 ];
-
-const GRAPH_BY_AUDIO = new WeakMap<HTMLAudioElement, VisualizerGraph>();
-
-function getOrCreateAudioGraph(audio: HTMLAudioElement): VisualizerGraph | null {
-  const existing = GRAPH_BY_AUDIO.get(audio);
-  if (existing) {
-    return existing;
-  }
-
-  const ContextCtor = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-  if (!ContextCtor) {
-    return null;
-  }
-
-  const context = new ContextCtor();
-  const source = context.createMediaElementSource(audio);
-  const analyser = context.createAnalyser();
-  analyser.fftSize = 512;
-  analyser.smoothingTimeConstant = 0.82;
-  source.connect(analyser);
-  analyser.connect(context.destination);
-
-  const graph: VisualizerGraph = {
-    context,
-    source,
-    analyser,
-    frequencyData: new Uint8Array(analyser.frequencyBinCount),
-    timeData: new Uint8Array(analyser.fftSize),
-  };
-  GRAPH_BY_AUDIO.set(audio, graph);
-  return graph;
-}
 
 export function MusicVisualizerSection({
   audioRef,
@@ -79,7 +40,7 @@ export function MusicVisualizerSection({
 }: MusicVisualizerSectionProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const graphRef = useRef<VisualizerGraph | null>(null);
+  const graphRef = useRef<MediaAudioGraph | null>(null);
   const frameRef = useRef<number | null>(null);
   const coverImageRef = useRef<HTMLImageElement | null>(null);
   const coverImageUrlRef = useRef<string>("");
@@ -97,7 +58,7 @@ export function MusicVisualizerSection({
     if (!audio) {
       return;
     }
-    const graph = getOrCreateAudioGraph(audio);
+    const graph = getOrCreateMediaAudioGraph(audio);
     if (!graph) {
       return;
     }

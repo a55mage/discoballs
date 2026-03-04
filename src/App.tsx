@@ -1,4 +1,4 @@
-import { type ChangeEvent, type CSSProperties, type MouseEvent, type PointerEvent, type UIEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type ChangeEvent, type CSSProperties, type KeyboardEvent, type MouseEvent, type PointerEvent, type UIEvent, useEffect, useMemo, useRef, useState } from "react";
 import { createAdapter } from "./api/tauriAdapter";
 import { mockAdapter } from "./api/mockAdapter";
 import appIcon from "./assets/discoballs-icon.png";
@@ -40,6 +40,14 @@ import { TopBarSection } from "./sections/TopBarSection";
 import { TrackDetailsSection } from "./sections/TrackDetailsSection";
 import type { OnlineMatch, RenameField, SearchQuery, Track, TrackTechnicalInfo } from "./types";
 import { formatError, getFileName, getUserLocale } from "./utils/common";
+import {
+  applyEqualizerSettings,
+  DEFAULT_EQUALIZER_PRESET,
+  EQUALIZER_PRESETS,
+  EQUALIZER_FREQUENCIES,
+  getOrCreateMediaAudioGraph,
+  type EqualizerPreset,
+} from "./utils/audioGraph";
 import {
   areTracksEqual,
   buildRenamePreview,
@@ -86,6 +94,7 @@ type SortDirection = "asc" | "desc";
 type AppScreen = "tagging" | "dashboard" | "settings" | "player";
 type PlaylistEntry = { id: string; trackId: string };
 type Playlist = { id: string; name: string; entries: PlaylistEntry[] };
+const BUILTIN_EQ_PRESET_IDS = new Set(EQUALIZER_PRESETS.map((preset) => preset.id));
 
 function normalizePlaylistName(value: string): string {
   return value.trim().toLowerCase();
@@ -103,6 +112,27 @@ function buildUniquePlaylistName(playlists: Playlist[], baseName: string, exclud
   }
   let index = 2;
   while (usedNames.has(normalizePlaylistName(`${fallbackBase} (${index})`))) {
+    index += 1;
+  }
+  return `${fallbackBase} (${index})`;
+}
+
+function normalizeEqualizerPresetName(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function buildUniqueEqualizerPresetName(presets: EqualizerPreset[], baseName: string, excludeId?: string): string {
+  const fallbackBase = baseName.trim() || "New Preset";
+  const usedNames = new Set(
+    presets
+      .filter((preset) => preset.id !== excludeId)
+      .map((preset) => normalizeEqualizerPresetName(preset.name))
+  );
+  if (!usedNames.has(normalizeEqualizerPresetName(fallbackBase))) {
+    return fallbackBase;
+  }
+  let index = 2;
+  while (usedNames.has(normalizeEqualizerPresetName(`${fallbackBase} (${index})`))) {
     index += 1;
   }
   return `${fallbackBase} (${index})`;
@@ -144,11 +174,19 @@ export function App() {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [activePlaylistId, setActivePlaylistId] = useState("");
   const [playlistNameDraft, setPlaylistNameDraft] = useState("");
+  const [isPlaylistRenaming, setIsPlaylistRenaming] = useState(false);
   const [autoOpenDefaultFolder, setAutoOpenDefaultFolder] = useState(false);
   const [defaultFolderPath, setDefaultFolderPath] = useState("");
   const [accentRotateOnLaunch, setAccentRotateOnLaunch] = useState(false);
   const [audioNormalizeVolume, setAudioNormalizeVolume] = useState(false);
   const [audioSmartCrossfade, setAudioSmartCrossfade] = useState(false);
+  const [equalizerPresets, setEqualizerPresets] = useState<EqualizerPreset[]>(EQUALIZER_PRESETS.map((preset) => ({ ...preset, bandGains: [...preset.bandGains] })));
+  const [equalizerPresetId, setEqualizerPresetId] = useState(DEFAULT_EQUALIZER_PRESET.id);
+  const [equalizerPresetName, setEqualizerPresetName] = useState(DEFAULT_EQUALIZER_PRESET.name);
+  const [equalizerBandGains, setEqualizerBandGains] = useState<number[]>([...DEFAULT_EQUALIZER_PRESET.bandGains]);
+  const [equalizerPreampDb, setEqualizerPreampDb] = useState(0);
+  const [equalizerWetMixPercent, setEqualizerWetMixPercent] = useState(100);
+  const [isEqualizerPresetRenaming, setIsEqualizerPresetRenaming] = useState(false);
   const [renameFields, setRenameFields] = useState<RenameField[]>(["tracknumber", "artist", "title"]);
   const [renameSeparator, setRenameSeparator] = useState(" - ");
   const [isPlaying, setIsPlaying] = useState(false);
@@ -179,6 +217,11 @@ export function App() {
     () => playlists.find((playlist) => playlist.id === playbackPlaylistId) ?? null,
     [playlists, playbackPlaylistId]
   );
+  const activeEqualizerPreset = useMemo(
+    () => equalizerPresets.find((preset) => preset.id === equalizerPresetId) ?? null,
+    [equalizerPresets, equalizerPresetId]
+  );
+  const canRenameDeleteEqualizerPreset = Boolean(activeEqualizerPreset && !BUILTIN_EQ_PRESET_IDS.has(activeEqualizerPreset.id));
 
   const selectedTrack = tracks.find((t) => t.id === selectedTrackId) ?? null;
   const playbackTrack = tracks.find((t) => t.id === playbackTrackId) ?? null;
@@ -337,6 +380,97 @@ export function App() {
       setAudioSmartCrossfade(true);
     }
 
+    let restoredEqPresets = EQUALIZER_PRESETS.map((preset) => ({ ...preset, bandGains: [...preset.bandGains] }));
+    const savedEqPresets = window.localStorage.getItem("musicmanager-eq-presets");
+    if (savedEqPresets) {
+      try {
+        const parsed = JSON.parse(savedEqPresets);
+        if (Array.isArray(parsed) && parsed.length) {
+          const normalized = parsed
+            .map((item) => {
+              if (!item || typeof item !== "object") {
+                return null;
+              }
+              const candidate = item as Record<string, unknown>;
+              const id = typeof candidate.id === "string" ? candidate.id.trim() : "";
+              const name = typeof candidate.name === "string" ? candidate.name.trim() : "";
+              const bandGainsRaw = Array.isArray(candidate.bandGains) ? candidate.bandGains : null;
+              if (!id || !name || !bandGainsRaw || bandGainsRaw.length !== EQUALIZER_FREQUENCIES.length) {
+                return null;
+              }
+              const bandGains = bandGainsRaw.map((value) => {
+                const numeric = Number(value);
+                if (!Number.isFinite(numeric)) {
+                  return 0;
+                }
+                return Math.max(-12, Math.min(12, numeric));
+              });
+              const preampDbRaw = Number(candidate.preampDb);
+              const wetMixRaw = Number(candidate.wetMixPercent);
+              return {
+                id,
+                name,
+                bandGains,
+                preampDb: Number.isFinite(preampDbRaw) ? Math.max(-12, Math.min(12, preampDbRaw)) : 0,
+                wetMixPercent: Number.isFinite(wetMixRaw) ? Math.max(0, Math.min(100, Math.round(wetMixRaw))) : 100,
+              } satisfies EqualizerPreset;
+            })
+            .filter((item): item is EqualizerPreset => Boolean(item));
+          if (normalized.length) {
+            restoredEqPresets = normalized;
+          }
+        }
+      } catch {
+        // Ignore invalid persisted presets.
+      }
+    }
+    setEqualizerPresets(restoredEqPresets);
+
+    const savedEqPresetId = window.localStorage.getItem("musicmanager-eq-preset-id");
+    if (savedEqPresetId && restoredEqPresets.some((preset) => preset.id === savedEqPresetId)) {
+      setEqualizerPresetId(savedEqPresetId);
+    }
+
+    const savedEqPresetName = window.localStorage.getItem("musicmanager-eq-preset-name");
+    if (savedEqPresetName) {
+      setEqualizerPresetName(savedEqPresetName);
+    }
+
+    const savedEqBandGains = window.localStorage.getItem("musicmanager-eq-band-gains");
+    if (savedEqBandGains) {
+      try {
+        const parsed = JSON.parse(savedEqBandGains);
+        if (Array.isArray(parsed) && parsed.length === EQUALIZER_FREQUENCIES.length) {
+          const nextValues = parsed.map((value) => {
+            const numeric = Number(value);
+            if (!Number.isFinite(numeric)) {
+              return 0;
+            }
+            return Math.max(-12, Math.min(12, numeric));
+          });
+          setEqualizerBandGains(nextValues);
+        }
+      } catch {
+        // Ignore invalid stored EQ values.
+      }
+    }
+
+    const savedEqPreamp = window.localStorage.getItem("musicmanager-eq-preamp-db");
+    if (savedEqPreamp !== null) {
+      const numeric = Number(savedEqPreamp);
+      if (Number.isFinite(numeric)) {
+        setEqualizerPreampDb(Math.max(-12, Math.min(12, numeric)));
+      }
+    }
+
+    const savedEqWetMix = window.localStorage.getItem("musicmanager-eq-wet-mix");
+    if (savedEqWetMix !== null) {
+      const numeric = Number(savedEqWetMix);
+      if (Number.isFinite(numeric)) {
+        setEqualizerWetMixPercent(Math.max(0, Math.min(100, Math.round(numeric))));
+      }
+    }
+
     const savedLibrarySnapshot = window.localStorage.getItem("musicmanager-library-snapshot");
     if (savedAutoOpen === "true" && savedLibrarySnapshot) {
       try {
@@ -390,6 +524,7 @@ export function App() {
         setActivePlaylistId("");
       }
       setPlaylistNameDraft("");
+      setIsPlaylistRenaming(false);
       return;
     }
     const active = playlists.find((playlist) => playlist.id === activePlaylistId);
@@ -410,6 +545,17 @@ export function App() {
   }, [playbackPlaylistId, playlists]);
 
   useEffect(() => {
+    if (!equalizerPresetId) {
+      return;
+    }
+    const stillExists = equalizerPresets.some((preset) => preset.id === equalizerPresetId);
+    if (!stillExists) {
+      setEqualizerPresetId("");
+      setIsEqualizerPresetRenaming(false);
+    }
+  }, [equalizerPresetId, equalizerPresets]);
+
+  useEffect(() => {
     window.localStorage.setItem("musicmanager-auto-open-default-folder", String(autoOpenDefaultFolder));
   }, [autoOpenDefaultFolder]);
 
@@ -428,6 +574,30 @@ export function App() {
   useEffect(() => {
     window.localStorage.setItem("musicmanager-audio-smart-crossfade", String(audioSmartCrossfade));
   }, [audioSmartCrossfade]);
+
+  useEffect(() => {
+    window.localStorage.setItem("musicmanager-eq-preset-id", equalizerPresetId);
+  }, [equalizerPresetId]);
+
+  useEffect(() => {
+    window.localStorage.setItem("musicmanager-eq-preset-name", equalizerPresetName);
+  }, [equalizerPresetName]);
+
+  useEffect(() => {
+    window.localStorage.setItem("musicmanager-eq-band-gains", JSON.stringify(equalizerBandGains));
+  }, [equalizerBandGains]);
+
+  useEffect(() => {
+    window.localStorage.setItem("musicmanager-eq-preamp-db", String(equalizerPreampDb));
+  }, [equalizerPreampDb]);
+
+  useEffect(() => {
+    window.localStorage.setItem("musicmanager-eq-wet-mix", String(equalizerWetMixPercent));
+  }, [equalizerWetMixPercent]);
+
+  useEffect(() => {
+    window.localStorage.setItem("musicmanager-eq-presets", JSON.stringify(equalizerPresets));
+  }, [equalizerPresets]);
 
   useEffect(() => {
     if (!folderPath || !tracks.length) {
@@ -585,6 +755,22 @@ export function App() {
     }
     audio.muted = isMuted;
   }, [isMuted, audioSrc]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) {
+      return;
+    }
+    const graph = getOrCreateMediaAudioGraph(audio);
+    if (!graph) {
+      return;
+    }
+    applyEqualizerSettings(graph, {
+      bandGains: equalizerBandGains,
+      preampDb: equalizerPreampDb,
+      wetMixPercent: equalizerWetMixPercent,
+    });
+  }, [equalizerBandGains, equalizerPreampDb, equalizerWetMixPercent, audioSrc]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1100,6 +1286,25 @@ export function App() {
     }
   }
 
+  function ensureAudioGraphReady() {
+    const audio = audioRef.current;
+    if (!audio) {
+      return;
+    }
+    const graph = getOrCreateMediaAudioGraph(audio);
+    if (!graph) {
+      return;
+    }
+    applyEqualizerSettings(graph, {
+      bandGains: equalizerBandGains,
+      preampDb: equalizerPreampDb,
+      wetMixPercent: equalizerWetMixPercent,
+    });
+    void graph.context.resume().catch(() => {
+      // Resume may fail without a user gesture in some environments.
+    });
+  }
+
   async function handleTogglePlayPause() {
     const audio = audioRef.current;
     if (!audio) {
@@ -1110,6 +1315,7 @@ export function App() {
       setIsPlaying(false);
       return;
     }
+    ensureAudioGraphReady();
 
     const targetTrack = playbackTrack ?? selectedTrack;
     if (targetTrack && targetTrack.id !== playbackTrackId) {
@@ -1141,6 +1347,7 @@ export function App() {
 
   function handlePlayFromLibraryCover(event: MouseEvent<HTMLElement>, track: Track) {
     event.stopPropagation();
+    ensureAudioGraphReady();
     setPlaybackPlaylistId("");
     if (track.id !== selectedTrackId) {
       selectTrack(track);
@@ -1265,6 +1472,7 @@ export function App() {
     if (playbackTrackIndex <= 0) {
       return;
     }
+    ensureAudioGraphReady();
     const prev = playbackQueueTracks[playbackTrackIndex - 1];
     if (prev) {
       setPlaybackTrackId(prev.id);
@@ -1277,6 +1485,7 @@ export function App() {
     if (playbackTrackIndex < 0 || playbackTrackIndex >= playbackQueueTracks.length - 1) {
       return;
     }
+    ensureAudioGraphReady();
     const next = playbackQueueTracks[playbackTrackIndex + 1];
     if (next) {
       setPlaybackTrackId(next.id);
@@ -1286,6 +1495,7 @@ export function App() {
   }
 
   function handlePlayTrackFromQueue(track: Track, playlistId?: string) {
+    ensureAudioGraphReady();
     setPlaybackPlaylistId(playlistId ?? "");
     if (track.id !== selectedTrackId) {
       selectTrack(track);
@@ -1316,6 +1526,7 @@ export function App() {
     if (!activePlaylist) {
       return;
     }
+    ensureAudioGraphReady();
     const firstPlayableTrack = activePlaylist.entries
       .map((entry) => tracks.find((track) => track.id === entry.trackId) ?? null)
       .find((track): track is Track => Boolean(track));
@@ -1326,6 +1537,139 @@ export function App() {
     selectTrack(firstPlayableTrack);
     setPlaybackTrackId(firstPlayableTrack.id);
     setShouldAutoplay(true);
+  }
+
+  function handleEqualizerPresetChange(presetId: string) {
+    const preset = equalizerPresets.find((item) => item.id === presetId);
+    if (!preset) {
+      setEqualizerPresetId("");
+      return;
+    }
+    handleApplyEqualizerPreset(
+      preset.id,
+      preset.name,
+      preset.bandGains,
+      preset.preampDb,
+      preset.wetMixPercent
+    );
+  }
+
+  function handleEqualizerBandGainChange(index: number, value: number) {
+    const nextValue = Math.max(-12, Math.min(12, value));
+    setEqualizerBandGains((prev) => {
+      if (index < 0 || index >= prev.length) {
+        return prev;
+      }
+      return prev.map((current, currentIndex) => (currentIndex === index ? nextValue : current));
+    });
+  }
+
+  function handleApplyEqualizerPreset(
+    presetId: string,
+    presetName: string,
+    bandGains: number[],
+    preampDb = 0,
+    wetMixPercent = 100
+  ) {
+    setEqualizerPresetId(presetId);
+    setEqualizerPresetName(presetName);
+    const normalized = EQUALIZER_FREQUENCIES.map((_, index) => Math.max(-12, Math.min(12, Number(bandGains[index] ?? 0))));
+    setEqualizerBandGains(normalized);
+    setEqualizerPreampDb(Math.max(-12, Math.min(12, preampDb)));
+    setEqualizerWetMixPercent(Math.max(0, Math.min(100, Math.round(wetMixPercent))));
+    setIsEqualizerPresetRenaming(false);
+  }
+
+  function handleCreateEqualizerPreset() {
+    const baseName = "new preset";
+    const name = buildUniqueEqualizerPresetName(equalizerPresets, baseName);
+    const nextPreset: EqualizerPreset = {
+      id: `eq-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      name,
+      bandGains: [...equalizerBandGains],
+      preampDb: equalizerPreampDb,
+      wetMixPercent: equalizerWetMixPercent,
+    };
+    setEqualizerPresets((prev) => [...prev, nextPreset]);
+    setEqualizerPresetId(nextPreset.id);
+    setEqualizerPresetName(nextPreset.name);
+    setIsEqualizerPresetRenaming(true);
+  }
+
+  function handleSaveEqualizerPreset() {
+    if (!equalizerPresetId || BUILTIN_EQ_PRESET_IDS.has(equalizerPresetId)) {
+      handleCreateEqualizerPreset();
+      return;
+    }
+    const trimmedName = equalizerPresetName.trim();
+    const uniqueName = buildUniqueEqualizerPresetName(equalizerPresets, trimmedName || "Preset", equalizerPresetId);
+    setEqualizerPresets((prev) => prev.map((preset) => (
+      preset.id === equalizerPresetId
+        ? {
+          ...preset,
+          name: uniqueName,
+          bandGains: [...equalizerBandGains],
+          preampDb: equalizerPreampDb,
+          wetMixPercent: equalizerWetMixPercent,
+        }
+        : preset
+    )));
+    setEqualizerPresetName(uniqueName);
+    setIsEqualizerPresetRenaming(false);
+  }
+
+  function handleRenameEqualizerPresetButtonClick() {
+    if (!equalizerPresetId || BUILTIN_EQ_PRESET_IDS.has(equalizerPresetId)) {
+      return;
+    }
+    if (!isEqualizerPresetRenaming) {
+      setIsEqualizerPresetRenaming(true);
+      return;
+    }
+    const trimmedName = equalizerPresetName.trim();
+    if (!trimmedName) {
+      return;
+    }
+    const uniqueName = buildUniqueEqualizerPresetName(equalizerPresets, trimmedName, equalizerPresetId);
+    setEqualizerPresets((prev) => prev.map((preset) => (
+      preset.id === equalizerPresetId ? { ...preset, name: uniqueName } : preset
+    )));
+    setEqualizerPresetName(uniqueName);
+    setIsEqualizerPresetRenaming(false);
+  }
+
+  function handleEqualizerPresetNameInputKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      handleRenameEqualizerPresetButtonClick();
+    }
+  }
+
+  function handleDeleteEqualizerPreset() {
+    if (!equalizerPresetId || BUILTIN_EQ_PRESET_IDS.has(equalizerPresetId)) {
+      return;
+    }
+    setEqualizerPresets((prev) => {
+      const next = prev.filter((preset) => preset.id !== equalizerPresetId);
+      const fallback = next.find((preset) => preset.id === DEFAULT_EQUALIZER_PRESET.id) ?? next[0] ?? DEFAULT_EQUALIZER_PRESET;
+      setEqualizerPresetId(fallback.id);
+      setEqualizerPresetName(fallback.name);
+      setEqualizerBandGains([...fallback.bandGains]);
+      setEqualizerPreampDb(fallback.preampDb);
+      setEqualizerWetMixPercent(fallback.wetMixPercent);
+      return next;
+    });
+    setIsEqualizerPresetRenaming(false);
+  }
+
+  function handleResetEqualizer() {
+    const flatPreset = equalizerPresets.find((preset) => preset.id === DEFAULT_EQUALIZER_PRESET.id) ?? DEFAULT_EQUALIZER_PRESET;
+    setEqualizerPresetId(flatPreset.id);
+    setEqualizerPresetName(flatPreset.name);
+    setEqualizerBandGains([...flatPreset.bandGains]);
+    setEqualizerPreampDb(flatPreset.preampDb);
+    setEqualizerWetMixPercent(flatPreset.wetMixPercent);
+    setIsEqualizerPresetRenaming(false);
   }
 
   function handleCreatePlaylist() {
@@ -1343,6 +1687,7 @@ export function App() {
     setPlaylists((prev) => [...prev, nextPlaylist]);
     setActivePlaylistId(nextPlaylist.id);
     setPlaylistNameDraft(nextPlaylist.name);
+    setIsPlaylistRenaming(false);
   }
 
   function handleRenamePlaylist() {
@@ -1360,6 +1705,19 @@ export function App() {
     setPlaylistNameDraft(uniqueName);
   }
 
+  function handleRenamePlaylistButtonClick() {
+    if (!activePlaylist) {
+      return;
+    }
+    if (!isPlaylistRenaming) {
+      setPlaylistNameDraft(activePlaylist.name);
+      setIsPlaylistRenaming(true);
+      return;
+    }
+    handleRenamePlaylist();
+    setIsPlaylistRenaming(false);
+  }
+
   function handleDeletePlaylist() {
     if (!activePlaylist) {
       return;
@@ -1368,6 +1726,7 @@ export function App() {
       const next = prev.filter((playlist) => playlist.id !== activePlaylist.id);
       setActivePlaylistId(next[0]?.id ?? "");
       setPlaylistNameDraft(next[0]?.name ?? "");
+      setIsPlaylistRenaming(false);
       return next;
     });
   }
@@ -1377,9 +1736,19 @@ export function App() {
   }
 
   function handleActivePlaylistChange(playlistId: string) {
+    setIsPlaylistRenaming(false);
     setActivePlaylistId(playlistId);
     const matchedPlaylist = playlists.find((playlist) => playlist.id === playlistId);
     setPlaylistNameDraft(matchedPlaylist?.name ?? "");
+  }
+
+  function handlePlaylistRenameInputKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== "Enter") {
+      return;
+    }
+    event.preventDefault();
+    handleRenamePlaylist();
+    setIsPlaylistRenaming(false);
   }
 
   function handleLibraryTrackPointerDown(event: PointerEvent<HTMLElement>, track: Track) {
@@ -1726,6 +2095,7 @@ export function App() {
       {activeScreen === "dashboard" && (
         <DashboardSection
           activePlaylistId={activePlaylistId}
+          isPlaylistRenaming={isPlaylistRenaming}
           libraryProps={{
             folderPath,
             onOpenFolderPathClick: () => {
@@ -1788,7 +2158,8 @@ export function App() {
           onActivePlaylistChange={handleActivePlaylistChange}
           onPlaylistDraftChange={handlePlaylistDraftChange}
           onCreatePlaylist={handleCreatePlaylist}
-          onRenamePlaylist={handleRenamePlaylist}
+          onRenamePlaylist={handleRenamePlaylistButtonClick}
+          onPlaylistRenameInputKeyDown={handlePlaylistRenameInputKeyDown}
           onDeletePlaylist={handleDeletePlaylist}
           onPlayActivePlaylist={handlePlayActivePlaylist}
           onPlaylistEntryPointerDown={handlePlaylistEntryPointerDown}
@@ -1833,6 +2204,8 @@ export function App() {
           defaultFolderPath={defaultFolderPath}
           onDefaultFolderPathChange={setDefaultFolderPath}
           folderPath={folderPath}
+          audioRef={audioRef}
+          accentColor={accentTheme.accent}
           onUseCurrentLibraryFolder={() => setDefaultFolderPath(folderPath)}
           audioNormalizeVolume={audioNormalizeVolume}
           onAudioNormalizeVolumeChange={setAudioNormalizeVolume}
@@ -1843,9 +2216,40 @@ export function App() {
           accentRotateOnLaunch={accentRotateOnLaunch}
           onAccentRotateOnLaunchChange={setAccentRotateOnLaunch}
           onRotateAccentNow={() => setAccentIndex((prev) => (prev + 1) % ACCENT_THEMES.length)}
+          equalizerPresets={equalizerPresets}
+          equalizerPresetId={equalizerPresetId}
+          onEqualizerPresetIdChange={(value) => {
+            setEqualizerPresetId(value);
+            setIsEqualizerPresetRenaming(false);
+          }}
+          onEqualizerPresetChange={handleEqualizerPresetChange}
+          equalizerPresetName={equalizerPresetName}
+          onEqualizerPresetNameChange={setEqualizerPresetName}
+          isEqualizerPresetRenaming={isEqualizerPresetRenaming}
+          onEqualizerPresetNameInputKeyDown={handleEqualizerPresetNameInputKeyDown}
+          equalizerBandGains={equalizerBandGains}
+          onEqualizerBandGainChange={handleEqualizerBandGainChange}
+          equalizerPreampDb={equalizerPreampDb}
+          onEqualizerPreampDbChange={(value) => {
+            setEqualizerPreampDb(Math.max(-12, Math.min(12, value)));
+          }}
+          equalizerWetMixPercent={equalizerWetMixPercent}
+          onEqualizerWetMixPercentChange={(value) => {
+            setEqualizerWetMixPercent(Math.max(0, Math.min(100, Math.round(value))));
+          }}
+          canRenameDeleteEqualizerPreset={canRenameDeleteEqualizerPreset}
+          onCreateEqualizerPreset={handleCreateEqualizerPreset}
+          onRenameEqualizerPreset={handleRenameEqualizerPresetButtonClick}
+          onDeleteEqualizerPreset={handleDeleteEqualizerPreset}
+          onSaveEqualizerPreset={handleSaveEqualizerPreset}
+          onResetEqualizer={handleResetEqualizer}
           onOpenExternalLink={(event, url) => {
             void handleOpenExternalLink(event, url);
           }}
+          IconPlus={IconPlus}
+          IconRename={IconRename}
+          IconTrash={IconTrash}
+          IconSave={IconSave}
         />
       )}
 
