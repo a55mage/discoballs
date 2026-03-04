@@ -13,7 +13,7 @@ type VirtualTrackWindow = {
   bottomSpacerHeight: number;
 };
 
-type LibrarySectionProps = {
+export type LibrarySectionProps = {
   folderPath: string;
   onOpenFolderPathClick: () => void;
   isLoadingScan: boolean;
@@ -188,13 +188,13 @@ export function LibrarySection({
         </div>
         <div className="library-view-toggle">
           <button
-            className={isCompactView ? "view-mode-button" : "ghost-button view-mode-button"}
+            className="view-mode-button"
             onClick={() => onLibraryViewModeChange(isCompactView ? "card" : "compact")}
             title={isCompactView ? "Switch to card view" : "Switch to compact view"}
             aria-label={isCompactView ? "Switch to card view" : "Switch to compact view"}
           >
             <span className="btn-content">
-              {isCompactView ? <IconGrid className="btn-icon" /> : <IconListCompact className="btn-icon" />}
+              {isCompactView ? <IconListCompact className="btn-icon" /> : <IconGrid className="btn-icon" />}
             </span>
           </button>
         </div>

@@ -117,7 +117,6 @@ export function OnlineSearchSection({
                   </div>
                   <div className="result-actions-row">
                     <button
-                      className="ghost-button"
                       onClick={(event) => {
                         event.stopPropagation();
                         onSelectResult(result.id);
@@ -143,6 +142,7 @@ export function OnlineSearchSection({
                       <span className="btn-content"><IconCover className="btn-icon" /></span>
                     </button>
                     <button
+                      className="ghost-button"
                       onClick={(event) => {
                         event.stopPropagation();
                         onSelectResult(result.id);
