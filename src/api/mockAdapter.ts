@@ -38,6 +38,11 @@ export const mockAdapter: MusicAdapter = {
     };
   },
 
+  async pickFolder(): Promise<string | null> {
+    await wait(100);
+    return "/Music";
+  },
+
   async saveTrack(
     trackId: string,
     path: string,

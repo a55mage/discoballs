@@ -20,20 +20,26 @@ type TopBarSectionProps = {
   showAudioError: boolean;
   isPrevDisabled: boolean;
   isNextDisabled: boolean;
+  isShuffleEnabled: boolean;
+  isRepeatTrackEnabled: boolean;
   isPlayDisabled: boolean;
   canSeek: boolean;
   onScreenChange: (screen: TopBarScreen) => void;
   onRotateAccent: () => void;
+  onToggleShuffle: () => void;
   onPrev: () => void;
   onPlayPause: () => void;
   onNext: () => void;
+  onToggleRepeatTrack: () => void;
   onSeek: (value: number) => void;
   onToggleMute: () => void;
   onVolumeChange: (value: number) => void;
+  IconShuffle: IconComponent;
   IconPrev: IconComponent;
   IconPause: IconComponent;
   IconPlay: IconComponent;
   IconNext: IconComponent;
+  IconRepeatTrack: IconComponent;
   IconMute: IconComponent;
   IconVolume: IconComponent;
   IconDashboard: IconComponent;
@@ -57,20 +63,26 @@ export function TopBarSection({
   showAudioError,
   isPrevDisabled,
   isNextDisabled,
+  isShuffleEnabled,
+  isRepeatTrackEnabled,
   isPlayDisabled,
   canSeek,
   onScreenChange,
   onRotateAccent,
+  onToggleShuffle,
   onPrev,
   onPlayPause,
   onNext,
+  onToggleRepeatTrack,
   onSeek,
   onToggleMute,
   onVolumeChange,
+  IconShuffle,
   IconPrev,
   IconPause,
   IconPlay,
   IconNext,
+  IconRepeatTrack,
   IconMute,
   IconVolume,
   IconDashboard,
@@ -108,6 +120,14 @@ export function TopBarSection({
           </span>
         </div>
 
+        <button
+          className={isShuffleEnabled ? "ghost-button player-btn is-active-toggle" : "ghost-button player-btn"}
+          onClick={onToggleShuffle}
+          title={isShuffleEnabled ? "Disable shuffle" : "Enable shuffle"}
+          aria-label={isShuffleEnabled ? "Disable shuffle" : "Enable shuffle"}
+        >
+          <span className="btn-content"><IconShuffle className="btn-icon" /></span>
+        </button>
         <button className="ghost-button player-btn" onClick={onPrev} disabled={isPrevDisabled} title="Previous track" aria-label="Previous track">
           <span className="btn-content"><IconPrev className="btn-icon" /></span>
         </button>
@@ -130,6 +150,14 @@ export function TopBarSection({
           aria-label="Next track"
         >
           <span className="btn-content"><IconNext className="btn-icon" /></span>
+        </button>
+        <button
+          className={isRepeatTrackEnabled ? "ghost-button player-btn is-active-toggle" : "ghost-button player-btn"}
+          onClick={onToggleRepeatTrack}
+          title={isRepeatTrackEnabled ? "Disable repeat track" : "Enable repeat track"}
+          aria-label={isRepeatTrackEnabled ? "Disable repeat track" : "Enable repeat track"}
+        >
+          <span className="btn-content"><IconRepeatTrack className="btn-icon" /></span>
         </button>
 
         <div className="player-progress">

@@ -1,4 +1,4 @@
-import { type ComponentType, type CSSProperties, type KeyboardEvent, type MouseEvent, type RefObject, type SVGProps, useEffect, useMemo, useRef } from "react";
+import { type ComponentType, type CSSProperties, type KeyboardEvent, type RefObject, type SVGProps, useEffect, useMemo, useRef } from "react";
 import { Card } from "../components/Card";
 import { EQUALIZER_FREQUENCIES } from "../utils/audioGraph";
 import { getOrCreateMediaAudioGraph } from "../utils/audioGraph";
@@ -9,18 +9,26 @@ type SettingsSectionProps = {
   autoOpenDefaultFolder: boolean;
   onAutoOpenDefaultFolderChange: (value: boolean) => void;
   defaultFolderPath: string;
-  onDefaultFolderPathChange: (value: string) => void;
+  onChooseDefaultFolder: () => void;
   folderPath: string;
   onUseCurrentLibraryFolder: () => void;
+  audioAutoEq: boolean;
+  onAudioAutoEqChange: (value: boolean) => void;
   audioNormalizeVolume: boolean;
   onAudioNormalizeVolumeChange: (value: boolean) => void;
   audioSmartCrossfade: boolean;
   onAudioSmartCrossfadeChange: (value: boolean) => void;
   colorMode: "light" | "dark";
   onColorModeChange: (value: "light" | "dark") => void;
+  accentThemes: Array<{ accent: string }>;
+  activeAccentIndex: number;
+  onActiveAccentIndexChange: (index: number) => void;
+  onAccentColorChange: (index: number, color: string) => void;
+  onAddAccentTheme: () => void;
+  onRemoveAccentTheme: (index: number) => void;
+  onResetAccentThemes: () => void;
   accentRotateOnLaunch: boolean;
   onAccentRotateOnLaunchChange: (value: boolean) => void;
-  onRotateAccentNow: () => void;
   audioRef: RefObject<HTMLAudioElement | null>;
   accentColor: string;
   equalizerPresets: Array<{ id: string; name: string }>;
@@ -43,29 +51,42 @@ type SettingsSectionProps = {
   onDeleteEqualizerPreset: () => void;
   onSaveEqualizerPreset: () => void;
   onResetEqualizer: () => void;
-  onOpenExternalLink: (event: MouseEvent<HTMLAnchorElement>, url: string) => void;
+  onOpenExternalLink: (url: string) => void;
   IconPlus: IconComponent;
   IconRename: IconComponent;
   IconTrash: IconComponent;
   IconSave: IconComponent;
+  IconFolder: IconComponent;
+  IconExternalLink: IconComponent;
+  IconGlobe: IconComponent;
+  IconUser: IconComponent;
+  IconHeart: IconComponent;
 };
 
 export function SettingsSection({
   autoOpenDefaultFolder,
   onAutoOpenDefaultFolderChange,
   defaultFolderPath,
-  onDefaultFolderPathChange,
+  onChooseDefaultFolder,
   folderPath,
   onUseCurrentLibraryFolder,
+  audioAutoEq,
+  onAudioAutoEqChange,
   audioNormalizeVolume,
   onAudioNormalizeVolumeChange,
   audioSmartCrossfade,
   onAudioSmartCrossfadeChange,
   colorMode,
   onColorModeChange,
+  accentThemes,
+  activeAccentIndex,
+  onActiveAccentIndexChange,
+  onAccentColorChange,
+  onAddAccentTheme,
+  onRemoveAccentTheme,
+  onResetAccentThemes,
   accentRotateOnLaunch,
   onAccentRotateOnLaunchChange,
-  onRotateAccentNow,
   audioRef,
   accentColor,
   equalizerPresets,
@@ -93,9 +114,14 @@ export function SettingsSection({
   IconRename,
   IconTrash,
   IconSave,
+  IconFolder,
+  IconExternalLink,
+  IconGlobe,
+  IconUser,
+  IconHeart,
 }: SettingsSectionProps) {
-  const vuCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const vuContainerRef = useRef<HTMLDivElement | null>(null);
+  const curveBgCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const curveBgContainerRef = useRef<HTMLDivElement | null>(null);
 
   const eqCurvePath = useMemo(() => {
     const points = equalizerBandGains.map((value, index) => ({
@@ -132,8 +158,8 @@ export function SettingsSection({
   }, [equalizerBandGains]);
 
   useEffect(() => {
-    const canvas = vuCanvasRef.current;
-    const container = vuContainerRef.current;
+    const canvas = curveBgCanvasRef.current;
+    const container = curveBgContainerRef.current;
     if (!canvas || !container) {
       return;
     }
@@ -145,7 +171,7 @@ export function SettingsSection({
     const resize = () => {
       const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
       const width = Math.max(260, Math.floor(container.clientWidth));
-      const height = Math.max(110, Math.floor(container.clientHeight));
+      const height = Math.max(140, Math.floor(container.clientHeight));
       canvas.width = Math.floor(width * dpr);
       canvas.height = Math.floor(height * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -174,7 +200,7 @@ export function SettingsSection({
         return;
       }
       graph.analyser.getByteFrequencyData(graph.frequencyData);
-      drawXpBars(ctx, width, height, graph.frequencyData, accentColor);
+      drawXpBars(ctx, width, height, graph.frequencyData, accentColor, 0.2);
       frameId = requestAnimationFrame(draw);
     };
 
@@ -197,23 +223,50 @@ export function SettingsSection({
         <Card title="Settings" className="settings-main-card">
           <div className="settings-main-content">
             <section className="settings-block">
+              <div className="settings-app-head">
+                <strong>DiscoBalls v1.3.1</strong>
+                <div className="settings-app-links">
+                  <button className="ghost-button settings-link-btn" onClick={() => onOpenExternalLink("https://a55mage.github.io/discoballs/")} title="Website" aria-label="Website">
+                    <span className="btn-content"><IconGlobe className="btn-icon" />Website</span>
+                  </button>
+                  <button className="ghost-button settings-link-btn" onClick={() => onOpenExternalLink("https://a55mage.github.io/")} title="Developer" aria-label="Developer">
+                    <span className="btn-content"><IconUser className="btn-icon" />Developer</span>
+                  </button>
+                  <button className="ghost-button settings-link-btn" onClick={() => onOpenExternalLink("https://www.paypal.com/donate/?business=r.macis%40live.it")} title="Donate" aria-label="Donate">
+                    <span className="btn-content"><IconHeart className="btn-icon" />Donate</span>
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <section className="settings-block">
               <h3 className="settings-block-title">General</h3>
               <div className="settings-grid">
                 <label className="settings-toggle">
                   <input type="checkbox" checked={autoOpenDefaultFolder} onChange={(event) => onAutoOpenDefaultFolderChange(event.target.checked)} />
                   <span>Auto-open default folder on launch</span>
                 </label>
-                <label>
-                  Default folder
-                  <input className="input" value={defaultFolderPath} onChange={(event) => onDefaultFolderPathChange(event.target.value)} placeholder="/Music" />
-                </label>
-                <button className="ghost-button" onClick={onUseCurrentLibraryFolder} disabled={!folderPath}>Use current library folder</button>
+                <div className="settings-readonly-path" title={defaultFolderPath || "No default folder selected"}>
+                  {defaultFolderPath || "No default folder selected"}
+                </div>
+                <div className="settings-inline-actions">
+                  <button className="ghost-button" onClick={onChooseDefaultFolder}>
+                    <span className="btn-content"><IconFolder className="btn-icon" />Choose folder</span>
+                  </button>
+                  <button className="ghost-button" onClick={onUseCurrentLibraryFolder} disabled={!folderPath}>
+                    <span className="btn-content"><IconExternalLink className="btn-icon" />Use current</span>
+                  </button>
+                </div>
               </div>
             </section>
 
             <section className="settings-block">
               <h3 className="settings-block-title">Audio Settings</h3>
               <div className="settings-grid">
+                <label className="settings-toggle">
+                  <input type="checkbox" checked={audioAutoEq} onChange={(event) => onAudioAutoEqChange(event.target.checked)} />
+                  <span>Auto EQ (planned)</span>
+                </label>
                 <label className="settings-toggle">
                   <input type="checkbox" checked={audioNormalizeVolume} onChange={(event) => onAudioNormalizeVolumeChange(event.target.checked)} />
                   <span>Normalize playback volume (planned)</span>
@@ -236,48 +289,52 @@ export function SettingsSection({
                   <input type="checkbox" checked={accentRotateOnLaunch} onChange={(event) => onAccentRotateOnLaunchChange(event.target.checked)} />
                   <span>Rotate accent palette on launch</span>
                 </label>
-                <button className="ghost-button" onClick={onRotateAccentNow}>Rotate accent now</button>
-              </div>
-            </section>
-
-            <section className="settings-block">
-              <h3 className="settings-block-title">App Info</h3>
-              <div className="info-meta">
-                <p><strong>App:</strong> DiscoBalls</p>
-                <p><strong>Version:</strong> 1.3.1</p>
-                <p>
-                  <strong>Website:</strong>{" "}
-                  <a
-                    href="https://a55mage.github.io/discoballs/"
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={(event) => onOpenExternalLink(event, "https://a55mage.github.io/discoballs/")}
-                  >
-                    https://a55mage.github.io/discoballs/
-                  </a>
-                </p>
-                <p>
-                  <strong>Developer:</strong>{" "}
-                  <a
-                    href="https://a55mage.github.io/"
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={(event) => onOpenExternalLink(event, "https://a55mage.github.io/")}
-                  >
-                    https://a55mage.github.io/
-                  </a>
-                </p>
-                <p>
-                  <strong>Donate:</strong>{" "}
-                  <a
-                    href="https://www.paypal.com/donate/?business=r.macis%40live.it"
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={(event) => onOpenExternalLink(event, "https://www.paypal.com/donate/?business=r.macis%40live.it")}
-                  >
-                    Donate via PayPal
-                  </a>
-                </p>
+                <div className="settings-inline-actions">
+                  <button className="ghost-button" onClick={onAddAccentTheme}>
+                    <span className="btn-content"><IconPlus className="btn-icon" />Add accent</span>
+                  </button>
+                  <button className="ghost-button" onClick={onResetAccentThemes}>
+                    <span className="btn-content"><IconExternalLink className="btn-icon" />Reset defaults</span>
+                  </button>
+                </div>
+                <div className="accent-theme-list">
+                  {accentThemes.map((theme, index) => (
+                    <div
+                      key={`${theme.accent}-${index}`}
+                      className={activeAccentIndex === index ? "accent-theme-item is-active" : "accent-theme-item"}
+                    >
+                      <div className="accent-item-head">
+                        <button
+                          className="ghost-button accent-select-btn"
+                          type="button"
+                          onClick={() => onActiveAccentIndexChange(index)}
+                          title="Set as default accent"
+                          aria-label="Set as default accent"
+                        >
+                          <span className="accent-swatch" style={{ background: theme.accent }} />
+                          <span>Accent {index + 1}</span>
+                        </button>
+                        <button
+                          className="ghost-button mini-icon"
+                          type="button"
+                          onClick={() => onRemoveAccentTheme(index)}
+                          disabled={accentThemes.length <= 1}
+                          title="Remove accent"
+                          aria-label="Remove accent"
+                        >
+                          <IconTrash className="btn-icon" />
+                        </button>
+                      </div>
+                      <input
+                        type="color"
+                        className="accent-color-input"
+                        value={theme.accent}
+                        onChange={(event) => onAccentColorChange(index, event.target.value)}
+                        aria-label={`Accent ${index + 1}`}
+                      />
+                    </div>
+                  ))}
+                </div>
               </div>
             </section>
           </div>
@@ -356,14 +413,13 @@ export function SettingsSection({
                 <strong>Tone Curve</strong>
                 <small>Avg gain {eqAverageGain >= 0 ? "+" : ""}{eqAverageGain.toFixed(1)} dB</small>
               </div>
-              <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="settings-eq-curve" role="img" aria-label="Equalizer curve preview">
-                <line x1="0" y1="50" x2="100" y2="50" className="settings-eq-curve-midline" />
-                <path d={eqCurvePath} className="settings-eq-curve-line" />
-              </svg>
-            </div>
-
-            <div className="settings-eq-vu-meter" ref={vuContainerRef} aria-label="Frequency XP bars">
-              <canvas ref={vuCanvasRef} className="settings-eq-vu-canvas" />
+              <div className="settings-eq-curve-stage" ref={curveBgContainerRef}>
+                <canvas ref={curveBgCanvasRef} className="settings-eq-curve-bg-canvas" aria-hidden="true" />
+                <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="settings-eq-curve" role="img" aria-label="Equalizer curve preview">
+                  <line x1="0" y1="50" x2="100" y2="50" className="settings-eq-curve-midline" />
+                  <path d={eqCurvePath} className="settings-eq-curve-line" />
+                </svg>
+              </div>
             </div>
 
             <div className="settings-eq-faders">
@@ -450,12 +506,16 @@ function drawXpBars(
   width: number,
   height: number,
   freq: Uint8Array,
-  accentColor: string
+  accentColor: string,
+  alpha = 1
 ) {
   const bins = Math.min(64, freq.length);
   const barGap = 2;
-  const barWidth = Math.max(2, Math.floor((width - (bins - 1) * barGap) / bins));
+  const barWidth = Math.max(1, (width - (bins - 1) * barGap) / bins);
 
+  const safeAlpha = Math.max(0, Math.min(1, alpha));
+  ctx.save();
+  ctx.globalAlpha = safeAlpha;
   for (let index = 0; index < bins; index += 1) {
     const energy = freq[index] / 255;
     const amp = Math.max(0.02, energy);
@@ -469,4 +529,5 @@ function drawXpBars(
     ctx.fillStyle = gradient;
     ctx.fillRect(x, y, barWidth, barHeight);
   }
+  ctx.restore();
 }

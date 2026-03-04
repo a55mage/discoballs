@@ -118,6 +118,11 @@ export const tauriAdapter: MusicAdapter = {
     };
   },
 
+  async pickFolder(): Promise<string | null> {
+    const invoke = getInvoke();
+    return await invoke<string | null>("pick_music_folder");
+  },
+
   async saveTrack(
     _trackId: string,
     path: string,

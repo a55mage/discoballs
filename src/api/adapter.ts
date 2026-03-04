@@ -2,6 +2,7 @@ import type { OnlineMatch, RenameConfig, SaveTrackResult, ScanResult, SearchQuer
 
 export interface MusicAdapter {
   selectFolderAndScan(): Promise<ScanResult>;
+  pickFolder(): Promise<string | null>;
   saveTrack(
     trackId: string,
     path: string,

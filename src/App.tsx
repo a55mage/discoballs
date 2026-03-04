@@ -8,8 +8,11 @@ import {
   IconCheck,
   IconClose,
   IconCover,
+  IconExternalLink,
   IconFolder,
+  IconGlobe,
   IconGrid,
+  IconHeart,
   IconListCompact,
   IconMusicNote,
   IconMute,
@@ -22,12 +25,15 @@ import {
   IconSave,
   IconSaveRename,
   IconSearch,
+  IconShuffle,
   IconSettings,
   IconSortAdded,
   IconSortArtist,
   IconSortRelease,
   IconSortTitle,
   IconTrash,
+  IconRepeatOne,
+  IconUser,
   IconVolume,
 } from "./components/icons";
 import { DashboardSection } from "./sections/DashboardSection";
@@ -70,6 +76,7 @@ const ACCENT_THEMES = [
   { accent: "#cc8a22", soft: "#efe3ce", strong: "#aa721b" },
   { accent: "#3a8b8f", soft: "#d5e7e8", strong: "#2e7073" },
 ] as const;
+type AccentTheme = { accent: string; soft: string; strong: string };
 const RENAME_FIELD_OPTIONS: Array<{ key: RenameField; label: string }> = [
   { key: "tracknumber", label: "Track number" },
   { key: "artist", label: "Artist" },
@@ -138,10 +145,54 @@ function buildUniqueEqualizerPresetName(presets: EqualizerPreset[], baseName: st
   return `${fallbackBase} (${index})`;
 }
 
+function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  const normalized = hex.trim().replace("#", "");
+  if (!/^[0-9a-fA-F]{6}$/.test(normalized)) {
+    return null;
+  }
+  const r = Number.parseInt(normalized.slice(0, 2), 16);
+  const g = Number.parseInt(normalized.slice(2, 4), 16);
+  const b = Number.parseInt(normalized.slice(4, 6), 16);
+  return { r, g, b };
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+  const clamp = (value: number) => Math.max(0, Math.min(255, Math.round(value)));
+  return `#${[clamp(r), clamp(g), clamp(b)].map((value) => value.toString(16).padStart(2, "0")).join("")}`;
+}
+
+function mixHex(base: string, target: string, ratio: number): string {
+  const baseRgb = hexToRgb(base);
+  const targetRgb = hexToRgb(target);
+  if (!baseRgb || !targetRgb) {
+    return base;
+  }
+  const safeRatio = Math.max(0, Math.min(1, ratio));
+  return rgbToHex(
+    baseRgb.r + (targetRgb.r - baseRgb.r) * safeRatio,
+    baseRgb.g + (targetRgb.g - baseRgb.g) * safeRatio,
+    baseRgb.b + (targetRgb.b - baseRgb.b) * safeRatio
+  );
+}
+
+function buildSoftAccent(accent: string): string {
+  return mixHex(accent, "#ffffff", 0.78);
+}
+
+function buildStrongAccent(accent: string): string {
+  return mixHex(accent, "#000000", 0.12);
+}
+
 export function App() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const coverInputRef = useRef<HTMLInputElement | null>(null);
   const trackListRef = useRef<HTMLUListElement | null>(null);
+  const selectTrackRef = useRef<(track: Track) => void>(() => undefined);
+  const playbackQueueTracksRef = useRef<Track[]>([]);
+  const playbackTrackIdRef = useRef("");
+  const playbackTrackIndexRef = useRef(-1);
+  const isShuffleEnabledRef = useRef(false);
+  const isRepeatTrackEnabledRef = useRef(false);
   const searchRequestRef = useRef<{ id: number; canceled: boolean } | null>(null);
   const searchRequestCounterRef = useRef(0);
   const pointerDragStateRef = useRef<{
@@ -178,6 +229,7 @@ export function App() {
   const [autoOpenDefaultFolder, setAutoOpenDefaultFolder] = useState(false);
   const [defaultFolderPath, setDefaultFolderPath] = useState("");
   const [accentRotateOnLaunch, setAccentRotateOnLaunch] = useState(false);
+  const [audioAutoEq, setAudioAutoEq] = useState(false);
   const [audioNormalizeVolume, setAudioNormalizeVolume] = useState(false);
   const [audioSmartCrossfade, setAudioSmartCrossfade] = useState(false);
   const [equalizerPresets, setEqualizerPresets] = useState<EqualizerPreset[]>(EQUALIZER_PRESETS.map((preset) => ({ ...preset, bandGains: [...preset.bandGains] })));
@@ -190,6 +242,8 @@ export function App() {
   const [renameFields, setRenameFields] = useState<RenameField[]>(["tracknumber", "artist", "title"]);
   const [renameSeparator, setRenameSeparator] = useState(" - ");
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isShuffleEnabled, setIsShuffleEnabled] = useState(false);
+  const [isRepeatTrackEnabled, setIsRepeatTrackEnabled] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(0.7);
@@ -203,6 +257,7 @@ export function App() {
   const [trackListScrollTop, setTrackListScrollTop] = useState(0);
   const [trackListViewportHeight, setTrackListViewportHeight] = useState(420);
   const [trackListWidth, setTrackListWidth] = useState(0);
+  const [accentThemes, setAccentThemes] = useState<AccentTheme[]>(ACCENT_THEMES.map((theme) => ({ ...theme })));
   const [accentIndex, setAccentIndex] = useState(0);
   const [colorMode, setColorMode] = useState<"light" | "dark">("light");
   const [isDashboardDragging, setIsDashboardDragging] = useState(false);
@@ -292,7 +347,7 @@ export function App() {
     ];
   }, [bestMatchResultId, dateSortedOnlineResults]);
   const selectedResult = onlineResults.find((r) => r.id === selectedResultId) ?? null;
-  const accentTheme = ACCENT_THEMES[accentIndex % ACCENT_THEMES.length];
+  const accentTheme = accentThemes[Math.max(0, accentIndex % Math.max(1, accentThemes.length))] ?? ACCENT_THEMES[0];
   const appStyle: CSSProperties = {
     "--accent": accentTheme.accent,
     "--accent-soft": accentTheme.soft,
@@ -306,10 +361,40 @@ export function App() {
     }
 
     const savedAccent = window.localStorage.getItem("musicmanager-accent-index");
+    const savedAccentThemes = window.localStorage.getItem("musicmanager-accent-themes");
+    let restoredAccentThemes = ACCENT_THEMES.map((theme) => ({ ...theme }));
+    if (savedAccentThemes) {
+      try {
+        const parsed = JSON.parse(savedAccentThemes);
+        if (Array.isArray(parsed) && parsed.length) {
+          const normalized = parsed
+            .map((item) => {
+              if (!item || typeof item !== "object") {
+                return null;
+              }
+              const candidate = item as Record<string, unknown>;
+              const accent = typeof candidate.accent === "string" ? candidate.accent : "";
+              const soft = typeof candidate.soft === "string" ? candidate.soft : "";
+              const strong = typeof candidate.strong === "string" ? candidate.strong : "";
+              if (!accent || !soft || !strong) {
+                return null;
+              }
+              return { accent, soft, strong } satisfies AccentTheme;
+            })
+            .filter((item): item is AccentTheme => Boolean(item));
+          if (normalized.length) {
+            restoredAccentThemes = normalized;
+          }
+        }
+      } catch {
+        // Ignore invalid persisted accent themes.
+      }
+    }
+    setAccentThemes(restoredAccentThemes);
     if (savedAccent) {
       const parsed = Number(savedAccent);
       if (Number.isInteger(parsed) && parsed >= 0) {
-        setAccentIndex(parsed % ACCENT_THEMES.length);
+        setAccentIndex(parsed % restoredAccentThemes.length);
       }
     }
 
@@ -367,17 +452,31 @@ export function App() {
     const savedAccentRotate = window.localStorage.getItem("musicmanager-accent-rotate-on-launch");
     if (savedAccentRotate === "true") {
       setAccentRotateOnLaunch(true);
-      setAccentIndex((prev) => (prev + 1) % ACCENT_THEMES.length);
+      setAccentIndex((prev) => (prev + 1) % Math.max(1, restoredAccentThemes.length));
     }
 
     const savedNormalizeVolume = window.localStorage.getItem("musicmanager-audio-normalize-volume");
     if (savedNormalizeVolume === "true") {
       setAudioNormalizeVolume(true);
     }
+    const savedAutoEq = window.localStorage.getItem("musicmanager-audio-auto-eq");
+    if (savedAutoEq === "true") {
+      setAudioAutoEq(true);
+    }
 
     const savedSmartCrossfade = window.localStorage.getItem("musicmanager-audio-smart-crossfade");
     if (savedSmartCrossfade === "true") {
       setAudioSmartCrossfade(true);
+    }
+
+    const savedShuffle = window.localStorage.getItem("musicmanager-player-shuffle");
+    if (savedShuffle === "true") {
+      setIsShuffleEnabled(true);
+    }
+
+    const savedRepeatTrack = window.localStorage.getItem("musicmanager-player-repeat-track");
+    if (savedRepeatTrack === "true") {
+      setIsRepeatTrackEnabled(true);
     }
 
     let restoredEqPresets = EQUALIZER_PRESETS.map((preset) => ({ ...preset, bandGains: [...preset.bandGains] }));
@@ -499,6 +598,10 @@ export function App() {
   }, [accentIndex]);
 
   useEffect(() => {
+    window.localStorage.setItem("musicmanager-accent-themes", JSON.stringify(accentThemes));
+  }, [accentThemes]);
+
+  useEffect(() => {
     window.localStorage.setItem("musicmanager-rename-fields", JSON.stringify(renameFields));
   }, [renameFields]);
 
@@ -556,6 +659,17 @@ export function App() {
   }, [equalizerPresetId, equalizerPresets]);
 
   useEffect(() => {
+    if (!accentThemes.length) {
+      setAccentThemes(ACCENT_THEMES.map((theme) => ({ ...theme })));
+      setAccentIndex(0);
+      return;
+    }
+    if (accentIndex >= accentThemes.length) {
+      setAccentIndex(0);
+    }
+  }, [accentThemes, accentIndex]);
+
+  useEffect(() => {
     window.localStorage.setItem("musicmanager-auto-open-default-folder", String(autoOpenDefaultFolder));
   }, [autoOpenDefaultFolder]);
 
@@ -572,8 +686,20 @@ export function App() {
   }, [audioNormalizeVolume]);
 
   useEffect(() => {
+    window.localStorage.setItem("musicmanager-audio-auto-eq", String(audioAutoEq));
+  }, [audioAutoEq]);
+
+  useEffect(() => {
     window.localStorage.setItem("musicmanager-audio-smart-crossfade", String(audioSmartCrossfade));
   }, [audioSmartCrossfade]);
+
+  useEffect(() => {
+    window.localStorage.setItem("musicmanager-player-shuffle", String(isShuffleEnabled));
+  }, [isShuffleEnabled]);
+
+  useEffect(() => {
+    window.localStorage.setItem("musicmanager-player-repeat-track", String(isRepeatTrackEnabled));
+  }, [isRepeatTrackEnabled]);
 
   useEffect(() => {
     window.localStorage.setItem("musicmanager-eq-preset-id", equalizerPresetId);
@@ -725,7 +851,43 @@ export function App() {
 
     const onTimeUpdate = () => setCurrentTime(audio.currentTime || 0);
     const onLoadedMetadata = () => setDuration(audio.duration || 0);
-    const onEnded = () => setIsPlaying(false);
+    const onEnded = async () => {
+      const queueTracks = playbackQueueTracksRef.current;
+      const currentTrackId = playbackTrackIdRef.current;
+      const currentTrackIndex = playbackTrackIndexRef.current;
+      if (isRepeatTrackEnabledRef.current && currentTrackId) {
+        audio.currentTime = 0;
+        try {
+          await audio.play();
+          setIsPlaying(true);
+          setAudioError("");
+          return;
+        } catch {
+          setIsPlaying(false);
+          setAudioError("Unable to start playback in this environment.");
+          return;
+        }
+      }
+      if (isShuffleEnabledRef.current) {
+        const randomTrack = pickRandomQueueTrack(queueTracks, currentTrackId);
+        if (randomTrack) {
+          setPlaybackTrackId(randomTrack.id);
+          setShouldAutoplay(true);
+          selectTrackRef.current(randomTrack);
+          return;
+        }
+      }
+      if (currentTrackIndex >= 0 && currentTrackIndex < queueTracks.length - 1) {
+        const nextTrack = queueTracks[currentTrackIndex + 1];
+        if (nextTrack) {
+          setPlaybackTrackId(nextTrack.id);
+          setShouldAutoplay(true);
+          selectTrackRef.current(nextTrack);
+          return;
+        }
+      }
+      setIsPlaying(false);
+    };
     const onError = () => setAudioError("Playback unavailable for this track.");
 
     audio.addEventListener("timeupdate", onTimeUpdate);
@@ -745,16 +907,19 @@ export function App() {
     if (!audio) {
       return;
     }
-    audio.volume = volume;
-  }, [volume, audioSrc]);
-
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) {
+    const graph = getOrCreateMediaAudioGraph(audio);
+    const targetGain = isMuted ? 0 : volume;
+    if (graph) {
+      const now = graph.context.currentTime;
+      graph.outputGain.gain.cancelScheduledValues(now);
+      graph.outputGain.gain.setTargetAtTime(targetGain, now, 0.015);
+      audio.volume = 1;
+      audio.muted = false;
       return;
     }
+    audio.volume = volume;
     audio.muted = isMuted;
-  }, [isMuted, audioSrc]);
+  }, [volume, isMuted, audioSrc]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -967,6 +1132,32 @@ export function App() {
     () => playbackQueueTracks.findIndex((t) => t.id === playbackTrackId),
     [playbackQueueTracks, playbackTrackId]
   );
+
+  useEffect(() => {
+    selectTrackRef.current = selectTrack;
+  });
+
+  useEffect(() => {
+    playbackQueueTracksRef.current = playbackQueueTracks;
+    playbackTrackIdRef.current = playbackTrackId;
+    playbackTrackIndexRef.current = playbackTrackIndex;
+    isShuffleEnabledRef.current = isShuffleEnabled;
+    isRepeatTrackEnabledRef.current = isRepeatTrackEnabled;
+  }, [playbackQueueTracks, playbackTrackId, playbackTrackIndex, isShuffleEnabled, isRepeatTrackEnabled]);
+
+  function pickRandomQueueTrack(queueTracks: Track[], excludeTrackId?: string): Track | null {
+    if (!queueTracks.length) {
+      return null;
+    }
+    const available = excludeTrackId
+      ? queueTracks.filter((track) => track.id !== excludeTrackId)
+      : queueTracks;
+    if (!available.length) {
+      return queueTracks[0] ?? null;
+    }
+    const randomIndex = Math.floor(Math.random() * available.length);
+    return available[randomIndex] ?? null;
+  }
 
   function cancelOnlineSearch(reason = "Online search canceled.") {
     const activeSearch = searchRequestRef.current;
@@ -1286,6 +1477,73 @@ export function App() {
     }
   }
 
+  async function handleChooseDefaultFolder() {
+    try {
+      const picked = await adapter.pickFolder();
+      if (!picked) {
+        return;
+      }
+      setDefaultFolderPath(picked);
+    } catch (error) {
+      setSearchStatus(`Pick folder error: ${formatError(error)}`);
+    }
+  }
+
+  function handleAddAccentTheme() {
+    const nextAccent = "#4f8cff";
+    const nextTheme: AccentTheme = {
+      accent: nextAccent,
+      soft: "#dce8ff",
+      strong: "#3b6fd1",
+    };
+    setAccentThemes((prev) => {
+      const next = [...prev, nextTheme];
+      setAccentIndex(next.length - 1);
+      return next;
+    });
+  }
+
+  function handleRemoveAccentTheme(index: number) {
+    setAccentThemes((prev) => {
+      if (prev.length <= 1 || index < 0 || index >= prev.length) {
+        return prev;
+      }
+      const next = prev.filter((_, itemIndex) => itemIndex !== index);
+      setAccentIndex((current) => {
+        if (current === index) {
+          return 0;
+        }
+        if (current > index) {
+          return current - 1;
+        }
+        return current;
+      });
+      return next;
+    });
+  }
+
+  function handleAccentColorChange(index: number, color: string) {
+    const normalized = color.trim();
+    if (!/^#[0-9a-fA-F]{6}$/.test(normalized)) {
+      return;
+    }
+    setAccentThemes((prev) => prev.map((theme, itemIndex) => {
+      if (itemIndex !== index) {
+        return theme;
+      }
+      return {
+        accent: normalized,
+        soft: buildSoftAccent(normalized),
+        strong: buildStrongAccent(normalized),
+      };
+    }));
+  }
+
+  function handleResetAccentThemes() {
+    setAccentThemes(ACCENT_THEMES.map((theme) => ({ ...theme })));
+    setAccentIndex(0);
+  }
+
   function ensureAudioGraphReady() {
     const audio = audioRef.current;
     if (!audio) {
@@ -1396,6 +1654,15 @@ export function App() {
     if (!audio) {
       return;
     }
+    const graph = getOrCreateMediaAudioGraph(audio);
+    if (graph) {
+      const now = graph.context.currentTime;
+      graph.outputGain.gain.cancelScheduledValues(now);
+      graph.outputGain.gain.setTargetAtTime(clamped, now, 0.015);
+      audio.volume = 1;
+      audio.muted = false;
+      return;
+    }
     audio.volume = clamped;
     if (clamped > 0 && audio.muted) {
       audio.muted = false;
@@ -1469,11 +1736,13 @@ export function App() {
   }
 
   function handlePrevTrack() {
-    if (playbackTrackIndex <= 0) {
-      return;
-    }
     ensureAudioGraphReady();
-    const prev = playbackQueueTracks[playbackTrackIndex - 1];
+    let prev: Track | null = null;
+    if (isShuffleEnabled) {
+      prev = pickRandomQueueTrack(playbackQueueTracks, playbackTrackId);
+    } else if (playbackTrackIndex > 0) {
+      prev = playbackQueueTracks[playbackTrackIndex - 1] ?? null;
+    }
     if (prev) {
       setPlaybackTrackId(prev.id);
       setShouldAutoplay(true);
@@ -1482,11 +1751,13 @@ export function App() {
   }
 
   function handleNextTrack() {
-    if (playbackTrackIndex < 0 || playbackTrackIndex >= playbackQueueTracks.length - 1) {
-      return;
-    }
     ensureAudioGraphReady();
-    const next = playbackQueueTracks[playbackTrackIndex + 1];
+    let next: Track | null = null;
+    if (isShuffleEnabled) {
+      next = pickRandomQueueTrack(playbackQueueTracks, playbackTrackId);
+    } else if (playbackTrackIndex >= 0 && playbackTrackIndex < playbackQueueTracks.length - 1) {
+      next = playbackQueueTracks[playbackTrackIndex + 1] ?? null;
+    }
     if (next) {
       setPlaybackTrackId(next.id);
       setShouldAutoplay(true);
@@ -1967,24 +2238,30 @@ export function App() {
         isMuted={isMuted}
         audioError={audioError}
         showAudioError={Boolean(selectedTrack || playbackTrack)}
-        isPrevDisabled={playbackTrackIndex <= 0}
-        isNextDisabled={playbackTrackIndex < 0 || playbackTrackIndex >= playbackQueueTracks.length - 1}
+        isPrevDisabled={isShuffleEnabled ? playbackQueueTracks.length <= 1 : playbackTrackIndex <= 0}
+        isNextDisabled={isShuffleEnabled ? playbackQueueTracks.length <= 1 : playbackTrackIndex < 0 || playbackTrackIndex >= playbackQueueTracks.length - 1}
         isPlayDisabled={!selectedTrack && !audioSrc}
+        isShuffleEnabled={isShuffleEnabled}
+        isRepeatTrackEnabled={isRepeatTrackEnabled}
         canSeek={Boolean(audioSrc && audioTrackId === playbackTrackId && duration > 0)}
         onScreenChange={setActiveScreen}
-        onRotateAccent={() => setAccentIndex((prev) => (prev + 1) % ACCENT_THEMES.length)}
+        onRotateAccent={() => setAccentIndex((prev) => (prev + 1) % Math.max(1, accentThemes.length))}
+        onToggleShuffle={() => setIsShuffleEnabled((prev) => !prev)}
         onPrev={handlePrevTrack}
         onPlayPause={() => {
           void handleTogglePlayPause();
         }}
         onNext={handleNextTrack}
+        onToggleRepeatTrack={() => setIsRepeatTrackEnabled((prev) => !prev)}
         onSeek={handleSeek}
         onToggleMute={() => setIsMuted((prev) => !prev)}
         onVolumeChange={handleVolumeChange}
+        IconShuffle={IconShuffle}
         IconPrev={IconPrev}
         IconPause={IconPause}
         IconPlay={IconPlay}
         IconNext={IconNext}
+        IconRepeatTrack={IconRepeatOne}
         IconMute={IconMute}
         IconVolume={IconVolume}
         IconDashboard={IconGrid}
@@ -2202,20 +2479,28 @@ export function App() {
           autoOpenDefaultFolder={autoOpenDefaultFolder}
           onAutoOpenDefaultFolderChange={setAutoOpenDefaultFolder}
           defaultFolderPath={defaultFolderPath}
-          onDefaultFolderPathChange={setDefaultFolderPath}
+          onChooseDefaultFolder={handleChooseDefaultFolder}
           folderPath={folderPath}
           audioRef={audioRef}
           accentColor={accentTheme.accent}
           onUseCurrentLibraryFolder={() => setDefaultFolderPath(folderPath)}
+          audioAutoEq={audioAutoEq}
+          onAudioAutoEqChange={setAudioAutoEq}
           audioNormalizeVolume={audioNormalizeVolume}
           onAudioNormalizeVolumeChange={setAudioNormalizeVolume}
           audioSmartCrossfade={audioSmartCrossfade}
           onAudioSmartCrossfadeChange={setAudioSmartCrossfade}
           colorMode={colorMode}
           onColorModeChange={setColorMode}
+          accentThemes={accentThemes}
+          activeAccentIndex={accentIndex}
+          onActiveAccentIndexChange={setAccentIndex}
+          onAccentColorChange={handleAccentColorChange}
+          onAddAccentTheme={handleAddAccentTheme}
+          onRemoveAccentTheme={handleRemoveAccentTheme}
+          onResetAccentThemes={handleResetAccentThemes}
           accentRotateOnLaunch={accentRotateOnLaunch}
           onAccentRotateOnLaunchChange={setAccentRotateOnLaunch}
-          onRotateAccentNow={() => setAccentIndex((prev) => (prev + 1) % ACCENT_THEMES.length)}
           equalizerPresets={equalizerPresets}
           equalizerPresetId={equalizerPresetId}
           onEqualizerPresetIdChange={(value) => {
@@ -2243,13 +2528,18 @@ export function App() {
           onDeleteEqualizerPreset={handleDeleteEqualizerPreset}
           onSaveEqualizerPreset={handleSaveEqualizerPreset}
           onResetEqualizer={handleResetEqualizer}
-          onOpenExternalLink={(event, url) => {
-            void handleOpenExternalLink(event, url);
+          onOpenExternalLink={(url) => {
+            void handleOpenExternalLink({ preventDefault: () => {} }, url);
           }}
           IconPlus={IconPlus}
           IconRename={IconRename}
           IconTrash={IconTrash}
           IconSave={IconSave}
+          IconFolder={IconFolder}
+          IconExternalLink={IconExternalLink}
+          IconGlobe={IconGlobe}
+          IconUser={IconUser}
+          IconHeart={IconHeart}
         />
       )}
 
