@@ -1452,7 +1452,7 @@ button.app-brand:hover:enabled {
   border-radius: 0;
   border: 0;
   overflow: hidden;
-  background: #08101a;
+  background: color-mix(in srgb, var(--accent) 14%, #e3ebf6);
 }
 
 .visualizer-canvas {
@@ -2497,6 +2497,10 @@ img.detail-cover {
 .app-shell.theme-dark .visualizer-preset-btn.active {
   background: #2a3644;
   border-color: #556375;
+}
+
+.app-shell.theme-dark .visualizer-stage {
+  background: color-mix(in srgb, var(--accent) 20%, #0b121c);
 }
 
 .app-shell.theme-dark .rename-field-row {

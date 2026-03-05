@@ -121,7 +121,7 @@ export function MusicVisualizerSection({
     const drawFrame = () => {
       const width = canvas.width / Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
       const height = canvas.height / Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
-      drawBackground(ctx, width, height, isDarkMode);
+      drawBackground(ctx, width, height, isDarkMode, accentColor);
 
       if (!hasAudio) {
         frameRef.current = requestAnimationFrame(drawFrame);
@@ -197,26 +197,23 @@ export function MusicVisualizerSection({
   );
 }
 
-function drawBackground(ctx: CanvasRenderingContext2D, width: number, height: number, isDarkMode: boolean) {
+function drawBackground(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  isDarkMode: boolean,
+  accentColor: string
+) {
   const gradient = ctx.createLinearGradient(0, 0, 0, height);
   if (isDarkMode) {
-    gradient.addColorStop(0, "#040b12");
-    gradient.addColorStop(1, "#0a111c");
+    gradient.addColorStop(0, blendHexColors(accentColor, "#0a1018", 0.28));
+    gradient.addColorStop(1, blendHexColors(accentColor, "#060c13", 0.2));
   } else {
-    gradient.addColorStop(0, "#e8f2ff");
-    gradient.addColorStop(1, "#d2e3f7");
+    gradient.addColorStop(0, blendHexColors(accentColor, "#eef3fa", 0.22));
+    gradient.addColorStop(1, blendHexColors(accentColor, "#e2ebf7", 0.16));
   }
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, width, height);
-
-  ctx.strokeStyle = isDarkMode ? "rgba(120, 160, 200, 0.08)" : "rgba(56, 89, 130, 0.12)";
-  ctx.lineWidth = 1;
-  for (let y = 0; y < height; y += 18) {
-    ctx.beginPath();
-    ctx.moveTo(0, y + 0.5);
-    ctx.lineTo(width, y + 0.5);
-    ctx.stroke();
-  }
 }
 
 function drawAlchemy(
@@ -289,27 +286,23 @@ function drawXpBars(
 ) {
   const bins = Math.min(64, freq.length);
   const barGap = 2;
-  const barWidth = Math.max(2, Math.floor((width - (bins - 1) * barGap) / bins));
-  const centerY = height * 0.5;
+  const totalGapWidth = (bins - 1) * barGap;
+  const barWidth = Math.max(1, (width - totalGapWidth) / bins);
+  const baselineY = height;
 
   for (let i = 0; i < bins; i += 1) {
     const energy = freq[i] / 255;
     const boost = isPlaying ? 1 : 0.25;
     const amp = Math.max(0.02, energy * boost);
-    const barHeight = amp * (height * 0.42);
+    const barHeight = amp * (height * 0.88);
     const x = i * (barWidth + barGap);
+    const y = baselineY - barHeight;
 
-    const topGradient = ctx.createLinearGradient(0, centerY - barHeight, 0, centerY);
+    const topGradient = ctx.createLinearGradient(0, y, 0, baselineY);
     topGradient.addColorStop(0, accentColor);
-    topGradient.addColorStop(1, "rgba(40, 250, 255, 0.18)");
+    topGradient.addColorStop(1, withAlpha(accentColor, 0.2));
     ctx.fillStyle = topGradient;
-    ctx.fillRect(x, centerY - barHeight, barWidth, barHeight);
-
-    const bottomGradient = ctx.createLinearGradient(0, centerY, 0, centerY + barHeight);
-    bottomGradient.addColorStop(0, "rgba(20, 210, 255, 0.3)");
-    bottomGradient.addColorStop(1, "rgba(10, 60, 90, 0.05)");
-    ctx.fillStyle = bottomGradient;
-    ctx.fillRect(x, centerY, barWidth, barHeight);
+    ctx.fillRect(x, y, barWidth, barHeight);
   }
 }
 
@@ -522,4 +515,43 @@ function withAlpha(color: string, alpha: number): string {
     }
   }
   return color;
+}
+
+function blendHexColors(accentColor: string, baseColor: string, accentWeight: number): string {
+  const accent = parseHexColor(accentColor);
+  const base = parseHexColor(baseColor);
+  if (!accent || !base) {
+    return baseColor;
+  }
+  const weight = Math.max(0, Math.min(1, accentWeight));
+  const r = Math.round(base.r * (1 - weight) + accent.r * weight);
+  const g = Math.round(base.g * (1 - weight) + accent.g * weight);
+  const b = Math.round(base.b * (1 - weight) + accent.b * weight);
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+function parseHexColor(value: string): { r: number; g: number; b: number } | null {
+  if (!value.startsWith("#")) {
+    return null;
+  }
+  const hex = value.slice(1);
+  if (hex.length === 3) {
+    const r = parseInt(hex[0] + hex[0], 16);
+    const g = parseInt(hex[1] + hex[1], 16);
+    const b = parseInt(hex[2] + hex[2], 16);
+    if ([r, g, b].some((channel) => Number.isNaN(channel))) {
+      return null;
+    }
+    return { r, g, b };
+  }
+  if (hex.length === 6) {
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    if ([r, g, b].some((channel) => Number.isNaN(channel))) {
+      return null;
+    }
+    return { r, g, b };
+  }
+  return null;
 }

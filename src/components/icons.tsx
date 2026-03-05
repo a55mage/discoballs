@@ -28,12 +28,38 @@ export const IconMusicNote = (props: SVGProps<SVGSVGElement>) => (
   </IconBase>
 );
 
+export const IconMic = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <path d="M9 9a4 4 0 1 1 8 0 4 4 0 0 1-8 0z" />
+    <path d="M12.8 12.8l-6.3 6.3a2 2 0 0 1-2.8 0 2 2 0 0 1 0-2.8l6.3-6.3" />
+    <line x1="6.1" y1="17.9" x2="8.3" y2="20.1" />
+    <line x1="4.8" y1="15.4" x2="8.6" y2="19.2" />
+  </IconBase>
+);
+
 export const IconMusicArrowRight = (props: SVGProps<SVGSVGElement>) => (
   <IconBase {...props}>
     <path d="M8.5 19a1.8 1.8 0 1 0 0-3.6 1.8 1.8 0 0 0 0 3.6z" />
     <path d="M10.1 17.8V8.2l4.9-1.4v6.6" />
     <line x1="13.5" y1="12" x2="20" y2="12" />
     <polyline points="17.5 9.5 20 12 17.5 14.5" />
+  </IconBase>
+);
+
+export const IconPlaylist = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <line x1="4" y1="7" x2="14" y2="7" />
+    <line x1="4" y1="12" x2="14" y2="12" />
+    <line x1="4" y1="17" x2="10" y2="17" />
+    <path d="M16 17a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" />
+    <path d="M17 15V8l4-1.2v6.2" />
+  </IconBase>
+);
+
+export const IconTag = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <path d="M3 10V4h6l9 9-6 6-9-9z" />
+    <circle cx="8" cy="8" r="1.5" fill="currentColor" stroke="none" />
   </IconBase>
 );
 

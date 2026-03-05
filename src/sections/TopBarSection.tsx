@@ -196,10 +196,18 @@ export function TopBarSection({
 
       <div className="top-actions top-sections" role="group" aria-label="Sections">
         <button
+          className={activeScreen === "player" ? "top-section-btn is-active-toggle" : "ghost-button top-section-btn"}
+          onClick={() => onScreenChange("player")}
+          title="Player"
+          aria-label="Player"
+        >
+          <span className="btn-content"><IconPlayer className="btn-icon" /></span>
+        </button>
+        <button
           className={activeScreen === "dashboard" ? "top-section-btn is-active-toggle" : "ghost-button top-section-btn"}
           onClick={() => onScreenChange("dashboard")}
-          title="Dashboard"
-          aria-label="Dashboard"
+          title="Playlist editor"
+          aria-label="Playlist editor"
         >
           <span className="btn-content"><IconDashboard className="btn-icon" /></span>
         </button>
@@ -210,14 +218,6 @@ export function TopBarSection({
           aria-label="Music tagging"
         >
           <span className="btn-content"><IconTagging className="btn-icon" /></span>
-        </button>
-        <button
-          className={activeScreen === "player" ? "top-section-btn is-active-toggle" : "ghost-button top-section-btn"}
-          onClick={() => onScreenChange("player")}
-          title="Player"
-          aria-label="Player"
-        >
-          <span className="btn-content"><IconPlayer className="btn-icon" /></span>
         </button>
         <button
           className={activeScreen === "settings" ? "top-section-btn is-active-toggle" : "ghost-button top-section-btn"}

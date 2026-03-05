@@ -332,6 +332,14 @@ export function PlayerSection({
             <span className="btn-content"><IconLibrary className="btn-icon" /></span>
           </button>
           <button
+            className={showLyricsSection ? "top-section-btn is-active-toggle" : "ghost-button top-section-btn"}
+            onClick={onToggleLyricsSection}
+            title={showLyricsSection ? "Hide lyrics section" : "Show lyrics section"}
+            aria-label={showLyricsSection ? "Hide lyrics section" : "Show lyrics section"}
+          >
+            <span className="btn-content"><IconLyrics className="btn-icon" /></span>
+          </button>
+          <button
             className={showVisualizerColumn ? "top-section-btn is-active-toggle" : "ghost-button top-section-btn"}
             onClick={onToggleVisualizerColumn}
             title={showVisualizerColumn ? "Hide visualizer column" : "Show visualizer column"}
@@ -346,14 +354,6 @@ export function PlayerSection({
             aria-label={showQueueColumn ? "Hide queue column" : "Show queue column"}
           >
             <span className="btn-content"><IconQueue className="btn-icon" /></span>
-          </button>
-          <button
-            className={showLyricsSection ? "top-section-btn is-active-toggle" : "ghost-button top-section-btn"}
-            onClick={onToggleLyricsSection}
-            title={showLyricsSection ? "Hide lyrics section" : "Show lyrics section"}
-            aria-label={showLyricsSection ? "Hide lyrics section" : "Show lyrics section"}
-          >
-            <span className="btn-content"><IconLyrics className="btn-icon" /></span>
           </button>
         </div>
         <div className="player-subbar-selectors">

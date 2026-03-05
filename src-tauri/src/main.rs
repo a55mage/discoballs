@@ -132,7 +132,7 @@ async fn search_online(query: OnlineQuery) -> Result<Vec<OnlineMatch>, String> {
     }
 
     let client = Client::builder()
-        .user_agent("discoballs/0.1.0 (desktop app)")
+        .user_agent("discoballs/1.4.0 (desktop app)")
         .build()
         .map_err(|e| e.to_string())?;
 

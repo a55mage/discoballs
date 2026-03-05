@@ -15,8 +15,10 @@ import {
   IconGrid,
   IconHeart,
   IconListCompact,
+  IconMic,
   IconMusicNote,
   IconMusicArrowRight,
+  IconPlaylist,
   IconMute,
   IconNext,
   IconPause,
@@ -33,6 +35,7 @@ import {
   IconSortArtist,
   IconSortRelease,
   IconSortTitle,
+  IconTag,
   IconTrash,
   IconRepeatOne,
   IconUser,
@@ -106,11 +109,13 @@ const STORAGE_ACTIVE_PLAYLIST_ID_KEY = "musicmanager-active-playlist-id";
 const STORAGE_PLAYER_COLUMNS_KEY = "musicmanager-player-columns";
 const STORAGE_PLAYER_VISUALIZER_PRESET_KEY = "musicmanager-player-visualizer-preset";
 const STORAGE_PLAYER_SHOW_LYRICS_KEY = "musicmanager-player-show-lyrics";
+const STORAGE_STARTUP_SCREEN_KEY = "musicmanager-startup-screen";
 const PLAYER_QUEUE_PAGE_SIZE = 50;
 const PLAYER_QUEUE_HISTORY_SIZE = 1;
 type LibrarySortMode = "title" | "artist" | "added" | "release";
 type SortDirection = "asc" | "desc";
 type AppScreen = "tagging" | "dashboard" | "settings" | "player";
+type StartupScreen = "tagging" | "dashboard" | "player";
 type PlaylistEntry = { id: string; trackId: string };
 type Playlist = { id: string; name: string; entries: PlaylistEntry[] };
 type PlayerColumnVisibility = { library: boolean; visualizer: boolean; queue: boolean };
@@ -263,6 +268,7 @@ export function App() {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [folderPath, setFolderPath] = useState("");
   const [activeScreen, setActiveScreen] = useState<AppScreen>("tagging");
+  const [startupScreen, setStartupScreen] = useState<StartupScreen>("tagging");
   const [query, setQuery] = useState("");
   const [librarySortMode, setLibrarySortMode] = useState<LibrarySortMode>("added");
   const [librarySortDirection, setLibrarySortDirection] = useState<SortDirection>("asc");
@@ -472,6 +478,11 @@ export function App() {
     const savedShowLyrics = window.localStorage.getItem(STORAGE_PLAYER_SHOW_LYRICS_KEY);
     if (savedShowLyrics === "false") {
       setShowPlayerLyricsSection(false);
+    }
+    const savedStartupScreen = window.localStorage.getItem(STORAGE_STARTUP_SCREEN_KEY);
+    if (savedStartupScreen === "tagging" || savedStartupScreen === "dashboard" || savedStartupScreen === "player") {
+      setStartupScreen(savedStartupScreen);
+      setActiveScreen(savedStartupScreen);
     }
 
     const savedAccent = window.localStorage.getItem("musicmanager-accent-index");
@@ -918,6 +929,10 @@ export function App() {
   useEffect(() => {
     window.localStorage.setItem("musicmanager-auto-open-default-folder", String(autoOpenDefaultFolder));
   }, [autoOpenDefaultFolder]);
+
+  useEffect(() => {
+    window.localStorage.setItem(STORAGE_STARTUP_SCREEN_KEY, startupScreen);
+  }, [startupScreen]);
 
   useEffect(() => {
     window.localStorage.setItem("musicmanager-default-folder-path", defaultFolderPath);
@@ -2864,8 +2879,8 @@ export function App() {
         IconRepeatTrack={IconRepeatOne}
         IconMute={IconMute}
         IconVolume={IconVolume}
-        IconDashboard={IconGrid}
-        IconTagging={IconMusicNote}
+        IconDashboard={IconPlaylist}
+        IconTagging={IconTag}
         IconPlayer={IconPlay}
         IconSettings={IconSettings}
       />
@@ -3123,7 +3138,7 @@ export function App() {
           IconLibrary={IconFolder}
           IconVisualizer={IconVisualizerBars}
           IconQueue={IconListCompact}
-          IconLyrics={IconMusicNote}
+          IconLyrics={IconMic}
           visualizerPresetId={playerVisualizerPresetId}
           onVisualizerPresetChange={setPlayerVisualizerPresetId}
           equalizerPresets={equalizerPresets}
@@ -3155,6 +3170,8 @@ export function App() {
         <SettingsSection
           autoOpenDefaultFolder={autoOpenDefaultFolder}
           onAutoOpenDefaultFolderChange={setAutoOpenDefaultFolder}
+          startupScreen={startupScreen}
+          onStartupScreenChange={setStartupScreen}
           defaultFolderPath={defaultFolderPath}
           onChooseDefaultFolder={handleChooseDefaultFolder}
           folderPath={folderPath}

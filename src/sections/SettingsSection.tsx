@@ -8,6 +8,8 @@ type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
 type SettingsSectionProps = {
   autoOpenDefaultFolder: boolean;
   onAutoOpenDefaultFolderChange: (value: boolean) => void;
+  startupScreen: "tagging" | "dashboard" | "player";
+  onStartupScreenChange: (value: "tagging" | "dashboard" | "player") => void;
   defaultFolderPath: string;
   onChooseDefaultFolder: () => void;
   folderPath: string;
@@ -71,6 +73,8 @@ type SettingsSectionProps = {
 export function SettingsSection({
   autoOpenDefaultFolder,
   onAutoOpenDefaultFolderChange,
+  startupScreen,
+  onStartupScreenChange,
   defaultFolderPath,
   onChooseDefaultFolder,
   folderPath,
@@ -235,7 +239,7 @@ export function SettingsSection({
           <div className="settings-main-content">
             <section className="settings-block">
               <div className="settings-app-head">
-                <strong>DiscoBalls v1.3.1</strong>
+                <strong>DiscoBalls v1.4.0</strong>
                 <div className="settings-app-links">
                   <button className="ghost-button settings-link-btn" onClick={() => onOpenExternalLink("https://a55mage.github.io/discoballs/")} title="Website" aria-label="Website">
                     <span className="btn-content"><IconGlobe className="btn-icon" />Website</span>
@@ -256,6 +260,19 @@ export function SettingsSection({
                 <label className="settings-toggle">
                   <input type="checkbox" checked={autoOpenDefaultFolder} onChange={(event) => onAutoOpenDefaultFolderChange(event.target.checked)} />
                   <span>Auto-open default folder on launch</span>
+                </label>
+                <label className="settings-field">
+                  <span>Startup screen</span>
+                  <select
+                    className="input settings-genre-eq-select"
+                    value={startupScreen}
+                    onChange={(event) => onStartupScreenChange(event.target.value as "tagging" | "dashboard" | "player")}
+                    aria-label="Startup screen"
+                  >
+                    <option value="tagging">Music tagging</option>
+                    <option value="dashboard">Playlist editor</option>
+                    <option value="player">Player</option>
+                  </select>
                 </label>
                 <div className="settings-readonly-path" title={defaultFolderPath || "No default folder selected"}>
                   {defaultFolderPath || "No default folder selected"}
