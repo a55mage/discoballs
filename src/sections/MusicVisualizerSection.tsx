@@ -1,8 +1,14 @@
-import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
+import { type RefObject, useEffect, useRef } from "react";
 import { Card } from "../components/Card";
 import { getOrCreateMediaAudioGraph, type MediaAudioGraph } from "../utils/audioGraph";
 
-type VisualizerPresetId = "xp-bars" | "alchemy" | "scope" | "turntable";
+export type VisualizerPresetId = "xp-bars" | "alchemy" | "scope" | "turntable";
+export const VISUALIZER_PRESETS: Array<{ id: VisualizerPresetId; label: string }> = [
+  { id: "scope", label: "Scope Line" },
+  { id: "alchemy", label: "Alchemy" },
+  { id: "xp-bars", label: "XP Bars" },
+  { id: "turntable", label: "Turntable" },
+];
 
 type MusicVisualizerSectionProps = {
   audioRef: RefObject<HTMLAudioElement | null>;
@@ -12,18 +18,10 @@ type MusicVisualizerSectionProps = {
   coverUrl?: string;
   currentTime: number;
   duration: number;
-  title: string;
-  artist: string;
   accentColor: string;
   isDarkMode: boolean;
+  preset: VisualizerPresetId;
 };
-
-const PRESETS: Array<{ id: VisualizerPresetId; label: string }> = [
-  { id: "scope", label: "Scope Line" },
-  { id: "alchemy", label: "Alchemy" },
-  { id: "xp-bars", label: "XP Bars" },
-  { id: "turntable", label: "Turntable" },
-];
 
 export function MusicVisualizerSection({
   audioRef,
@@ -33,10 +31,9 @@ export function MusicVisualizerSection({
   coverUrl,
   currentTime,
   duration,
-  title,
-  artist,
   accentColor,
   isDarkMode,
+  preset,
 }: MusicVisualizerSectionProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -46,9 +43,6 @@ export function MusicVisualizerSection({
   const coverImageUrlRef = useRef<string>("");
   const currentTimeRef = useRef(0);
   const durationRef = useRef(0);
-  const [preset, setPreset] = useState<VisualizerPresetId>("scope");
-  const displayTitle = title || "No track selected";
-  const displayArtist = artist || "Select a track from library";
 
   useEffect(() => {
     if (!isActive) {
@@ -186,37 +180,15 @@ export function MusicVisualizerSection({
     };
   }, [accentColor, hasAudio, isActive, isDarkMode, isPlaying, preset]);
 
-  const presetButtons = useMemo(
-    () =>
-      PRESETS.map((item) => (
-        <button
-          key={item.id}
-          className={item.id === preset ? "visualizer-preset-btn active" : "visualizer-preset-btn"}
-          onClick={() => setPreset(item.id)}
-          title={item.label}
-          aria-label={item.label}
-        >
-          {item.label}
-        </button>
-      )),
-    [preset]
-  );
-
   return (
-    <Card
-      title="Music Visualizer"
-      className="visualizer-card"
-      headerAfterTitle={<span className="visualizer-now-playing">{displayTitle}</span>}
-      headerRight={<div className="visualizer-presets">{presetButtons}</div>}
-    >
+    <Card title="Music Visualizer" className="visualizer-card" hideHeader>
       <div className="visualizer-layout">
-        <p className="visualizer-artist">{displayArtist}</p>
         <div ref={containerRef} className="visualizer-stage">
           <canvas ref={canvasRef} className="visualizer-canvas" />
           {!hasAudio && (
             <div className="visualizer-overlay">
               <p>No audio loaded</p>
-              <small>Select a track and press play.</small>
+              <small>Press play to start.</small>
             </div>
           )}
         </div>
@@ -391,17 +363,6 @@ function drawTurntable(
   const discRadius = platterRadius * 0.9;
   const labelRadius = discRadius * 0.36;
   const spindleRadius = discRadius * 0.03;
-
-  const deckGradient = ctx.createLinearGradient(0, 0, 0, height);
-  if (isDarkMode) {
-    deckGradient.addColorStop(0, "rgba(8, 12, 20, 0.65)");
-    deckGradient.addColorStop(1, "rgba(4, 8, 14, 0.88)");
-  } else {
-    deckGradient.addColorStop(0, "rgba(224, 234, 246, 0.62)");
-    deckGradient.addColorStop(1, "rgba(205, 218, 233, 0.9)");
-  }
-  ctx.fillStyle = deckGradient;
-  ctx.fillRect(width * 0.06, height * 0.1, width * 0.88, height * 0.82);
 
   const platter = ctx.createRadialGradient(cx, cy, platterRadius * 0.15, cx, cy, platterRadius);
   platter.addColorStop(0, isDarkMode ? "#3a4352" : "#7f8c9f");

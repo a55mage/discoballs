@@ -15,6 +15,7 @@ import {
   IconHeart,
   IconListCompact,
   IconMusicNote,
+  IconMusicArrowRight,
   IconMute,
   IconNext,
   IconPause,
@@ -34,10 +35,12 @@ import {
   IconTrash,
   IconRepeatOne,
   IconUser,
+  IconVisualizerBars,
   IconVolume,
 } from "./components/icons";
 import { DashboardSection } from "./sections/DashboardSection";
 import { LibrarySection } from "./sections/LibrarySection";
+import type { VisualizerPresetId } from "./sections/MusicVisualizerSection";
 import { OnlineSearchSection } from "./sections/OnlineSearchSection";
 import { PlayerSection } from "./sections/PlayerSection";
 import { RenameSettingsModal } from "./sections/RenameSettingsModal";
@@ -96,12 +99,60 @@ const TRACK_LIST_COMPACT_GAP = 4;
 const TRACK_LIST_VIRTUALIZE_AFTER = 120;
 const STORAGE_PLAYLISTS_KEY = "musicmanager-playlists";
 const STORAGE_ACTIVE_PLAYLIST_ID_KEY = "musicmanager-active-playlist-id";
+const STORAGE_PLAYER_COLUMNS_KEY = "musicmanager-player-columns";
+const STORAGE_PLAYER_VISUALIZER_PRESET_KEY = "musicmanager-player-visualizer-preset";
+const PLAYER_QUEUE_PAGE_SIZE = 50;
+const PLAYER_QUEUE_HISTORY_SIZE = 1;
 type LibrarySortMode = "title" | "artist" | "added" | "release";
 type SortDirection = "asc" | "desc";
 type AppScreen = "tagging" | "dashboard" | "settings" | "player";
 type PlaylistEntry = { id: string; trackId: string };
 type Playlist = { id: string; name: string; entries: PlaylistEntry[] };
+type PlayerColumnVisibility = { library: boolean; visualizer: boolean; queue: boolean };
 const BUILTIN_EQ_PRESET_IDS = new Set(EQUALIZER_PRESETS.map((preset) => preset.id));
+
+function shuffleTrackIds(trackIds: string[]): string[] {
+  const shuffled = [...trackIds];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1));
+    const current = shuffled[index];
+    shuffled[index] = shuffled[randomIndex];
+    shuffled[randomIndex] = current;
+  }
+  return shuffled;
+}
+
+function buildPlaylistQueueOrder(trackIds: string[], shuffleEnabled: boolean, startTrackId?: string): string[] {
+  const normalizedTrackIds = trackIds.filter((trackId, index) => trackId && trackIds.indexOf(trackId) === index);
+  if (!normalizedTrackIds.length) {
+    return [];
+  }
+  const startId = startTrackId && normalizedTrackIds.includes(startTrackId) ? startTrackId : normalizedTrackIds[0];
+  if (!startId) {
+    return normalizedTrackIds;
+  }
+  const remainingTrackIds = normalizedTrackIds.filter((trackId) => trackId !== startId);
+  if (shuffleEnabled) {
+    return [startId, ...shuffleTrackIds(remainingTrackIds)];
+  }
+  const startIndex = normalizedTrackIds.indexOf(startId);
+  return normalizedTrackIds.slice(startIndex);
+}
+
+function buildLibraryQueueOrder(trackIds: string[], startTrackId: string): string[] {
+  const startIndex = trackIds.findIndex((trackId) => trackId === startTrackId);
+  if (startIndex < 0) {
+    return [];
+  }
+  return trackIds.slice(startIndex);
+}
+
+function areTrackIdListsEqual(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+  return left.every((trackId, index) => trackId === right[index]);
+}
 
 function normalizePlaylistName(value: string): string {
   return value.trim().toLowerCase();
@@ -191,8 +242,9 @@ export function App() {
   const playbackQueueTracksRef = useRef<Track[]>([]);
   const playbackTrackIdRef = useRef("");
   const playbackTrackIndexRef = useRef(-1);
-  const isShuffleEnabledRef = useRef(false);
   const isRepeatTrackEnabledRef = useRef(false);
+  const previousPlaybackTrackIdRef = useRef("");
+  const previousShuffleEnabledRef = useRef(false);
   const searchRequestRef = useRef<{ id: number; canceled: boolean } | null>(null);
   const searchRequestCounterRef = useRef(0);
   const pointerDragStateRef = useRef<{
@@ -212,6 +264,9 @@ export function App() {
   const [selectedTrackId, setSelectedTrackId] = useState<string>("");
   const [playbackTrackId, setPlaybackTrackId] = useState<string>("");
   const [playbackPlaylistId, setPlaybackPlaylistId] = useState<string>("");
+  const [playbackQueueTrackIds, setPlaybackQueueTrackIds] = useState<string[]>([]);
+  const [playbackHistoryTrackIds, setPlaybackHistoryTrackIds] = useState<string[]>([]);
+  const [playerQueueVisibleCount, setPlayerQueueVisibleCount] = useState(PLAYER_QUEUE_PAGE_SIZE);
   const [trackDraft, setTrackDraft] = useState<Track | null>(null);
   const [onlineResults, setOnlineResults] = useState<OnlineMatch[]>([]);
   const [selectedResultId, setSelectedResultId] = useState<string>("");
@@ -260,6 +315,12 @@ export function App() {
   const [accentThemes, setAccentThemes] = useState<AccentTheme[]>(ACCENT_THEMES.map((theme) => ({ ...theme })));
   const [accentIndex, setAccentIndex] = useState(0);
   const [colorMode, setColorMode] = useState<"light" | "dark">("light");
+  const [playerColumnVisibility, setPlayerColumnVisibility] = useState<PlayerColumnVisibility>({
+    library: true,
+    visualizer: true,
+    queue: true,
+  });
+  const [playerVisualizerPresetId, setPlayerVisualizerPresetId] = useState<VisualizerPresetId>("scope");
   const [isDashboardDragging, setIsDashboardDragging] = useState(false);
   const [dashboardDropArea, setDashboardDropArea] = useState<"none" | "dropzone" | "playlist">("none");
   const [dashboardDropEntryId, setDashboardDropEntryId] = useState("");
@@ -267,10 +328,6 @@ export function App() {
   const activePlaylist = useMemo(
     () => playlists.find((playlist) => playlist.id === activePlaylistId) ?? null,
     [playlists, activePlaylistId]
-  );
-  const playbackPlaylist = useMemo(
-    () => playlists.find((playlist) => playlist.id === playbackPlaylistId) ?? null,
-    [playlists, playbackPlaylistId]
   );
   const activeEqualizerPreset = useMemo(
     () => equalizerPresets.find((preset) => preset.id === equalizerPresetId) ?? null,
@@ -358,6 +415,27 @@ export function App() {
     const saved = window.localStorage.getItem("musicmanager-color-mode");
     if (saved === "light" || saved === "dark") {
       setColorMode(saved);
+    }
+    const savedPlayerColumns = window.localStorage.getItem(STORAGE_PLAYER_COLUMNS_KEY);
+    if (savedPlayerColumns) {
+      try {
+        const parsed = JSON.parse(savedPlayerColumns) as Partial<PlayerColumnVisibility>;
+        const nextVisibility: PlayerColumnVisibility = {
+          library: parsed.library !== false,
+          visualizer: parsed.visualizer !== false,
+          queue: parsed.queue !== false,
+        };
+        if (!nextVisibility.library && !nextVisibility.visualizer && !nextVisibility.queue) {
+          nextVisibility.visualizer = true;
+        }
+        setPlayerColumnVisibility(nextVisibility);
+      } catch {
+        // Ignore invalid player layout settings.
+      }
+    }
+    const savedVisualizerPreset = window.localStorage.getItem(STORAGE_PLAYER_VISUALIZER_PRESET_KEY);
+    if (savedVisualizerPreset === "scope" || savedVisualizerPreset === "alchemy" || savedVisualizerPreset === "xp-bars" || savedVisualizerPreset === "turntable") {
+      setPlayerVisualizerPresetId(savedVisualizerPreset);
     }
 
     const savedAccent = window.localStorage.getItem("musicmanager-accent-index");
@@ -579,7 +657,9 @@ export function App() {
           setFolderPath(snapshot.folderPath);
           setTracks(restoredTracks);
           setSelectedTrackId(restoredTracks[0]?.id ?? "");
+          setPlaybackPlaylistId("");
           setPlaybackTrackId("");
+          clearPlaybackQueueState();
           setShouldAutoplay(false);
           setSearchStatus("Ready");
         }
@@ -592,6 +672,14 @@ export function App() {
   useEffect(() => {
     window.localStorage.setItem("musicmanager-color-mode", colorMode);
   }, [colorMode]);
+
+  useEffect(() => {
+    window.localStorage.setItem(STORAGE_PLAYER_COLUMNS_KEY, JSON.stringify(playerColumnVisibility));
+  }, [playerColumnVisibility]);
+
+  useEffect(() => {
+    window.localStorage.setItem(STORAGE_PLAYER_VISUALIZER_PRESET_KEY, playerVisualizerPresetId);
+  }, [playerVisualizerPresetId]);
 
   useEffect(() => {
     window.localStorage.setItem("musicmanager-accent-index", String(accentIndex));
@@ -644,6 +732,7 @@ export function App() {
     const stillExists = playlists.some((playlist) => playlist.id === playbackPlaylistId);
     if (!stillExists) {
       setPlaybackPlaylistId("");
+      clearPlaybackQueueState();
     }
   }, [playbackPlaylistId, playlists]);
 
@@ -865,15 +954,6 @@ export function App() {
         } catch {
           setIsPlaying(false);
           setAudioError("Unable to start playback in this environment.");
-          return;
-        }
-      }
-      if (isShuffleEnabledRef.current) {
-        const randomTrack = pickRandomQueueTrack(queueTracks, currentTrackId);
-        if (randomTrack) {
-          setPlaybackTrackId(randomTrack.id);
-          setShouldAutoplay(true);
-          selectTrackRef.current(randomTrack);
           return;
         }
       }
@@ -1120,17 +1200,30 @@ export function App() {
       bottomSpacerHeight: Math.max(0, (totalRows - endRow) * rowHeight),
     };
   }, [filteredTracks, libraryViewMode, trackListScrollTop, trackListViewportHeight, trackListWidth]);
-  const playbackQueueTracks = useMemo(() => {
-    if (!playbackPlaylist) {
-      return filteredTracks;
-    }
-    return playbackPlaylist.entries
-      .map((entry) => tracks.find((track) => track.id === entry.trackId) ?? null)
-      .filter((track): track is Track => Boolean(track));
-  }, [playbackPlaylist, filteredTracks, tracks]);
+  const trackById = useMemo(() => new Map(tracks.map((track) => [track.id, track])), [tracks]);
+  const playbackQueueTracks = useMemo(
+    () =>
+      playbackQueueTrackIds
+        .map((trackId) => trackById.get(trackId) ?? null)
+        .filter((track): track is Track => Boolean(track)),
+    [playbackQueueTrackIds, trackById]
+  );
   const playbackTrackIndex = useMemo(
     () => playbackQueueTracks.findIndex((t) => t.id === playbackTrackId),
     [playbackQueueTracks, playbackTrackId]
+  );
+  const playerQueueStartIndex = playbackTrackIndex >= 0 ? playbackTrackIndex : 0;
+  const playerQueueUpcomingTracks = useMemo(
+    () => playbackQueueTracks.slice(playerQueueStartIndex, playerQueueStartIndex + playerQueueVisibleCount),
+    [playbackQueueTracks, playerQueueStartIndex, playerQueueVisibleCount]
+  );
+  const hasMorePlayerQueueTracks = playerQueueStartIndex + playerQueueVisibleCount < playbackQueueTracks.length;
+  const playerQueueHistoryTracks = useMemo(
+    () =>
+      playbackHistoryTrackIds
+        .map((trackId) => trackById.get(trackId) ?? null)
+        .filter((track): track is Track => Boolean(track)),
+    [playbackHistoryTrackIds, trackById]
   );
 
   useEffect(() => {
@@ -1141,23 +1234,145 @@ export function App() {
     playbackQueueTracksRef.current = playbackQueueTracks;
     playbackTrackIdRef.current = playbackTrackId;
     playbackTrackIndexRef.current = playbackTrackIndex;
-    isShuffleEnabledRef.current = isShuffleEnabled;
     isRepeatTrackEnabledRef.current = isRepeatTrackEnabled;
-  }, [playbackQueueTracks, playbackTrackId, playbackTrackIndex, isShuffleEnabled, isRepeatTrackEnabled]);
+  }, [playbackQueueTracks, playbackTrackId, playbackTrackIndex, isRepeatTrackEnabled]);
 
-  function pickRandomQueueTrack(queueTracks: Track[], excludeTrackId?: string): Track | null {
-    if (!queueTracks.length) {
-      return null;
+  useEffect(() => {
+    setPlaybackQueueTrackIds((prev) => {
+      const next = prev.filter((trackId) => trackById.has(trackId));
+      if (next.length === prev.length && next.every((trackId, index) => trackId === prev[index])) {
+        return prev;
+      }
+      return next;
+    });
+    setPlaybackHistoryTrackIds((prev) => {
+      const next = prev.filter((trackId) => trackById.has(trackId));
+      if (next.length === prev.length && next.every((trackId, index) => trackId === prev[index])) {
+        return prev;
+      }
+      return next.slice(-PLAYER_QUEUE_HISTORY_SIZE);
+    });
+  }, [trackById]);
+
+  useEffect(() => {
+    if (!playbackTrackId) {
+      previousPlaybackTrackIdRef.current = "";
+      return;
     }
-    const available = excludeTrackId
-      ? queueTracks.filter((track) => track.id !== excludeTrackId)
-      : queueTracks;
-    if (!available.length) {
-      return queueTracks[0] ?? null;
+    const previousTrackId = previousPlaybackTrackIdRef.current;
+    if (previousTrackId && previousTrackId !== playbackTrackId) {
+      setPlaybackHistoryTrackIds((prev) => {
+        const withoutPreviousTrack = prev.filter((trackId) => trackId !== previousTrackId);
+        return [...withoutPreviousTrack, previousTrackId].slice(-PLAYER_QUEUE_HISTORY_SIZE);
+      });
     }
-    const randomIndex = Math.floor(Math.random() * available.length);
-    return available[randomIndex] ?? null;
-  }
+    previousPlaybackTrackIdRef.current = playbackTrackId;
+  }, [playbackTrackId]);
+
+  useEffect(() => {
+    const previousShuffleEnabled = previousShuffleEnabledRef.current;
+    if (previousShuffleEnabled === isShuffleEnabled) {
+      return;
+    }
+    previousShuffleEnabledRef.current = isShuffleEnabled;
+    if (!isShuffleEnabled) {
+      return;
+    }
+    if (!playbackQueueTrackIds.length) {
+      return;
+    }
+
+    if (playbackPlaylistId) {
+      const playlist = playlists.find((item) => item.id === playbackPlaylistId);
+      if (playlist) {
+        const playlistTrackIds = playlist.entries
+          .map((entry) => entry.trackId)
+          .filter((trackId) => trackById.has(trackId));
+        const startTrackId = playbackTrackId && playlistTrackIds.includes(playbackTrackId)
+          ? playbackTrackId
+          : playlistTrackIds[0];
+        const nextQueueTrackIds = buildPlaylistQueueOrder(playlistTrackIds, true, startTrackId);
+        if (nextQueueTrackIds.length) {
+          setPlaybackQueueTrackIds(nextQueueTrackIds);
+          setPlaybackHistoryTrackIds([]);
+          setPlayerQueueVisibleCount(PLAYER_QUEUE_PAGE_SIZE);
+          previousPlaybackTrackIdRef.current = playbackTrackId || "";
+        }
+        return;
+      }
+    }
+
+    const startTrackId = playbackTrackId && playbackQueueTrackIds.includes(playbackTrackId)
+      ? playbackTrackId
+      : playbackQueueTrackIds[0];
+    if (!startTrackId) {
+      return;
+    }
+    const remainingTrackIds = playbackQueueTrackIds.filter((trackId) => trackId !== startTrackId);
+    const nextQueueTrackIds = [startTrackId, ...shuffleTrackIds(remainingTrackIds)];
+    setPlaybackQueueTrackIds(nextQueueTrackIds);
+    setPlaybackHistoryTrackIds([]);
+    setPlayerQueueVisibleCount(PLAYER_QUEUE_PAGE_SIZE);
+    previousPlaybackTrackIdRef.current = playbackTrackId || startTrackId;
+  }, [isShuffleEnabled, playbackPlaylistId, playbackTrackId, playbackQueueTrackIds, playlists, trackById]);
+
+  useEffect(() => {
+    if (!playbackPlaylistId) {
+      return;
+    }
+    const playlist = playlists.find((item) => item.id === playbackPlaylistId);
+    if (!playlist) {
+      return;
+    }
+    const playlistTrackIds = playlist.entries
+      .map((entry) => entry.trackId)
+      .filter((trackId) => trackById.has(trackId));
+    if (!playlistTrackIds.length) {
+      setPlaybackQueueTrackIds([]);
+      setPlaybackHistoryTrackIds([]);
+      setPlayerQueueVisibleCount(PLAYER_QUEUE_PAGE_SIZE);
+      return;
+    }
+
+    const playlistTrackIdSet = new Set(playlistTrackIds);
+    const currentTrackId = playbackTrackId && playlistTrackIdSet.has(playbackTrackId) ? playbackTrackId : "";
+
+    let nextQueueTrackIds: string[] = [];
+    if (isShuffleEnabled) {
+      const startTrackId = currentTrackId || playbackQueueTrackIds.find((trackId) => playlistTrackIdSet.has(trackId)) || playlistTrackIds[0];
+      if (!startTrackId) {
+        return;
+      }
+      const preservedTrackIds = playbackQueueTrackIds.filter(
+        (trackId) => trackId !== startTrackId && playlistTrackIdSet.has(trackId)
+      );
+      const newTrackIds = playlistTrackIds.filter(
+        (trackId) => trackId !== startTrackId && !preservedTrackIds.includes(trackId)
+      );
+      nextQueueTrackIds = [startTrackId, ...preservedTrackIds, ...shuffleTrackIds(newTrackIds)];
+    } else {
+      const startTrackId = currentTrackId || playlistTrackIds[0];
+      const startIndex = playlistTrackIds.indexOf(startTrackId);
+      nextQueueTrackIds = playlistTrackIds.slice(Math.max(0, startIndex));
+    }
+
+    if (!areTrackIdListsEqual(nextQueueTrackIds, playbackQueueTrackIds)) {
+      setPlaybackQueueTrackIds(nextQueueTrackIds);
+    }
+
+    if (!currentTrackId) {
+      const fallbackTrackId = nextQueueTrackIds[0];
+      if (!fallbackTrackId || fallbackTrackId === playbackTrackId) {
+        return;
+      }
+      const fallbackTrack = trackById.get(fallbackTrackId);
+      if (fallbackTrack) {
+        selectTrack(fallbackTrack);
+      }
+      setPlaybackTrackId(fallbackTrackId);
+      setShouldAutoplay(true);
+    }
+  }, [playbackPlaylistId, playlists, trackById, playbackTrackId, playbackQueueTrackIds, isShuffleEnabled]);
 
   function cancelOnlineSearch(reason = "Online search canceled.") {
     const activeSearch = searchRequestRef.current;
@@ -1168,6 +1383,54 @@ export function App() {
     searchRequestRef.current = null;
     setIsLoadingSearch(false);
     setSearchStatus(reason);
+  }
+
+  function clearPlaybackQueueState() {
+    previousPlaybackTrackIdRef.current = "";
+    setPlaybackQueueTrackIds([]);
+    setPlaybackHistoryTrackIds([]);
+    setPlayerQueueVisibleCount(PLAYER_QUEUE_PAGE_SIZE);
+  }
+
+  function startPlaybackSession(queueTrackIds: string[], startTrackId: string, playlistId = ""): boolean {
+    const startTrack = trackById.get(startTrackId);
+    if (!startTrack || !queueTrackIds.length) {
+      return false;
+    }
+    previousPlaybackTrackIdRef.current = "";
+    setPlaybackQueueTrackIds(queueTrackIds);
+    setPlaybackHistoryTrackIds([]);
+    setPlayerQueueVisibleCount(PLAYER_QUEUE_PAGE_SIZE);
+    setPlaybackPlaylistId(playlistId);
+    if (startTrack.id !== selectedTrackId) {
+      selectTrack(startTrack);
+    }
+    setPlaybackTrackId(startTrack.id);
+    setShouldAutoplay(true);
+    return true;
+  }
+
+  function startPlaybackFromPlaylist(playlistId: string, startTrackId?: string): boolean {
+    const playlist = playlists.find((item) => item.id === playlistId);
+    if (!playlist) {
+      return false;
+    }
+    const playlistTrackIds = playlist.entries
+      .map((entry) => entry.trackId)
+      .filter((trackId) => trackById.has(trackId));
+    const queueTrackIds = buildPlaylistQueueOrder(playlistTrackIds, isShuffleEnabled, startTrackId);
+    const firstTrackId = queueTrackIds[0];
+    if (!firstTrackId) {
+      return false;
+    }
+    return startPlaybackSession(queueTrackIds, firstTrackId, playlistId);
+  }
+
+  function startPlaybackFromLibrary(track: Track): boolean {
+    const filteredTrackIds = filteredTracks.map((item) => item.id);
+    const queueTrackIds = buildLibraryQueueOrder(filteredTrackIds, track.id);
+    const normalizedQueueTrackIds = queueTrackIds.length ? queueTrackIds : [track.id];
+    return startPlaybackSession(normalizedQueueTrackIds, track.id, "");
   }
 
   async function handleScan() {
@@ -1184,7 +1447,9 @@ export function App() {
       }
       setTracks(result.tracks);
       setSelectedTrackId(result.tracks[0]?.id ?? "");
+      setPlaybackPlaylistId("");
       setPlaybackTrackId("");
+      clearPlaybackQueueState();
       setShouldAutoplay(false);
       const firstTrack = result.tracks[0];
       if (firstTrack) {
@@ -1578,8 +1843,8 @@ export function App() {
     const targetTrack = playbackTrack ?? selectedTrack;
     if (targetTrack && targetTrack.id !== playbackTrackId) {
       if (selectedTrack && targetTrack.id === selectedTrack.id) {
-        // Explicit single-track playback from library selection interrupts playlist mode.
-        setPlaybackPlaylistId("");
+        startPlaybackFromLibrary(targetTrack);
+        return;
       }
       setPlaybackTrackId(targetTrack.id);
       setShouldAutoplay(true);
@@ -1606,14 +1871,7 @@ export function App() {
   function handlePlayFromLibraryCover(event: MouseEvent<HTMLElement>, track: Track) {
     event.stopPropagation();
     ensureAudioGraphReady();
-    setPlaybackPlaylistId("");
-    if (track.id !== selectedTrackId) {
-      selectTrack(track);
-    }
-
-    if (track.id !== playbackTrackId) {
-      setPlaybackTrackId(track.id);
-      setShouldAutoplay(true);
+    if (!startPlaybackFromLibrary(track)) {
       return;
     }
 
@@ -1737,12 +1995,7 @@ export function App() {
 
   function handlePrevTrack() {
     ensureAudioGraphReady();
-    let prev: Track | null = null;
-    if (isShuffleEnabled) {
-      prev = pickRandomQueueTrack(playbackQueueTracks, playbackTrackId);
-    } else if (playbackTrackIndex > 0) {
-      prev = playbackQueueTracks[playbackTrackIndex - 1] ?? null;
-    }
+    const prev = playbackTrackIndex > 0 ? playbackQueueTracks[playbackTrackIndex - 1] ?? null : null;
     if (prev) {
       setPlaybackTrackId(prev.id);
       setShouldAutoplay(true);
@@ -1752,12 +2005,10 @@ export function App() {
 
   function handleNextTrack() {
     ensureAudioGraphReady();
-    let next: Track | null = null;
-    if (isShuffleEnabled) {
-      next = pickRandomQueueTrack(playbackQueueTracks, playbackTrackId);
-    } else if (playbackTrackIndex >= 0 && playbackTrackIndex < playbackQueueTracks.length - 1) {
-      next = playbackQueueTracks[playbackTrackIndex + 1] ?? null;
-    }
+    const next =
+      playbackTrackIndex >= 0 && playbackTrackIndex < playbackQueueTracks.length - 1
+        ? playbackQueueTracks[playbackTrackIndex + 1] ?? null
+        : null;
     if (next) {
       setPlaybackTrackId(next.id);
       setShouldAutoplay(true);
@@ -1765,9 +2016,17 @@ export function App() {
     }
   }
 
-  function handlePlayTrackFromQueue(track: Track, playlistId?: string) {
+  function handlePlayTrackFromPlaylist(track: Track, playlistId?: string) {
     ensureAudioGraphReady();
-    setPlaybackPlaylistId(playlistId ?? "");
+    if (!playlistId) {
+      handlePlayTrackFromPlayerQueue(track);
+      return;
+    }
+    startPlaybackFromPlaylist(playlistId, track.id);
+  }
+
+  function handlePlayTrackFromPlayerQueue(track: Track) {
+    ensureAudioGraphReady();
     if (track.id !== selectedTrackId) {
       selectTrack(track);
     }
@@ -1798,16 +2057,58 @@ export function App() {
       return;
     }
     ensureAudioGraphReady();
-    const firstPlayableTrack = activePlaylist.entries
-      .map((entry) => tracks.find((track) => track.id === entry.trackId) ?? null)
-      .find((track): track is Track => Boolean(track));
-    if (!firstPlayableTrack) {
+    startPlaybackFromPlaylist(activePlaylist.id);
+  }
+
+  function handleLoadMorePlayerQueueTracks() {
+    setPlayerQueueVisibleCount((prev) => prev + PLAYER_QUEUE_PAGE_SIZE);
+  }
+
+  function handleClearPlayerQueue() {
+    setPlaybackPlaylistId("");
+    if (!playbackTrackId) {
+      setPlaybackQueueTrackIds([]);
+      setPlayerQueueVisibleCount(PLAYER_QUEUE_PAGE_SIZE);
       return;
     }
-    setPlaybackPlaylistId(activePlaylist.id);
-    selectTrack(firstPlayableTrack);
-    setPlaybackTrackId(firstPlayableTrack.id);
-    setShouldAutoplay(true);
+    setPlaybackQueueTrackIds((prev) => (prev.includes(playbackTrackId) ? [playbackTrackId] : []));
+    setPlayerQueueVisibleCount(PLAYER_QUEUE_PAGE_SIZE);
+  }
+
+  function handleRemoveTrackFromPlayerQueue(trackId: string) {
+    setPlaybackPlaylistId("");
+    setPlaybackHistoryTrackIds((prev) => prev.filter((id) => id !== trackId));
+    const currentIndex = playbackQueueTrackIds.indexOf(trackId);
+    if (currentIndex < 0) {
+      return;
+    }
+    const nextQueueTrackIds = playbackQueueTrackIds.filter((id) => id !== trackId);
+    setPlaybackQueueTrackIds(nextQueueTrackIds);
+    if (trackId !== playbackTrackId) {
+      return;
+    }
+    const fallbackTrackId = nextQueueTrackIds[currentIndex] ?? nextQueueTrackIds[currentIndex - 1] ?? "";
+    if (!fallbackTrackId) {
+      setPlaybackTrackId("");
+      setShouldAutoplay(false);
+      return;
+    }
+    setPlaybackTrackId(fallbackTrackId);
+    const fallbackTrack = trackById.get(fallbackTrackId);
+    if (fallbackTrack) {
+      selectTrack(fallbackTrack);
+    }
+    setShouldAutoplay(isPlaying);
+  }
+
+  function togglePlayerColumn(column: keyof PlayerColumnVisibility) {
+    setPlayerColumnVisibility((prev) => {
+      const next = { ...prev, [column]: !prev[column] };
+      if (!next.library && !next.visualizer && !next.queue) {
+        return prev;
+      }
+      return next;
+    });
   }
 
   function handleEqualizerPresetChange(presetId: string) {
@@ -2082,6 +2383,83 @@ export function App() {
     insertTrackIntoActivePlaylist(trackId, null);
   }
 
+  function appendTracksToActivePlaylist(trackIds: string[]) {
+    const normalizedTrackIds = trackIds.filter((trackId) => trackId && trackById.has(trackId));
+    if (!normalizedTrackIds.length) {
+      return;
+    }
+    const nextEntries: PlaylistEntry[] = normalizedTrackIds.map((trackId) => ({
+      id: `entry-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      trackId,
+    }));
+    if (!activePlaylist) {
+      const playlistName = buildUniquePlaylistName(playlists, "New Playlist");
+      const nextPlaylist: Playlist = {
+        id: `playlist-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        name: playlistName,
+        entries: nextEntries,
+      };
+      setPlaylists((prev) => [...prev, nextPlaylist]);
+      setActivePlaylistId(nextPlaylist.id);
+      setPlaylistNameDraft(nextPlaylist.name);
+      return;
+    }
+    setPlaylists((prev) =>
+      prev.map((playlist) =>
+        playlist.id === activePlaylist.id
+          ? { ...playlist, entries: [...playlist.entries, ...nextEntries] }
+          : playlist
+      )
+    );
+  }
+
+  function handleAddFilteredTracksToActivePlaylist() {
+    appendTracksToActivePlaylist(filteredTracks.map((track) => track.id));
+  }
+
+  function enqueueTrack(trackId: string) {
+    const track = trackById.get(trackId);
+    if (!track) {
+      return;
+    }
+    setPlaybackPlaylistId("");
+    setPlaybackQueueTrackIds((prev) => {
+      if (prev.includes(trackId)) {
+        return prev;
+      }
+      return [...prev, trackId];
+    });
+    setPlayerQueueVisibleCount((prev) => Math.max(prev, PLAYER_QUEUE_PAGE_SIZE));
+    if (!playbackTrackId) {
+      setPlaybackTrackId(trackId);
+      selectTrack(track);
+    }
+  }
+
+  function handleEnqueueFilteredTracks() {
+    const filteredTrackIds = filteredTracks.map((track) => track.id).filter((trackId) => trackById.has(trackId));
+    if (!filteredTrackIds.length) {
+      return;
+    }
+    setPlaybackPlaylistId("");
+    setPlaybackQueueTrackIds((prev) => {
+      const existing = new Set(prev);
+      const nextTrackIds = filteredTrackIds.filter((trackId) => !existing.has(trackId));
+      if (!nextTrackIds.length) {
+        return prev;
+      }
+      return [...prev, ...nextTrackIds];
+    });
+    setPlayerQueueVisibleCount((prev) => Math.max(prev, PLAYER_QUEUE_PAGE_SIZE));
+    if (!playbackTrackId) {
+      const firstTrack = trackById.get(filteredTrackIds[0]);
+      if (firstTrack) {
+        setPlaybackTrackId(firstTrack.id);
+        selectTrack(firstTrack);
+      }
+    }
+  }
+
   function movePlaylistEntry(draggedEntryId: string, targetEntryId?: string | null) {
     if (!activePlaylist) {
       return;
@@ -2238,8 +2616,8 @@ export function App() {
         isMuted={isMuted}
         audioError={audioError}
         showAudioError={Boolean(selectedTrack || playbackTrack)}
-        isPrevDisabled={isShuffleEnabled ? playbackQueueTracks.length <= 1 : playbackTrackIndex <= 0}
-        isNextDisabled={isShuffleEnabled ? playbackQueueTracks.length <= 1 : playbackTrackIndex < 0 || playbackTrackIndex >= playbackQueueTracks.length - 1}
+        isPrevDisabled={playbackTrackIndex <= 0}
+        isNextDisabled={playbackTrackIndex < 0 || playbackTrackIndex >= playbackQueueTracks.length - 1}
         isPlayDisabled={!selectedTrack && !audioSrc}
         isShuffleEnabled={isShuffleEnabled}
         isRepeatTrackEnabled={isRepeatTrackEnabled}
@@ -2398,6 +2776,9 @@ export function App() {
             onTrackAction: (track) => appendTrackToActivePlaylist(track.id),
             trackActionTitle: "Add track to playlist",
             trackActionAriaLabel: "Add track to playlist",
+            onBulkTrackAction: handleAddFilteredTracksToActivePlaylist,
+            bulkTrackActionTitle: "Add all visible tracks to playlist",
+            bulkTrackActionAriaLabel: "Add all visible tracks to playlist",
             onPlayFromLibraryCover: handlePlayFromLibraryCover,
             enableTrackDrag: true,
             useNativeTrackDrag: false,
@@ -2417,6 +2798,7 @@ export function App() {
             IconPlay,
             IconSearch,
             IconTrackAction: IconPlus,
+            IconBulkTrackAction: IconMusicArrowRight,
           }}
           playlistNameDraft={playlistNameDraft}
           playlists={playlists}
@@ -2445,7 +2827,7 @@ export function App() {
               suppressNextPlaylistItemClickRef.current = false;
               return;
             }
-            handlePlayTrackFromQueue(track, activePlaylist?.id);
+            handlePlayTrackFromPlaylist(track, activePlaylist?.id);
           }}
           onRemovePlaylistEntry={removePlaylistEntry}
           IconPlus={IconPlus}
@@ -2457,6 +2839,48 @@ export function App() {
 
       {activeScreen === "player" && (
         <PlayerSection
+          libraryProps={{
+            folderPath,
+            onOpenFolderPathClick: () => {
+              void handleOpenLibraryFolder();
+            },
+            isLoadingScan,
+            onScan: handleScan,
+            query,
+            onQueryChange: setQuery,
+            libraryViewMode,
+            onLibraryViewModeChange: setLibraryViewMode,
+            librarySortMode,
+            librarySortDirection,
+            onLibrarySortClick: handleLibrarySortClick,
+            trackCount: tracks.length,
+            folderCount,
+            trackListRef,
+            onTrackListScroll: handleTrackListScroll,
+            virtualTrackWindow,
+            selectedTrackId,
+            onSelectTrack: selectTrack,
+            onSearchTrack: handleQuickSearchTrack,
+            onTrackAction: (track) => enqueueTrack(track.id),
+            trackActionTitle: "Add track to queue",
+            trackActionAriaLabel: "Add track to queue",
+            onBulkTrackAction: handleEnqueueFilteredTracks,
+            bulkTrackActionTitle: "Add all visible tracks to queue",
+            bulkTrackActionAriaLabel: "Add all visible tracks to queue",
+            onPlayFromLibraryCover: handlePlayFromLibraryCover,
+            IconFolder,
+            IconMusicNote,
+            IconSortTitle,
+            IconSortArtist,
+            IconSortAdded,
+            IconSortRelease,
+            IconGrid,
+            IconListCompact,
+            IconPlay,
+            IconSearch,
+            IconTrackAction: IconPlus,
+            IconBulkTrackAction: IconMusicArrowRight,
+          }}
           audioRef={audioRef}
           isActive={activeScreen === "player"}
           hasAudio={hasAudioLoaded}
@@ -2464,13 +2888,33 @@ export function App() {
           coverUrl={playerInfoTrack?.coverUrl}
           currentTime={currentTime}
           duration={duration}
-          title={playerInfoTrack?.title || ""}
-          artist={playerInfoTrack?.artist || ""}
           accentColor={accentTheme.accent}
           isDarkMode={colorMode === "dark"}
-          queueTracks={filteredTracks}
+          showLibraryColumn={playerColumnVisibility.library}
+          showVisualizerColumn={playerColumnVisibility.visualizer}
+          showQueueColumn={playerColumnVisibility.queue}
+          onToggleLibraryColumn={() => togglePlayerColumn("library")}
+          onToggleVisualizerColumn={() => togglePlayerColumn("visualizer")}
+          onToggleQueueColumn={() => togglePlayerColumn("queue")}
+          IconLibrary={IconFolder}
+          IconVisualizer={IconVisualizerBars}
+          IconQueue={IconListCompact}
+          visualizerPresetId={playerVisualizerPresetId}
+          onVisualizerPresetChange={setPlayerVisualizerPresetId}
+          equalizerPresets={equalizerPresets}
+          equalizerPresetId={equalizerPresetId}
+          onEqualizerPresetChange={handleEqualizerPresetChange}
+          queueHistoryTracks={playerQueueHistoryTracks}
+          queueTracks={playerQueueUpcomingTracks}
+          hasMoreQueueTracks={hasMorePlayerQueueTracks}
           playbackTrackId={playbackTrackId}
-          onQueueTrackClick={(track) => handlePlayTrackFromQueue(track)}
+          onQueueTrackClick={handlePlayTrackFromPlayerQueue}
+          onLoadMoreQueueTracks={handleLoadMorePlayerQueueTracks}
+          onQueueRemoveTrack={handleRemoveTrackFromPlayerQueue}
+          onQueueClear={handleClearPlayerQueue}
+          canClearQueue={playbackQueueTrackIds.length > 0}
+          IconPlay={IconPlay}
+          IconTrash={IconTrash}
         />
       )}
 

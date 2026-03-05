@@ -36,6 +36,9 @@ export type LibrarySectionProps = {
   onTrackAction?: (track: Track) => void;
   trackActionTitle?: string;
   trackActionAriaLabel?: string;
+  onBulkTrackAction?: () => void;
+  bulkTrackActionTitle?: string;
+  bulkTrackActionAriaLabel?: string;
   onPlayFromLibraryCover: (event: MouseEvent<HTMLDivElement>, track: Track) => void;
   enableTrackDrag?: boolean;
   useNativeTrackDrag?: boolean;
@@ -54,6 +57,7 @@ export type LibrarySectionProps = {
   IconPlay: IconComponent;
   IconSearch: IconComponent;
   IconTrackAction?: IconComponent;
+  IconBulkTrackAction?: IconComponent;
 };
 
 export function LibrarySection({
@@ -79,6 +83,9 @@ export function LibrarySection({
   onTrackAction,
   trackActionTitle,
   trackActionAriaLabel,
+  onBulkTrackAction,
+  bulkTrackActionTitle,
+  bulkTrackActionAriaLabel,
   onPlayFromLibraryCover,
   enableTrackDrag = false,
   useNativeTrackDrag = true,
@@ -97,6 +104,7 @@ export function LibrarySection({
   IconPlay,
   IconSearch,
   IconTrackAction,
+  IconBulkTrackAction,
 }: LibrarySectionProps) {
   const sortDirectionSymbol = librarySortDirection === "asc" ? "↑" : "↓";
   const sortDirectionLabel = librarySortDirection === "asc" ? "ascending" : "descending";
@@ -106,22 +114,35 @@ export function LibrarySection({
   const resolvedTrackActionTitle = trackActionTitle ?? "Search online for this track";
   const resolvedTrackActionAriaLabel = trackActionAriaLabel ?? "Search online for this track";
   const TrackActionIcon = IconTrackAction ?? IconSearch;
+  const BulkTrackActionIcon = IconBulkTrackAction ?? IconSearch;
 
   return (
     <Card
       title="Library files"
       className="library-card"
       headerAfterTitle={
-        <button
-          type="button"
-          className="library-path library-path-link"
-          onClick={onOpenFolderPathClick}
-          disabled={!folderPath}
-          title={folderPath || "No folder selected"}
-          aria-label="Open library folder"
-        >
-          {folderPath ? folderPath : "No folder selected"}
-        </button>
+        <>
+          <div className="library-summary" aria-label={`Tracks: ${trackCount}, folders and subfolders: ${folderCount}`}>
+            <span className="library-summary-item" title="Tracks">
+              <IconMusicNote className="library-summary-icon" />
+              <strong>{trackCount}</strong>
+            </span>
+            <span className="library-summary-item" title="Folders and subfolders">
+              <IconFolder className="library-summary-icon" />
+              <strong>{folderCount}</strong>
+            </span>
+          </div>
+          <button
+            type="button"
+            className="library-path library-path-link"
+            onClick={onOpenFolderPathClick}
+            disabled={!folderPath}
+            title={folderPath || "No folder selected"}
+            aria-label="Open library folder"
+          >
+            {folderPath ? folderPath : "No folder selected"}
+          </button>
+        </>
       }
       headerRight={
         <button onClick={onScan} disabled={isLoadingScan} title={isLoadingScan ? "Scanning..." : "Select folder"} aria-label={isLoadingScan ? "Scanning..." : "Select folder"}>
@@ -198,16 +219,21 @@ export function LibrarySection({
             </span>
           </button>
         </div>
-        <div className="library-summary" aria-label={`Tracks: ${trackCount}, folders and subfolders: ${folderCount}`}>
-          <span className="library-summary-item" title="Tracks">
-            <IconMusicNote className="library-summary-icon" />
-            <strong>{trackCount}</strong>
-          </span>
-          <span className="library-summary-item" title="Folders and subfolders">
-            <IconFolder className="library-summary-icon" />
-            <strong>{folderCount}</strong>
-          </span>
-        </div>
+        {onBulkTrackAction && (
+          <div className="library-bulk-action">
+            <button
+              type="button"
+              className="ghost-button library-bulk-action-button"
+              onClick={onBulkTrackAction}
+              title={bulkTrackActionTitle ?? "Apply action to all visible tracks"}
+              aria-label={bulkTrackActionAriaLabel ?? "Apply action to all visible tracks"}
+            >
+              <span className="btn-content">
+                <BulkTrackActionIcon className="btn-icon" />
+              </span>
+            </button>
+          </div>
+        )}
       </div>
       <ul
         ref={trackListRef}

@@ -28,6 +28,15 @@ export const IconMusicNote = (props: SVGProps<SVGSVGElement>) => (
   </IconBase>
 );
 
+export const IconMusicArrowRight = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <path d="M8.5 19a1.8 1.8 0 1 0 0-3.6 1.8 1.8 0 0 0 0 3.6z" />
+    <path d="M10.1 17.8V8.2l4.9-1.4v6.6" />
+    <line x1="13.5" y1="12" x2="20" y2="12" />
+    <polyline points="17.5 9.5 20 12 17.5 14.5" />
+  </IconBase>
+);
+
 export const IconSortTitle = (props: SVGProps<SVGSVGElement>) => (
   <IconBase {...props}>
     <line x1="5" y1="7" x2="19" y2="7" />
@@ -285,5 +294,15 @@ export const IconRepeatOne = (props: SVGProps<SVGSVGElement>) => (
     <polyline points="7 23 3 19 7 15" />
     <path d="M21 13v2a4 4 0 0 1-4 4H3" />
     <line x1="12" y1="10" x2="12" y2="16" />
+  </IconBase>
+);
+
+export const IconVisualizerBars = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <line x1="5" y1="18" x2="5" y2="12" />
+    <line x1="9" y1="18" x2="9" y2="8" />
+    <line x1="13" y1="18" x2="13" y2="5" />
+    <line x1="17" y1="18" x2="17" y2="9" />
+    <line x1="21" y1="18" x2="21" y2="11" />
   </IconBase>
 );
