@@ -202,8 +202,51 @@ export function countFoldersAndSubfolders(items: Track[], rootPath: string): num
   return folders.size;
 }
 
+export function normalizeGenreKey(value: string): string {
+  return normalizeSearchText(value);
+}
+
+export function inferGenrePresetId(genre: string): string {
+  const key = normalizeGenreKey(genre);
+  if (!key) {
+    return "flat";
+  }
+  if (key.includes("metal")) {
+    return "genre-metal";
+  }
+  if (key.includes("hip hop") || key.includes("hiphop") || key.includes("rap") || key.includes("trap")) {
+    return "genre-hiphop";
+  }
+  if (key.includes("electro") || key.includes("edm") || key.includes("techno") || key.includes("house") || key.includes("trance") || key.includes("drum n bass") || key.includes("dnb")) {
+    return "genre-electronic";
+  }
+  if (key.includes("rnb") || key.includes("r b") || key.includes("soul")) {
+    return "genre-rnb";
+  }
+  if (key.includes("jazz") || key.includes("blues")) {
+    return "genre-jazz";
+  }
+  if (key.includes("classical") || key.includes("orchestral")) {
+    return "genre-classical";
+  }
+  if (key.includes("reggae") || key.includes("dub")) {
+    return "genre-reggae";
+  }
+  if (key.includes("country") || key.includes("folk") || key.includes("americana")) {
+    return "genre-country";
+  }
+  if (key.includes("rock") || key.includes("punk") || key.includes("grunge") || key.includes("indie")) {
+    return "genre-rock";
+  }
+  if (key.includes("pop") || key.includes("dance")) {
+    return "genre-pop";
+  }
+  return "flat";
+}
+
 function normalizeSearchText(value: string): string {
-  return value
+  const safeValue = String(value || "");
+  return safeValue
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()

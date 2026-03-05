@@ -14,6 +14,16 @@ export const EQUALIZER_PRESETS: EqualizerPreset[] = [
   { id: "vocal", name: "Vocal Boost", bandGains: [-2, -1, 0, 1, 2, 3, 3, 2, 1, 0], preampDb: 0, wetMixPercent: 100 },
   { id: "club", name: "Club", bandGains: [3, 2, 1, 0, -1, -1, 0, 1, 2, 3], preampDb: 0, wetMixPercent: 100 },
   { id: "air", name: "Airy", bandGains: [-1, -1, -1, 0, 1, 2, 3, 3, 4, 4], preampDb: 0, wetMixPercent: 100 },
+  { id: "genre-pop", name: "Pop", bandGains: [1, 1, 0, -1, 0, 1, 2, 2, 1, 1], preampDb: 0, wetMixPercent: 100 },
+  { id: "genre-rock", name: "Rock", bandGains: [3, 2, 1, -1, -1, 1, 2, 3, 2, 1], preampDb: 0, wetMixPercent: 100 },
+  { id: "genre-hiphop", name: "Hip-Hop", bandGains: [5, 4, 2, 1, 0, -1, -1, 0, 1, 2], preampDb: -1, wetMixPercent: 100 },
+  { id: "genre-jazz", name: "Jazz", bandGains: [1, 1, 0, 1, 2, 2, 1, 1, 0, 1], preampDb: 0, wetMixPercent: 100 },
+  { id: "genre-classical", name: "Classical", bandGains: [0, 0, 0, 1, 2, 2, 2, 1, 1, 1], preampDb: 0, wetMixPercent: 100 },
+  { id: "genre-electronic", name: "Electronic", bandGains: [4, 3, 2, 0, -1, 0, 1, 2, 3, 3], preampDb: -0.5, wetMixPercent: 100 },
+  { id: "genre-metal", name: "Metal", bandGains: [4, 3, 2, 0, -2, -1, 1, 3, 4, 3], preampDb: -1, wetMixPercent: 100 },
+  { id: "genre-rnb", name: "R&B", bandGains: [3, 2, 1, 0, 1, 2, 2, 1, 0, 1], preampDb: 0, wetMixPercent: 100 },
+  { id: "genre-country", name: "Country", bandGains: [1, 1, 0, 1, 2, 2, 1, 0, -1, -1], preampDb: 0, wetMixPercent: 100 },
+  { id: "genre-reggae", name: "Reggae", bandGains: [4, 3, 2, 1, 0, 0, 1, 1, 0, -1], preampDb: -0.5, wetMixPercent: 100 },
 ];
 
 export const DEFAULT_EQUALIZER_PRESET = EQUALIZER_PRESETS[0];

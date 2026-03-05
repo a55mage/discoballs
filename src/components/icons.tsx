@@ -306,3 +306,13 @@ export const IconVisualizerBars = (props: SVGProps<SVGSVGElement>) => (
     <line x1="21" y1="18" x2="21" y2="11" />
   </IconBase>
 );
+
+export const IconAutoEq = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <line x1="5" y1="18" x2="5" y2="11" />
+    <line x1="9" y1="18" x2="9" y2="7" />
+    <line x1="13" y1="18" x2="13" y2="9" />
+    <line x1="17" y1="18" x2="17" y2="6" />
+    <polyline points="14.5 4.5 17 2 19.5 4.5" />
+  </IconBase>
+);

@@ -1,4 +1,4 @@
-import { type ComponentType, type CSSProperties, type KeyboardEvent, type RefObject, type SVGProps, useEffect, useMemo, useRef } from "react";
+import { type ComponentType, type CSSProperties, type KeyboardEvent, type RefObject, type SVGProps, useEffect, useMemo, useRef, useState } from "react";
 import { Card } from "../components/Card";
 import { EQUALIZER_FREQUENCIES } from "../utils/audioGraph";
 import { getOrCreateMediaAudioGraph } from "../utils/audioGraph";
@@ -18,6 +18,9 @@ type SettingsSectionProps = {
   onAudioNormalizeVolumeChange: (value: boolean) => void;
   audioSmartCrossfade: boolean;
   onAudioSmartCrossfadeChange: (value: boolean) => void;
+  libraryGenres: Array<{ key: string; label: string }>;
+  genreEqPresetMap: Record<string, string>;
+  onGenreEqPresetChange: (genreKey: string, presetId: string) => void;
   colorMode: "light" | "dark";
   onColorModeChange: (value: "light" | "dark") => void;
   accentThemes: Array<{ accent: string }>;
@@ -32,6 +35,8 @@ type SettingsSectionProps = {
   audioRef: RefObject<HTMLAudioElement | null>;
   accentColor: string;
   equalizerPresets: Array<{ id: string; name: string }>;
+  startupEqualizerPresetId: string;
+  onStartupEqualizerPresetIdChange: (value: string) => void;
   equalizerPresetId: string;
   onEqualizerPresetIdChange: (value: string) => void;
   onEqualizerPresetChange: (presetId: string) => void;
@@ -76,6 +81,9 @@ export function SettingsSection({
   onAudioNormalizeVolumeChange,
   audioSmartCrossfade,
   onAudioSmartCrossfadeChange,
+  libraryGenres,
+  genreEqPresetMap,
+  onGenreEqPresetChange,
   colorMode,
   onColorModeChange,
   accentThemes,
@@ -90,6 +98,8 @@ export function SettingsSection({
   audioRef,
   accentColor,
   equalizerPresets,
+  startupEqualizerPresetId,
+  onStartupEqualizerPresetIdChange,
   equalizerPresetId,
   onEqualizerPresetIdChange,
   onEqualizerPresetChange,
@@ -122,6 +132,7 @@ export function SettingsSection({
 }: SettingsSectionProps) {
   const curveBgCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const curveBgContainerRef = useRef<HTMLDivElement | null>(null);
+  const [isGenreEqAccordionOpen, setIsGenreEqAccordionOpen] = useState(false);
 
   const eqCurvePath = useMemo(() => {
     const points = equalizerBandGains.map((value, index) => ({
@@ -265,7 +276,21 @@ export function SettingsSection({
               <div className="settings-grid">
                 <label className="settings-toggle">
                   <input type="checkbox" checked={audioAutoEq} onChange={(event) => onAudioAutoEqChange(event.target.checked)} />
-                  <span>Auto EQ (planned)</span>
+                  <span>Auto EQ by track genre</span>
+                </label>
+                <label className="settings-field">
+                  <span>Startup EQ preset</span>
+                  <select
+                    className="input settings-genre-eq-select"
+                    value={startupEqualizerPresetId}
+                    onChange={(event) => onStartupEqualizerPresetIdChange(event.target.value)}
+                    aria-label="Startup equalizer preset"
+                  >
+                    <option value="">Use last active preset</option>
+                    {equalizerPresets.map((preset) => (
+                      <option key={preset.id} value={preset.id}>{preset.name}</option>
+                    ))}
+                  </select>
                 </label>
                 <label className="settings-toggle">
                   <input type="checkbox" checked={audioNormalizeVolume} onChange={(event) => onAudioNormalizeVolumeChange(event.target.checked)} />
@@ -275,6 +300,42 @@ export function SettingsSection({
                   <input type="checkbox" checked={audioSmartCrossfade} onChange={(event) => onAudioSmartCrossfadeChange(event.target.checked)} />
                   <span>Smart crossfade between tracks (planned)</span>
                 </label>
+              </div>
+              <div className="settings-genre-eq-map">
+                <button
+                  type="button"
+                  className="ghost-button settings-accordion-toggle"
+                  onClick={() => setIsGenreEqAccordionOpen((prev) => !prev)}
+                  aria-expanded={isGenreEqAccordionOpen}
+                  title={isGenreEqAccordionOpen ? "Collapse Auto EQ genre mapping" : "Expand Auto EQ genre mapping"}
+                >
+                  <span className="settings-subtitle">Auto EQ genre mapping</span>
+                  <span aria-hidden="true">{isGenreEqAccordionOpen ? "▾" : "▸"}</span>
+                </button>
+                {isGenreEqAccordionOpen && (
+                  !libraryGenres.length ? (
+                    <p className="muted">No genres found in library yet.</p>
+                  ) : (
+                    <div className="settings-genre-eq-list">
+                      {libraryGenres.map((genre) => (
+                        <label key={genre.key} className="settings-genre-eq-row">
+                          <span>{genre.label}</span>
+                          <select
+                            className="input settings-genre-eq-select"
+                            value={genreEqPresetMap[genre.key] ?? ""}
+                            onChange={(event) => onGenreEqPresetChange(genre.key, event.target.value)}
+                            aria-label={`Preset mapping for ${genre.label}`}
+                          >
+                            <option value="">No preset</option>
+                            {equalizerPresets.map((preset) => (
+                              <option key={preset.id} value={preset.id}>{preset.name}</option>
+                            ))}
+                          </select>
+                        </label>
+                      ))}
+                    </div>
+                  )
+                )}
               </div>
             </section>
 

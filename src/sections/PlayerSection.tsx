@@ -31,6 +31,8 @@ type PlayerSectionProps = {
   equalizerPresets: Array<{ id: string; name: string }>;
   equalizerPresetId: string;
   onEqualizerPresetChange: (presetId: string) => void;
+  autoEqEnabled: boolean;
+  onToggleAutoEq: () => void;
   queueHistoryTracks: Track[];
   queueTracks: Track[];
   hasMoreQueueTracks: boolean;
@@ -42,6 +44,7 @@ type PlayerSectionProps = {
   canClearQueue: boolean;
   IconPlay: IconComponent;
   IconTrash: IconComponent;
+  IconAutoEq: IconComponent;
 };
 
 export function PlayerSection({
@@ -69,6 +72,8 @@ export function PlayerSection({
   equalizerPresets,
   equalizerPresetId,
   onEqualizerPresetChange,
+  autoEqEnabled,
+  onToggleAutoEq,
   queueHistoryTracks,
   queueTracks,
   hasMoreQueueTracks,
@@ -80,6 +85,7 @@ export function PlayerSection({
   canClearQueue,
   IconPlay,
   IconTrash,
+  IconAutoEq,
 }: PlayerSectionProps) {
   const hasRightColumn = showVisualizerColumn || showQueueColumn;
   const layoutClassName = showLibraryColumn && hasRightColumn
@@ -245,6 +251,14 @@ export function PlayerSection({
             ))}
           </select>
           </div>
+          <button
+            className={autoEqEnabled ? "top-section-btn is-active-toggle player-subbar-autoeq" : "ghost-button top-section-btn player-subbar-autoeq"}
+            onClick={onToggleAutoEq}
+            title={autoEqEnabled ? "Disable Auto EQ" : "Enable Auto EQ"}
+            aria-label={autoEqEnabled ? "Disable Auto EQ" : "Enable Auto EQ"}
+          >
+            <span className="btn-content"><IconAutoEq className="btn-icon" />Auto EQ</span>
+          </button>
         </div>
       </div>
     </main>
