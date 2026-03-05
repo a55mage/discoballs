@@ -1,8 +1,9 @@
-import type { ComponentType, RefObject, SVGProps } from "react";
+import { type ComponentType, type RefObject, type SVGProps, useEffect, useMemo, useRef, useState } from "react";
 import { Card } from "../components/Card";
 import { LibrarySection, type LibrarySectionProps } from "./LibrarySection";
 import { MusicVisualizerSection, VISUALIZER_PRESETS, type VisualizerPresetId } from "./MusicVisualizerSection";
 import type { Track } from "../types";
+import type { LyricLine } from "../utils/lyrics";
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
 
@@ -20,12 +21,15 @@ type PlayerSectionProps = {
   showLibraryColumn: boolean;
   showVisualizerColumn: boolean;
   showQueueColumn: boolean;
+  showLyricsSection: boolean;
   onToggleLibraryColumn: () => void;
   onToggleVisualizerColumn: () => void;
   onToggleQueueColumn: () => void;
+  onToggleLyricsSection: () => void;
   IconLibrary: IconComponent;
   IconVisualizer: IconComponent;
   IconQueue: IconComponent;
+  IconLyrics: IconComponent;
   visualizerPresetId: VisualizerPresetId;
   onVisualizerPresetChange: (presetId: VisualizerPresetId) => void;
   equalizerPresets: Array<{ id: string; name: string }>;
@@ -45,6 +49,9 @@ type PlayerSectionProps = {
   IconPlay: IconComponent;
   IconTrash: IconComponent;
   IconAutoEq: IconComponent;
+  lyricsStatus: string;
+  lyricsLines: LyricLine[];
+  lyricsActiveIndex: number;
 };
 
 export function PlayerSection({
@@ -61,12 +68,15 @@ export function PlayerSection({
   showLibraryColumn,
   showVisualizerColumn,
   showQueueColumn,
+  showLyricsSection,
   onToggleLibraryColumn,
   onToggleVisualizerColumn,
   onToggleQueueColumn,
+  onToggleLyricsSection,
   IconLibrary,
   IconVisualizer,
   IconQueue,
+  IconLyrics,
   visualizerPresetId,
   onVisualizerPresetChange,
   equalizerPresets,
@@ -86,22 +96,141 @@ export function PlayerSection({
   IconPlay,
   IconTrash,
   IconAutoEq,
+  lyricsStatus,
+  lyricsLines,
+  lyricsActiveIndex,
 }: PlayerSectionProps) {
+  const lyricsListRef = useRef<HTMLUListElement | null>(null);
+  const [liveLyrics, setLiveLyrics] = useState(true);
+  const [lyricsFontSize, setLyricsFontSize] = useState(15);
+  const [liveLyricsPanelWidth, setLiveLyricsPanelWidth] = useState(0);
+  const isActiveLyricIndex = lyricsActiveIndex >= 0 && lyricsActiveIndex < lyricsLines.length;
+  const visibleLyrics = useMemo(() => {
+    if (!liveLyrics || lyricsLines.length <= 3) {
+      return lyricsLines.map((line, index) => ({ line, index }));
+    }
+    if (!isActiveLyricIndex || lyricsActiveIndex <= 1) {
+      return lyricsLines.slice(0, 3).map((line, index) => ({ line, index }));
+    }
+    if (lyricsActiveIndex >= lyricsLines.length - 2) {
+      const start = lyricsLines.length - 3;
+      return lyricsLines.slice(start).map((line, offset) => ({ line, index: start + offset }));
+    }
+    const start = lyricsActiveIndex - 1;
+    return lyricsLines.slice(start, start + 3).map((line, offset) => ({ line, index: start + offset }));
+  }, [liveLyrics, lyricsLines, lyricsActiveIndex, isActiveLyricIndex]);
+  const getLineFontSize = (text: string, isActive: boolean) => {
+    if (!liveLyrics) {
+      return lyricsFontSize;
+    }
+    const baseWidth = liveLyricsPanelWidth > 0 ? liveLyricsPanelWidth : 420;
+    const textLength = Math.max(6, text.trim().length);
+    const widthRatio = isActive ? 0.9 : 0.82;
+    const estimated = Math.round((baseWidth * widthRatio) / (textLength * 0.56));
+    const userBase = lyricsFontSize + (isActive ? 8 : 4);
+    const computed = Math.max(estimated, userBase);
+    return Math.max(isActive ? 22 : 18, Math.min(isActive ? 58 : 46, computed));
+  };
+
+  useEffect(() => {
+    if (!liveLyrics) {
+      return;
+    }
+    const list = lyricsListRef.current;
+    if (!list) {
+      return;
+    }
+    const updateWidth = () => {
+      setLiveLyricsPanelWidth(list.clientWidth);
+    };
+    updateWidth();
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(list);
+    return () => {
+      observer.disconnect();
+    };
+  }, [liveLyrics, showLyricsSection]);
+
+  const hasLeftColumn = showLibraryColumn || showLyricsSection;
   const hasRightColumn = showVisualizerColumn || showQueueColumn;
-  const layoutClassName = showLibraryColumn && hasRightColumn
+  const layoutClassName = hasLeftColumn && hasRightColumn
     ? "player-layout has-two-columns"
     : "player-layout has-single-column";
   const rightStackClassName = showVisualizerColumn && showQueueColumn
     ? "player-right-stack is-split"
     : "player-right-stack";
+  const leftStackClassName = showLibraryColumn && showLyricsSection
+    ? "player-library-stack is-split"
+    : "player-library-stack";
   const mergedQueueTracks = [...queueHistoryTracks.slice(-1), ...queueTracks];
 
   return (
     <main className="player-screen">
       <div className={layoutClassName}>
-        {showLibraryColumn && (
-          <div className="player-library">
-            <LibrarySection {...libraryProps} />
+        {hasLeftColumn && (
+          <div className={leftStackClassName}>
+            {showLibraryColumn && (
+              <div className="player-library">
+                <LibrarySection {...libraryProps} />
+              </div>
+            )}
+            {showLyricsSection && (
+              <div className="player-lyrics">
+                <Card
+                  title="Lyrics"
+                  headerRight={(
+                    <>
+                      <button
+                        type="button"
+                        className="ghost-button top-section-btn player-lyrics-toggle player-lyrics-size-btn"
+                        onClick={() => setLyricsFontSize((prev) => Math.max(12, prev - 1))}
+                        title="Decrease lyrics font size"
+                        aria-label="Decrease lyrics font size"
+                      >
+                        <span className="btn-content">A-</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="ghost-button top-section-btn player-lyrics-toggle player-lyrics-size-btn"
+                        onClick={() => setLyricsFontSize((prev) => Math.min(26, prev + 1))}
+                        title="Increase lyrics font size"
+                        aria-label="Increase lyrics font size"
+                      >
+                        <span className="btn-content">A+</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={liveLyrics ? "top-section-btn is-active-toggle player-lyrics-toggle" : "ghost-button top-section-btn player-lyrics-toggle"}
+                        onClick={() => setLiveLyrics((prev) => !prev)}
+                        title={liveLyrics ? "Disable live lyrics" : "Enable live lyrics"}
+                        aria-label={liveLyrics ? "Disable live lyrics" : "Enable live lyrics"}
+                      >
+                        <span className="btn-content">Live lyrics</span>
+                      </button>
+                    </>
+                  )}
+                >
+                  {lyricsStatus && (
+                    <p className="muted player-lyrics-status">{lyricsStatus}</p>
+                  )}
+                  <ul
+                    ref={lyricsListRef}
+                    className={liveLyrics ? "player-lyrics-list is-live" : "player-lyrics-list"}
+                  >
+                    {visibleLyrics.map(({ line, index }) => (
+                      <li key={`${line.timeSec}-${index}`}>
+                        <p
+                          className={index === lyricsActiveIndex ? "player-lyrics-line active" : "player-lyrics-line"}
+                          style={{ fontSize: `${getLineFontSize(line.text, index === lyricsActiveIndex)}px` }}
+                        >
+                          {line.text}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                </Card>
+              </div>
+            )}
           </div>
         )}
 
@@ -217,6 +346,14 @@ export function PlayerSection({
             aria-label={showQueueColumn ? "Hide queue column" : "Show queue column"}
           >
             <span className="btn-content"><IconQueue className="btn-icon" /></span>
+          </button>
+          <button
+            className={showLyricsSection ? "top-section-btn is-active-toggle" : "ghost-button top-section-btn"}
+            onClick={onToggleLyricsSection}
+            title={showLyricsSection ? "Hide lyrics section" : "Show lyrics section"}
+            aria-label={showLyricsSection ? "Hide lyrics section" : "Show lyrics section"}
+          >
+            <span className="btn-content"><IconLyrics className="btn-icon" /></span>
           </button>
         </div>
         <div className="player-subbar-selectors">

@@ -71,6 +71,7 @@ import {
   normalizeGenreKey,
   scoreOnlineMatch,
 } from "./utils/appHelpers";
+import { fetchLyrics, getActiveLyricIndex, type LyricLine } from "./utils/lyrics";
 
 const adapter = createAdapter(mockAdapter);
 const ACCENT_THEMES = [
@@ -104,6 +105,7 @@ const STORAGE_PLAYLISTS_KEY = "musicmanager-playlists";
 const STORAGE_ACTIVE_PLAYLIST_ID_KEY = "musicmanager-active-playlist-id";
 const STORAGE_PLAYER_COLUMNS_KEY = "musicmanager-player-columns";
 const STORAGE_PLAYER_VISUALIZER_PRESET_KEY = "musicmanager-player-visualizer-preset";
+const STORAGE_PLAYER_SHOW_LYRICS_KEY = "musicmanager-player-show-lyrics";
 const PLAYER_QUEUE_PAGE_SIZE = 50;
 const PLAYER_QUEUE_HISTORY_SIZE = 1;
 type LibrarySortMode = "title" | "artist" | "added" | "release";
@@ -311,6 +313,8 @@ export function App() {
   const [audioSrc, setAudioSrc] = useState("");
   const [audioTrackId, setAudioTrackId] = useState("");
   const [audioError, setAudioError] = useState("");
+  const [lyricsLines, setLyricsLines] = useState<LyricLine[]>([]);
+  const [lyricsStatus, setLyricsStatus] = useState("Select a track to load lyrics.");
   const [trackTechnicalInfo, setTrackTechnicalInfo] = useState<TrackTechnicalInfo | null>(null);
   const [shouldAutoplay, setShouldAutoplay] = useState(false);
   const [libraryViewMode, setLibraryViewMode] = useState<"card" | "compact">("card");
@@ -326,6 +330,7 @@ export function App() {
     queue: true,
   });
   const [playerVisualizerPresetId, setPlayerVisualizerPresetId] = useState<VisualizerPresetId>("scope");
+  const [showPlayerLyricsSection, setShowPlayerLyricsSection] = useState(true);
   const [isDashboardDragging, setIsDashboardDragging] = useState(false);
   const [dashboardDropArea, setDashboardDropArea] = useState<"none" | "dropzone" | "playlist">("none");
   const [dashboardDropEntryId, setDashboardDropEntryId] = useState("");
@@ -359,7 +364,12 @@ export function App() {
 
   const selectedTrack = tracks.find((t) => t.id === selectedTrackId) ?? null;
   const playbackTrack = tracks.find((t) => t.id === playbackTrackId) ?? null;
+  const lyricsTrack = playbackTrack ?? selectedTrack;
   const playerInfoTrack = playbackTrack ?? selectedTrack;
+  const lyricsActiveIndex = useMemo(
+    () => getActiveLyricIndex(lyricsLines, currentTime),
+    [lyricsLines, currentTime]
+  );
   const editableTrack = trackDraft ?? selectedTrack;
   const trackTechnicalBadge = useMemo(
     () => formatTrackTechnicalBadge(trackTechnicalInfo, editableTrack?.path),
@@ -458,6 +468,10 @@ export function App() {
     const savedVisualizerPreset = window.localStorage.getItem(STORAGE_PLAYER_VISUALIZER_PRESET_KEY);
     if (savedVisualizerPreset === "scope" || savedVisualizerPreset === "alchemy" || savedVisualizerPreset === "xp-bars" || savedVisualizerPreset === "turntable") {
       setPlayerVisualizerPresetId(savedVisualizerPreset);
+    }
+    const savedShowLyrics = window.localStorage.getItem(STORAGE_PLAYER_SHOW_LYRICS_KEY);
+    if (savedShowLyrics === "false") {
+      setShowPlayerLyricsSection(false);
     }
 
     const savedAccent = window.localStorage.getItem("musicmanager-accent-index");
@@ -732,6 +746,10 @@ export function App() {
   useEffect(() => {
     window.localStorage.setItem(STORAGE_PLAYER_VISUALIZER_PRESET_KEY, playerVisualizerPresetId);
   }, [playerVisualizerPresetId]);
+
+  useEffect(() => {
+    window.localStorage.setItem(STORAGE_PLAYER_SHOW_LYRICS_KEY, String(showPlayerLyricsSection));
+  }, [showPlayerLyricsSection]);
 
   useEffect(() => {
     window.localStorage.setItem("musicmanager-accent-index", String(accentIndex));
@@ -1270,6 +1288,47 @@ export function App() {
       cancelled = true;
     };
   }, [editableTrack?.path]);
+
+  useEffect(() => {
+    const track = lyricsTrack;
+    if (!track) {
+      setLyricsLines([]);
+      setLyricsStatus("Select a track to load lyrics.");
+      return;
+    }
+    const title = track.title.trim();
+    const artist = track.artist.trim();
+    if (!title || !artist) {
+      setLyricsLines([]);
+      setLyricsStatus("Missing title or artist metadata.");
+      return;
+    }
+
+    const controller = new AbortController();
+    let cancelled = false;
+    setLyricsStatus("Loading lyrics...");
+    (async () => {
+      try {
+        const result = await fetchLyrics(title, artist, track.album, controller.signal);
+        if (cancelled) {
+          return;
+        }
+        setLyricsLines(result.lines);
+        setLyricsStatus(result.lines.length ? "" : "No lyrics found.");
+      } catch {
+        if (cancelled) {
+          return;
+        }
+        setLyricsLines([]);
+        setLyricsStatus("Lyrics unavailable for this track.");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [lyricsTrack?.id]);
 
   const filteredTracks = useMemo(() => {
     const q = query.toLowerCase();
@@ -2250,7 +2309,17 @@ export function App() {
   function togglePlayerColumn(column: keyof PlayerColumnVisibility) {
     setPlayerColumnVisibility((prev) => {
       const next = { ...prev, [column]: !prev[column] };
-      if (!next.library && !next.visualizer && !next.queue) {
+      if (!next.library && !next.visualizer && !next.queue && !showPlayerLyricsSection) {
+        return prev;
+      }
+      return next;
+    });
+  }
+
+  function handleTogglePlayerLyricsSection() {
+    setShowPlayerLyricsSection((prev) => {
+      const next = !prev;
+      if (!next && !playerColumnVisibility.library && !playerColumnVisibility.visualizer && !playerColumnVisibility.queue) {
         return prev;
       }
       return next;
@@ -3046,12 +3115,15 @@ export function App() {
           showLibraryColumn={playerColumnVisibility.library}
           showVisualizerColumn={playerColumnVisibility.visualizer}
           showQueueColumn={playerColumnVisibility.queue}
+          showLyricsSection={showPlayerLyricsSection}
           onToggleLibraryColumn={() => togglePlayerColumn("library")}
           onToggleVisualizerColumn={() => togglePlayerColumn("visualizer")}
           onToggleQueueColumn={() => togglePlayerColumn("queue")}
+          onToggleLyricsSection={handleTogglePlayerLyricsSection}
           IconLibrary={IconFolder}
           IconVisualizer={IconVisualizerBars}
           IconQueue={IconListCompact}
+          IconLyrics={IconMusicNote}
           visualizerPresetId={playerVisualizerPresetId}
           onVisualizerPresetChange={setPlayerVisualizerPresetId}
           equalizerPresets={equalizerPresets}
@@ -3073,6 +3145,9 @@ export function App() {
           IconPlay={IconPlay}
           IconTrash={IconTrash}
           IconAutoEq={IconAutoEq}
+          lyricsStatus={lyricsStatus}
+          lyricsLines={lyricsLines}
+          lyricsActiveIndex={lyricsActiveIndex}
         />
       )}
 
