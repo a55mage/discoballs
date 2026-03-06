@@ -119,8 +119,8 @@ export function DashboardSection({
       <div className="col col-left">
         <LibrarySection {...libraryProps} />
       </div>
-      <div className="col col-right">
-        <Card title="Playlist Editor" headerRight={playlistToolbar}>
+      <div className="col col-right dashboard-playlist-column">
+        <Card title="Playlist Editor" className="dashboard-playlist-card" headerRight={playlistToolbar}>
           {showDropzone && (
             <div
               className={

@@ -50,6 +50,7 @@ type PlayerSectionProps = {
   IconTrash: IconComponent;
   IconAutoEq: IconComponent;
   lyricsStatus: string;
+  lyricsIsSynced: boolean;
   lyricsLines: LyricLine[];
   lyricsActiveIndex: number;
 };
@@ -97,6 +98,7 @@ export function PlayerSection({
   IconTrash,
   IconAutoEq,
   lyricsStatus,
+  lyricsIsSynced,
   lyricsLines,
   lyricsActiveIndex,
 }: PlayerSectionProps) {
@@ -131,6 +133,13 @@ export function PlayerSection({
     const computed = Math.max(estimated, userBase);
     return Math.max(isActive ? 22 : 18, Math.min(isActive ? 58 : 46, computed));
   };
+
+  useEffect(() => {
+    if (lyricsIsSynced || !liveLyrics) {
+      return;
+    }
+    setLiveLyrics(false);
+  }, [lyricsIsSynced, liveLyrics]);
 
   useEffect(() => {
     if (!liveLyrics) {
@@ -180,33 +189,39 @@ export function PlayerSection({
                   title="Lyrics"
                   headerRight={(
                     <>
-                      <button
-                        type="button"
-                        className="ghost-button top-section-btn player-lyrics-toggle player-lyrics-size-btn"
-                        onClick={() => setLyricsFontSize((prev) => Math.max(12, prev - 1))}
-                        title="Decrease lyrics font size"
-                        aria-label="Decrease lyrics font size"
-                      >
-                        <span className="btn-content">A-</span>
-                      </button>
-                      <button
-                        type="button"
-                        className="ghost-button top-section-btn player-lyrics-toggle player-lyrics-size-btn"
-                        onClick={() => setLyricsFontSize((prev) => Math.min(26, prev + 1))}
-                        title="Increase lyrics font size"
-                        aria-label="Increase lyrics font size"
-                      >
-                        <span className="btn-content">A+</span>
-                      </button>
-                      <button
-                        type="button"
-                        className={liveLyrics ? "top-section-btn is-active-toggle player-lyrics-toggle" : "ghost-button top-section-btn player-lyrics-toggle"}
-                        onClick={() => setLiveLyrics((prev) => !prev)}
-                        title={liveLyrics ? "Disable live lyrics" : "Enable live lyrics"}
-                        aria-label={liveLyrics ? "Disable live lyrics" : "Enable live lyrics"}
-                      >
-                        <span className="btn-content">Live lyrics</span>
-                      </button>
+                      {!liveLyrics && (
+                        <>
+                          <button
+                            type="button"
+                            className="ghost-button top-section-btn player-lyrics-toggle player-lyrics-size-btn"
+                            onClick={() => setLyricsFontSize((prev) => Math.max(12, prev - 1))}
+                            title="Decrease lyrics font size"
+                            aria-label="Decrease lyrics font size"
+                          >
+                            <span className="btn-content">A-</span>
+                          </button>
+                          <button
+                            type="button"
+                            className="ghost-button top-section-btn player-lyrics-toggle player-lyrics-size-btn"
+                            onClick={() => setLyricsFontSize((prev) => Math.min(26, prev + 1))}
+                            title="Increase lyrics font size"
+                            aria-label="Increase lyrics font size"
+                          >
+                            <span className="btn-content">A+</span>
+                          </button>
+                        </>
+                      )}
+                      {lyricsIsSynced && (
+                        <button
+                          type="button"
+                          className={liveLyrics ? "top-section-btn is-active-toggle player-lyrics-toggle" : "ghost-button top-section-btn player-lyrics-toggle"}
+                          onClick={() => setLiveLyrics((prev) => !prev)}
+                          title={liveLyrics ? "Disable live lyrics" : "Enable live lyrics"}
+                          aria-label={liveLyrics ? "Disable live lyrics" : "Enable live lyrics"}
+                        >
+                          <span className="btn-content">Live lyrics</span>
+                        </button>
+                      )}
                     </>
                   )}
                 >
@@ -220,8 +235,8 @@ export function PlayerSection({
                     {visibleLyrics.map(({ line, index }) => (
                       <li key={`${line.timeSec}-${index}`}>
                         <p
-                          className={index === lyricsActiveIndex ? "player-lyrics-line active" : "player-lyrics-line"}
-                          style={{ fontSize: `${getLineFontSize(line.text, index === lyricsActiveIndex)}px` }}
+                          className={lyricsIsSynced && index === lyricsActiveIndex ? "player-lyrics-line active" : "player-lyrics-line"}
+                          style={{ fontSize: `${getLineFontSize(line.text, lyricsIsSynced && index === lyricsActiveIndex)}px` }}
                         >
                           {line.text}
                         </p>
@@ -361,7 +376,7 @@ export function PlayerSection({
             <label className="player-subbar-eq-label" htmlFor="player-visualizer-preset">Viz</label>
             <select
               id="player-visualizer-preset"
-              className="input player-subbar-select"
+              className="input playlist-control player-subbar-select"
               value={visualizerPresetId}
               onChange={(event) => onVisualizerPresetChange(event.target.value as VisualizerPresetId)}
               title="Visualizer type"
@@ -376,7 +391,7 @@ export function PlayerSection({
             <label className="player-subbar-eq-label" htmlFor="player-eq-preset">EQ</label>
           <select
             id="player-eq-preset"
-            className="input player-subbar-select"
+            className="input playlist-control player-subbar-select"
             value={equalizerPresetId}
             onChange={(event) => onEqualizerPresetChange(event.target.value)}
             title="Equalizer preset"

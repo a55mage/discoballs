@@ -532,9 +532,6 @@ button.app-brand:hover:enabled {
 
 .settings-genre-eq-select {
   margin-bottom: 0;
-  height: 30px;
-  min-height: 30px;
-  padding: 4px 8px;
 }
 
 .settings-eq-card {
@@ -832,16 +829,6 @@ button.app-brand:hover:enabled {
   align-self: center;
   margin: 0;
   width: 132px;
-  height: 26px;
-  min-height: 26px;
-  padding: 0 24px 0 10px;
-  line-height: normal;
-  font-size: 11px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--bg-card) 80%, var(--bg-page) 20%);
-  border-color: color-mix(in srgb, var(--border-soft) 78%, transparent);
-  vertical-align: baseline;
-  transform: translateY(4px);
 }
 
 .player-subbar-autoeq {
@@ -1138,23 +1125,43 @@ button.app-brand:hover:enabled {
   margin-bottom: 0;
 }
 
-.playlist-toolbar select,
-.playlist-toolbar select option {
+.app-shell select.input,
+.app-shell select.input option {
   color: var(--ink-primary);
   background: var(--bg-card);
 }
 
-.playlist-toolbar select.playlist-control,
-.settings-eq-toolbar select.settings-eq-input,
-.settings-genre-eq-select {
+.app-shell select.input {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  cursor: pointer;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--ink-secondary) 50%),
+    linear-gradient(135deg, var(--ink-secondary) 50%, transparent 50%);
+  background-position:
+    calc(100% - 13px) calc(50% - 2px),
+    calc(100% - 9px) calc(50% - 2px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+
+.app-shell select.input::-ms-expand {
+  display: none;
+}
+
+select.input.playlist-control,
+select.input.settings-eq-input,
+select.input.settings-genre-eq-select,
+select.input.player-subbar-select {
   margin: 0;
   height: 24px;
   min-height: 24px;
   padding: 0 24px 0 9px;
-  line-height: 1;
+  line-height: normal;
   font-size: 11px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--bg-card) 80%, var(--bg-page) 20%);
+  background-color: color-mix(in srgb, var(--bg-card) 80%, var(--bg-page) 20%);
   border-color: color-mix(in srgb, var(--border-soft) 78%, transparent);
   align-self: center;
 }
@@ -1181,6 +1188,17 @@ button.app-brand:hover:enabled {
   gap: 6px;
   max-height: 420px;
   overflow: auto;
+}
+
+.dashboard-playlist-card {
+  height: 100%;
+  min-height: 0;
+}
+
+.dashboard-playlist-card .playlist-list {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
 }
 
 .playlist-list.is-dragging {
@@ -2423,8 +2441,8 @@ img.detail-cover {
   background: #182029;
 }
 
-.app-shell.theme-dark .playlist-toolbar select,
-.app-shell.theme-dark .playlist-toolbar select option {
+.app-shell.theme-dark select.input,
+.app-shell.theme-dark select.input option {
   background: #182029;
   color: #e6edf4;
 }
@@ -2812,6 +2830,10 @@ img.detail-cover {
   .col-right .search-card .results-grid {
     min-height: 0;
     overflow: auto;
+  }
+
+  .dashboard-playlist-column {
+    grid-template-rows: minmax(0, 1fr);
   }
 
   .library-card .track-list,

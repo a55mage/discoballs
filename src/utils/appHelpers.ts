@@ -206,6 +206,8 @@ export function normalizeGenreKey(value: string): string {
   return normalizeSearchText(value);
 }
 
+export const NO_GENRE_EQ_KEY = "__default_no_genre__";
+
 export function inferGenrePresetId(genre: string): string {
   const key = normalizeGenreKey(genre);
   if (!key) {

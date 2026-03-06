@@ -38,6 +38,14 @@ export const mockAdapter: MusicAdapter = {
     };
   },
 
+  async scanFolder(path: string): Promise<ScanResult> {
+    await wait(220);
+    return {
+      folderPath: path || "/Music",
+      tracks,
+    };
+  },
+
   async pickFolder(): Promise<string | null> {
     await wait(100);
     return "/Music";

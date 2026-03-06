@@ -71,6 +71,7 @@ import {
   getOnlineMatchDateSortKey,
   getTrackReleaseSortKey,
   inferGenrePresetId,
+  NO_GENRE_EQ_KEY,
   normalizeGenreKey,
   scoreOnlineMatch,
 } from "./utils/appHelpers";
@@ -257,6 +258,8 @@ export function App() {
   const previousShuffleEnabledRef = useRef(false);
   const searchRequestRef = useRef<{ id: number; canceled: boolean } | null>(null);
   const searchRequestCounterRef = useRef(0);
+  const hasAutoOpenedDefaultFolderRef = useRef(false);
+  const didRestoreLibrarySnapshotRef = useRef(false);
   const pointerDragStateRef = useRef<{
     kind: "none" | "library-track" | "playlist-entry";
     id: string;
@@ -320,6 +323,7 @@ export function App() {
   const [audioTrackId, setAudioTrackId] = useState("");
   const [audioError, setAudioError] = useState("");
   const [lyricsLines, setLyricsLines] = useState<LyricLine[]>([]);
+  const [lyricsIsSynced, setLyricsIsSynced] = useState(false);
   const [lyricsStatus, setLyricsStatus] = useState("Select a track to load lyrics.");
   const [trackTechnicalInfo, setTrackTechnicalInfo] = useState<TrackTechnicalInfo | null>(null);
   const [shouldAutoplay, setShouldAutoplay] = useState(false);
@@ -731,6 +735,7 @@ export function App() {
         const snapshot = JSON.parse(savedLibrarySnapshot) as { folderPath?: unknown; tracks?: unknown };
         if (typeof snapshot.folderPath === "string" && Array.isArray(snapshot.tracks)) {
           const restoredTracks = snapshot.tracks as Track[];
+          didRestoreLibrarySnapshotRef.current = true;
           setFolderPath(snapshot.folderPath);
           setTracks(restoredTracks);
           setSelectedTrackId(restoredTracks[0]?.id ?? "");
@@ -745,6 +750,74 @@ export function App() {
       }
     }
   }, []);
+
+  useEffect(() => {
+    if (!autoOpenDefaultFolder || !defaultFolderPath || hasAutoOpenedDefaultFolderRef.current) {
+      return;
+    }
+    hasAutoOpenedDefaultFolderRef.current = true;
+    let canceled = false;
+    const shouldHydrateFromSnapshot =
+      didRestoreLibrarySnapshotRef.current && folderPath === defaultFolderPath && tracks.length > 0;
+    cancelOnlineSearch();
+    if (!shouldHydrateFromSnapshot) {
+      setIsLoadingScan(true);
+    }
+    void (async () => {
+      try {
+        const result = await adapter.scanFolder(defaultFolderPath);
+        if (canceled || !result.folderPath) {
+          return;
+        }
+        if (shouldHydrateFromSnapshot) {
+          const scannedById = new Map(result.tracks.map((track) => [track.id, track] as const));
+          setTracks((prev) => prev.map((track) => {
+            const scanned = scannedById.get(track.id);
+            if (!scanned) {
+              return track;
+            }
+            return {
+              ...track,
+              hasCover: scanned.hasCover,
+              coverUrl: scanned.coverUrl,
+            };
+          }));
+          setFolderPath(result.folderPath);
+        } else {
+          setFolderPath(result.folderPath);
+          setTracks(result.tracks);
+          const preferredTrackId = result.tracks.some((track) => track.id === selectedTrackId)
+            ? selectedTrackId
+            : result.tracks[0]?.id ?? "";
+          setSelectedTrackId(preferredTrackId);
+          const preferredTrack = result.tracks.find((track) => track.id === preferredTrackId) ?? result.tracks[0] ?? null;
+          setPlaybackPlaylistId("");
+          setPlaybackTrackId("");
+          clearPlaybackQueueState();
+          setShouldAutoplay(false);
+          if (preferredTrack) {
+            setSearchTitle(preferredTrack.title);
+            setSearchArtist(preferredTrack.artist);
+            setSearchAlbum(preferredTrack.album);
+          }
+          setOnlineResults([]);
+          setSelectedResultId("");
+        }
+        setSearchStatus("Ready");
+      } catch (error) {
+        if (!canceled) {
+          setSearchStatus(`Auto-open scan error: ${formatError(error)}`);
+        }
+      } finally {
+        if (!canceled) {
+          setIsLoadingScan(false);
+        }
+      }
+    })();
+    return () => {
+      canceled = true;
+    };
+  }, [autoOpenDefaultFolder, defaultFolderPath, folderPath, selectedTrackId, tracks.length]);
 
   useEffect(() => {
     window.localStorage.setItem("musicmanager-color-mode", colorMode);
@@ -859,6 +932,12 @@ export function App() {
         changed = true;
       }
 
+      if (next[NO_GENRE_EQ_KEY] === undefined) {
+        const inferredDefaultPresetId = inferGenrePresetId("");
+        next[NO_GENRE_EQ_KEY] = presetIdSet.has(inferredDefaultPresetId) ? inferredDefaultPresetId : "";
+        changed = true;
+      }
+
       return changed ? next : prev;
     });
   }, [equalizerPresets, libraryGenres]);
@@ -873,10 +952,8 @@ export function App() {
     }
     const currentGenre = String(currentTrack.genre || "");
     const genreKey = normalizeGenreKey(currentGenre);
-    if (!genreKey) {
-      return;
-    }
-    const presetId = genreEqPresetMap[genreKey] || inferGenrePresetId(currentGenre);
+    const mapKey = genreKey || NO_GENRE_EQ_KEY;
+    const presetId = genreEqPresetMap[mapKey] || inferGenrePresetId(currentGenre);
     if (!presetId) {
       return;
     }
@@ -1308,6 +1385,7 @@ export function App() {
     const track = lyricsTrack;
     if (!track) {
       setLyricsLines([]);
+      setLyricsIsSynced(false);
       setLyricsStatus("Select a track to load lyrics.");
       return;
     }
@@ -1315,12 +1393,14 @@ export function App() {
     const artist = track.artist.trim();
     if (!title || !artist) {
       setLyricsLines([]);
+      setLyricsIsSynced(false);
       setLyricsStatus("Missing title or artist metadata.");
       return;
     }
 
     const controller = new AbortController();
     let cancelled = false;
+    setLyricsIsSynced(false);
     setLyricsStatus("Loading lyrics...");
     (async () => {
       try {
@@ -1329,12 +1409,14 @@ export function App() {
           return;
         }
         setLyricsLines(result.lines);
+        setLyricsIsSynced(result.isSynced);
         setLyricsStatus(result.lines.length ? "" : "No lyrics found.");
       } catch {
         if (cancelled) {
           return;
         }
         setLyricsLines([]);
+        setLyricsIsSynced(false);
         setLyricsStatus("Lyrics unavailable for this track.");
       }
     })();
@@ -3161,6 +3243,7 @@ export function App() {
           IconTrash={IconTrash}
           IconAutoEq={IconAutoEq}
           lyricsStatus={lyricsStatus}
+          lyricsIsSynced={lyricsIsSynced}
           lyricsLines={lyricsLines}
           lyricsActiveIndex={lyricsActiveIndex}
         />

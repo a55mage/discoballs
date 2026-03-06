@@ -118,6 +118,15 @@ export const tauriAdapter: MusicAdapter = {
     };
   },
 
+  async scanFolder(path: string): Promise<ScanResult> {
+    const invoke = getInvoke();
+    const result = await invoke<TauriScanResult>("scan_folder", { path });
+    return {
+      folderPath: result.folder_path,
+      tracks: result.tracks.map(mapTrack),
+    };
+  },
+
   async pickFolder(): Promise<string | null> {
     const invoke = getInvoke();
     return await invoke<string | null>("pick_music_folder");

@@ -2,6 +2,7 @@ import { type ComponentType, type CSSProperties, type KeyboardEvent, type RefObj
 import { Card } from "../components/Card";
 import { EQUALIZER_FREQUENCIES } from "../utils/audioGraph";
 import { getOrCreateMediaAudioGraph } from "../utils/audioGraph";
+import { NO_GENRE_EQ_KEY } from "../utils/appHelpers";
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
 
@@ -264,7 +265,7 @@ export function SettingsSection({
                 <label className="settings-field">
                   <span>Startup screen</span>
                   <select
-                    className="input settings-genre-eq-select"
+                    className="input playlist-control settings-genre-eq-select"
                     value={startupScreen}
                     onChange={(event) => onStartupScreenChange(event.target.value as "tagging" | "dashboard" | "player")}
                     aria-label="Startup screen"
@@ -298,7 +299,7 @@ export function SettingsSection({
                 <label className="settings-field">
                   <span>Startup EQ preset</span>
                   <select
-                    className="input settings-genre-eq-select"
+                    className="input playlist-control settings-genre-eq-select"
                     value={startupEqualizerPresetId}
                     onChange={(event) => onStartupEqualizerPresetIdChange(event.target.value)}
                     aria-label="Startup equalizer preset"
@@ -330,15 +331,27 @@ export function SettingsSection({
                   <span aria-hidden="true">{isGenreEqAccordionOpen ? "▾" : "▸"}</span>
                 </button>
                 {isGenreEqAccordionOpen && (
-                  !libraryGenres.length ? (
-                    <p className="muted">No genres found in library yet.</p>
-                  ) : (
+                  <>
                     <div className="settings-genre-eq-list">
+                      <label className="settings-genre-eq-row">
+                        <span>Default (no genre)</span>
+                        <select
+                          className="input playlist-control settings-genre-eq-select"
+                          value={genreEqPresetMap[NO_GENRE_EQ_KEY] ?? ""}
+                          onChange={(event) => onGenreEqPresetChange(NO_GENRE_EQ_KEY, event.target.value)}
+                          aria-label="Preset mapping for tracks without genre"
+                        >
+                          <option value="">No preset</option>
+                          {equalizerPresets.map((preset) => (
+                            <option key={preset.id} value={preset.id}>{preset.name}</option>
+                          ))}
+                        </select>
+                      </label>
                       {libraryGenres.map((genre) => (
                         <label key={genre.key} className="settings-genre-eq-row">
                           <span>{genre.label}</span>
                           <select
-                            className="input settings-genre-eq-select"
+                            className="input playlist-control settings-genre-eq-select"
                             value={genreEqPresetMap[genre.key] ?? ""}
                             onChange={(event) => onGenreEqPresetChange(genre.key, event.target.value)}
                             aria-label={`Preset mapping for ${genre.label}`}
@@ -351,7 +364,8 @@ export function SettingsSection({
                         </label>
                       ))}
                     </div>
-                  )
+                    {!libraryGenres.length && <p className="muted">No genres found in library yet.</p>}
+                  </>
                 )}
               </div>
             </section>

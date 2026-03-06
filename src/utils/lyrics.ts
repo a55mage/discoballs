@@ -1,5 +1,5 @@
 export type LyricLine = {
-  timeSec: number;
+  timeSec?: number;
   text: string;
 };
 
@@ -40,16 +40,24 @@ export function parsePlainLyrics(text: string): LyricLine[] {
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean)
-    .map((line, index) => ({ timeSec: index * 3, text: line }));
+    .map((line) => ({ text: line }));
 }
 
 export function getActiveLyricIndex(lines: LyricLine[], currentTimeSec: number): number {
   if (!lines.length) {
     return -1;
   }
+  const hasTimestamps = lines.some((line) => Number.isFinite(line.timeSec));
+  if (!hasTimestamps) {
+    return -1;
+  }
   let activeIndex = -1;
   for (let index = 0; index < lines.length; index += 1) {
-    if (lines[index].timeSec <= currentTimeSec) {
+    const lineTime = lines[index].timeSec;
+    if (!Number.isFinite(lineTime)) {
+      continue;
+    }
+    if ((lineTime as number) <= currentTimeSec) {
       activeIndex = index;
     } else {
       break;
