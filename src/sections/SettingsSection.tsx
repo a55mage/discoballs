@@ -240,7 +240,7 @@ export function SettingsSection({
           <div className="settings-main-content">
             <section className="settings-block">
               <div className="settings-app-head">
-                <strong>DiscoBalls v1.4.1</strong>
+                <strong>DiscoBalls v1.5.0</strong>
                 <div className="settings-app-links">
                   <button className="ghost-button settings-link-btn" onClick={() => onOpenExternalLink("https://a55mage.github.io/discoballs/")} title="Website" aria-label="Website">
                     <span className="btn-content"><IconGlobe className="btn-icon" />Website</span>

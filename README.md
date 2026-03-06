@@ -54,5 +54,23 @@ npm run build
 npm run tauri:build
 ```
 
+## Release on GitHub
+1. Bump versions consistently:
+   - `package.json` / `package-lock.json`
+   - `src-tauri/Cargo.toml`
+   - `src-tauri/tauri.conf.json`
+   - any user-visible version string in UI/docs
+2. Push changes to `main`.
+3. Create and push a tag in `vX.Y.Z` format (example: `v1.5.0`):
+```bash
+git tag v1.5.0
+git push origin v1.5.0
+```
+4. GitHub Action `.github/workflows/tauri-build.yml` will:
+   - build bundles for macOS, Windows, Linux
+   - verify tag matches app version
+   - upload artifacts and attach bundles to the GitHub Release
+5. Update `docs/index.html` download links to the new release assets.
+
 ## Open Source
 DiscoBalls is open-source. Contributions, issue reports, and feature suggestions are welcome.

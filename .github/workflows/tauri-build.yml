@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     tags:
-      - "*"
+      - "v*"
 
 jobs:
   build:
@@ -69,6 +69,17 @@ jobs:
           version=$(node -p "require('./src-tauri/tauri.conf.json').version")
           echo "value=$version" >> "$GITHUB_OUTPUT"
 
+      - name: Validate tag and app version
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          expected="v${{ steps.app_version.outputs.value }}"
+          if [ "$tag" != "$expected" ]; then
+            echo "Tag/version mismatch: tag=$tag app_version=${{ steps.app_version.outputs.value }}"
+            exit 1
+          fi
+
       - name: Build Tauri bundles
         run: npm run tauri:build
 
@@ -83,5 +94,6 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
+          name: DiscoBalls v${{ steps.app_version.outputs.value }}
           files: ${{ matrix.release_files }}
           fail_on_unmatched_files: false
