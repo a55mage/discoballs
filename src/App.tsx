@@ -43,6 +43,7 @@ import {
   IconVolume,
 } from "./components/icons";
 import { DashboardSection } from "./sections/DashboardSection";
+import { LibraryBrowserSection, type LibraryAlbumSummary, type LibraryArtistSummary } from "./sections/LibraryBrowserSection";
 import { LibrarySection } from "./sections/LibrarySection";
 import type { VisualizerPresetId } from "./sections/MusicVisualizerSection";
 import { OnlineSearchSection } from "./sections/OnlineSearchSection";
@@ -51,7 +52,7 @@ import { RenameSettingsModal } from "./sections/RenameSettingsModal";
 import { SettingsSection } from "./sections/SettingsSection";
 import { TopBarSection } from "./sections/TopBarSection";
 import { TrackDetailsSection } from "./sections/TrackDetailsSection";
-import type { OnlineMatch, RenameField, SearchQuery, Track, TrackTechnicalInfo } from "./types";
+import type { NavidromeBookmark, NavidromeConnectionInput, OnlineMatch, RenameField, SearchQuery, Track, TrackTechnicalInfo } from "./types";
 import { BUILTIN_EQ_PRESET_IDS, buildUniqueEqualizerPresetName } from "./domain/equalizer";
 import {
   areTrackIdListsEqual,
@@ -97,11 +98,53 @@ const STORAGE_PLAYER_COLUMNS_KEY = "musicmanager-player-columns";
 const STORAGE_PLAYER_VISUALIZER_PRESET_KEY = "musicmanager-player-visualizer-preset";
 const STORAGE_PLAYER_SHOW_LYRICS_KEY = "musicmanager-player-show-lyrics";
 const STORAGE_STARTUP_SCREEN_KEY = "musicmanager-startup-screen";
+const STORAGE_NAVIDROME_BOOKMARKS_KEY = "musicmanager-navidrome-bookmarks";
 const PLAYER_QUEUE_PAGE_SIZE = 50;
 const PLAYER_QUEUE_HISTORY_SIZE = 1;
-type AppScreen = "tagging" | "dashboard" | "settings" | "player";
-type StartupScreen = "tagging" | "dashboard" | "player";
+type AppScreen = "tagging" | "library" | "dashboard" | "settings" | "player";
+type StartupScreen = "tagging" | "library" | "dashboard" | "player";
 type PlayerColumnVisibility = { library: boolean; visualizer: boolean; queue: boolean };
+
+function buildNavidromeBookmarkId(): string {
+  return `navidrome-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function defaultNavidromeBookmarkName(baseUrl: string): string {
+  try {
+    return new URL(baseUrl).host || baseUrl.trim();
+  } catch {
+    return baseUrl.trim() || "Navidrome server";
+  }
+}
+
+function normalizeNavidromeBookmark(item: unknown): NavidromeBookmark | null {
+  if (!item || typeof item !== "object") {
+    return null;
+  }
+  const candidate = item as Record<string, unknown>;
+  const baseUrl = typeof candidate.baseUrl === "string" ? candidate.baseUrl.trim() : "";
+  const username = typeof candidate.username === "string" ? candidate.username.trim() : "";
+  const password = typeof candidate.password === "string" ? candidate.password : "";
+  if (!baseUrl || !username || !password) {
+    return null;
+  }
+  const name = typeof candidate.name === "string" && candidate.name.trim()
+    ? candidate.name.trim()
+    : defaultNavidromeBookmarkName(baseUrl);
+  const id = typeof candidate.id === "string" && candidate.id.trim()
+    ? candidate.id
+    : buildNavidromeBookmarkId();
+  const lastConnectedAt = typeof candidate.lastConnectedAt === "string" ? candidate.lastConnectedAt : undefined;
+  return {
+    id,
+    name,
+    baseUrl,
+    username,
+    password,
+    connectOnOpen: candidate.connectOnOpen === true,
+    lastConnectedAt,
+  };
+}
 
 export function App() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -116,7 +159,11 @@ export function App() {
   const searchRequestRef = useRef<{ id: number; canceled: boolean } | null>(null);
   const searchRequestCounterRef = useRef(0);
   const hasAutoOpenedDefaultFolderRef = useRef(false);
+  const didAutoConnectNavidromeRef = useRef(false);
+  const shouldRunNavidromeStartupConnectionRef = useRef(false);
   const didRestoreLibrarySnapshotRef = useRef(false);
+  const coverRequestIdsRef = useRef<Set<string>>(new Set());
+  const coverCacheRef = useRef<Map<string, string | null>>(new Map());
   const pointerDragStateRef = useRef<{
     kind: "none" | "library-track" | "playlist-entry";
     id: string;
@@ -144,6 +191,16 @@ export function App() {
   const [searchTitle, setSearchTitle] = useState("");
   const [searchArtist, setSearchArtist] = useState("");
   const [searchAlbum, setSearchAlbum] = useState("");
+  const [isNavidromePanelOpen, setIsNavidromePanelOpen] = useState(false);
+  const [navidromeName, setNavidromeName] = useState("");
+  const [navidromeBaseUrl, setNavidromeBaseUrl] = useState("");
+  const [navidromeUsername, setNavidromeUsername] = useState("");
+  const [navidromePassword, setNavidromePassword] = useState("");
+  const [navidromeConnectOnOpen, setNavidromeConnectOnOpen] = useState(false);
+  const [navidromeBookmarks, setNavidromeBookmarks] = useState<NavidromeBookmark[]>([]);
+  const [connectedNavidromeBookmarkId, setConnectedNavidromeBookmarkId] = useState("");
+  const [navidromeStatus, setNavidromeStatus] = useState("Navidrome not connected.");
+  const [isConnectingNavidrome, setIsConnectingNavidrome] = useState(false);
   const [showRenameSettings, setShowRenameSettings] = useState(false);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [activePlaylistId, setActivePlaylistId] = useState("");
@@ -241,9 +298,90 @@ export function App() {
       .map(([key, label]) => ({ key, label }))
       .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }));
   }, [tracks]);
+  const libraryArtists = useMemo<LibraryArtistSummary[]>(() => {
+    const artists = new Map<string, {
+      name: string;
+      trackCount: number;
+      albums: Set<string>;
+      coverUrl?: string;
+    }>();
+    for (const track of tracks) {
+      const name = track.artist.trim() || "Unknown artist";
+      const key = name.toLowerCase();
+      const artist = artists.get(key) ?? {
+        name,
+        trackCount: 0,
+        albums: new Set<string>(),
+        coverUrl: undefined,
+      };
+      artist.trackCount += 1;
+      artist.albums.add((track.album.trim() || "Unknown album").toLowerCase());
+      if (!artist.coverUrl && track.coverUrl) {
+        artist.coverUrl = track.coverUrl;
+      }
+      artists.set(key, artist);
+    }
+    return [...artists.entries()]
+      .map(([id, artist]) => ({
+        id,
+        name: artist.name,
+        trackCount: artist.trackCount,
+        albumCount: artist.albums.size,
+        coverUrl: artist.coverUrl,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+  }, [tracks]);
+  const libraryAlbums = useMemo<LibraryAlbumSummary[]>(() => {
+    const albums = new Map<string, {
+      title: string;
+      artist: string;
+      year: string;
+      trackCount: number;
+      coverUrl?: string;
+    }>();
+    for (const track of tracks) {
+      const title = track.album.trim() || "Unknown album";
+      const artist = track.artist.trim() || "Unknown artist";
+      const key = `${artist.toLowerCase()}|${title.toLowerCase()}`;
+      const album = albums.get(key) ?? {
+        title,
+        artist,
+        year: track.year,
+        trackCount: 0,
+        coverUrl: undefined,
+      };
+      album.trackCount += 1;
+      if (!album.year && track.year) {
+        album.year = track.year;
+      }
+      if (!album.coverUrl && track.coverUrl) {
+        album.coverUrl = track.coverUrl;
+      }
+      albums.set(key, album);
+    }
+    return [...albums.entries()]
+      .map(([id, album]) => ({
+        id,
+        title: album.title,
+        artist: album.artist,
+        year: album.year,
+        trackCount: album.trackCount,
+        coverUrl: album.coverUrl,
+      }))
+      .sort((a, b) => (
+        a.artist.localeCompare(b.artist, undefined, { sensitivity: "base" }) ||
+        a.title.localeCompare(b.title, undefined, { sensitivity: "base" })
+      ));
+  }, [tracks]);
 
   const selectedTrack = tracks.find((t) => t.id === selectedTrackId) ?? null;
   const playbackTrack = tracks.find((t) => t.id === playbackTrackId) ?? null;
+  function getRemoteCoverCacheKey(track: Track): string {
+    if (track.source?.type === "navidrome" && track.source.coverArtId) {
+      return `${track.source.baseUrl}:${track.source.coverArtId}`;
+    }
+    return track.id;
+  }
   const lyricsTrack = playbackTrack ?? selectedTrack;
   const playerInfoTrack = playbackTrack ?? selectedTrack;
   const lyricsActiveIndex = useMemo(
@@ -251,6 +389,52 @@ export function App() {
     [lyricsLines, currentTime]
   );
   const editableTrack = trackDraft ?? selectedTrack;
+
+  useEffect(() => {
+    const candidates = [
+      playbackTrack,
+      selectedTrack,
+      ...virtualTrackWindow.visibleTracks.slice(0, 30),
+    ].filter((track): track is Track => Boolean(track?.source?.type === "navidrome" && track.hasCover && !track.coverUrl));
+    const uniqueCandidates = new Map<string, Track>();
+    for (const track of candidates) {
+      uniqueCandidates.set(getRemoteCoverCacheKey(track), track);
+    }
+    const pending = [...uniqueCandidates.entries()].filter(([cacheKey]) => (
+      !coverRequestIdsRef.current.has(cacheKey) && !coverCacheRef.current.has(cacheKey)
+    ));
+    if (!pending.length) {
+      return;
+    }
+
+    let cancelled = false;
+    for (const [cacheKey, track] of pending.slice(0, 8)) {
+      coverRequestIdsRef.current.add(cacheKey);
+      void (async () => {
+        try {
+          const coverUrl = await adapter.getTrackCoverSource(track);
+          coverCacheRef.current.set(cacheKey, coverUrl);
+          if (cancelled || !coverUrl) {
+            return;
+          }
+          setTracks((prev) => prev.map((item) => (
+            getRemoteCoverCacheKey(item) === cacheKey ? { ...item, coverUrl } : item
+          )));
+          setTrackDraft((prev) => (
+            prev && getRemoteCoverCacheKey(prev) === cacheKey ? { ...prev, coverUrl } : prev
+          ));
+        } catch {
+          coverCacheRef.current.set(cacheKey, null);
+        } finally {
+          coverRequestIdsRef.current.delete(cacheKey);
+        }
+      })();
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [playbackTrack, selectedTrack, virtualTrackWindow.visibleTracks]);
   const trackTechnicalBadge = useMemo(
     () => formatTrackTechnicalBadge(trackTechnicalInfo, editableTrack?.path),
     [trackTechnicalInfo, editableTrack?.path]
@@ -354,7 +538,7 @@ export function App() {
       setShowPlayerLyricsSection(false);
     }
     const savedStartupScreen = window.localStorage.getItem(STORAGE_STARTUP_SCREEN_KEY);
-    if (savedStartupScreen === "tagging" || savedStartupScreen === "dashboard" || savedStartupScreen === "player") {
+    if (savedStartupScreen === "tagging" || savedStartupScreen === "library" || savedStartupScreen === "dashboard" || savedStartupScreen === "player") {
       setStartupScreen(savedStartupScreen);
       setActiveScreen(savedStartupScreen);
     }
@@ -435,6 +619,30 @@ export function App() {
         }
       } catch {
         // Ignore invalid playlists.
+      }
+    }
+
+    const savedNavidromeBookmarks = window.localStorage.getItem(STORAGE_NAVIDROME_BOOKMARKS_KEY);
+    if (savedNavidromeBookmarks) {
+      try {
+        const parsed = JSON.parse(savedNavidromeBookmarks);
+        if (Array.isArray(parsed)) {
+          const restoredBookmarks = parsed
+            .map(normalizeNavidromeBookmark)
+            .filter((bookmark): bookmark is NavidromeBookmark => Boolean(bookmark));
+          if (restoredBookmarks.length) {
+            const connectOnOpenBookmark = restoredBookmarks.find((bookmark) => bookmark.connectOnOpen) ?? restoredBookmarks[0];
+            shouldRunNavidromeStartupConnectionRef.current = restoredBookmarks.some((bookmark) => bookmark.connectOnOpen);
+            setNavidromeBookmarks(restoredBookmarks);
+            setNavidromeName(connectOnOpenBookmark.name);
+            setNavidromeBaseUrl(connectOnOpenBookmark.baseUrl);
+            setNavidromeUsername(connectOnOpenBookmark.username);
+            setNavidromePassword(connectOnOpenBookmark.password);
+            setNavidromeConnectOnOpen(connectOnOpenBookmark.connectOnOpen);
+          }
+        }
+      } catch {
+        // Ignore invalid Navidrome bookmarks.
       }
     }
 
@@ -734,6 +942,30 @@ export function App() {
   }, [activePlaylistId]);
 
   useEffect(() => {
+    window.localStorage.setItem(STORAGE_NAVIDROME_BOOKMARKS_KEY, JSON.stringify(navidromeBookmarks));
+  }, [navidromeBookmarks]);
+
+  useEffect(() => {
+    if (
+      didAutoConnectNavidromeRef.current ||
+      !shouldRunNavidromeStartupConnectionRef.current ||
+      !navidromeBookmarks.length
+    ) {
+      return;
+    }
+    const startupBookmark = navidromeBookmarks.find((bookmark) => bookmark.connectOnOpen);
+    if (!startupBookmark) {
+      didAutoConnectNavidromeRef.current = true;
+      shouldRunNavidromeStartupConnectionRef.current = false;
+      return;
+    }
+    didAutoConnectNavidromeRef.current = true;
+    shouldRunNavidromeStartupConnectionRef.current = false;
+    setIsNavidromePanelOpen(true);
+    handleConnectNavidromeBookmark(startupBookmark);
+  }, [navidromeBookmarks]);
+
+  useEffect(() => {
     if (!playlists.length) {
       if (activePlaylistId) {
         setActivePlaylistId("");
@@ -942,7 +1174,7 @@ export function App() {
   }, [equalizerPresets]);
 
   useEffect(() => {
-    if (!folderPath || !tracks.length) {
+    if (!folderPath || !tracks.length || folderPath.startsWith("Navidrome/")) {
       return;
     }
     try {
@@ -1125,8 +1357,7 @@ export function App() {
     setCurrentTime(0);
     setDuration(0);
 
-    const path = playbackTrack?.path;
-    if (!path) {
+    if (!playbackTrack?.path) {
       setAudioSrc("");
       setAudioTrackId("");
       setAudioError("");
@@ -1136,7 +1367,7 @@ export function App() {
 
     (async () => {
       try {
-        const src = await adapter.getAudioSource(path);
+        const src = await adapter.getAudioSource(playbackTrack);
         if (cancelled) {
           return;
         }
@@ -1198,11 +1429,11 @@ export function App() {
 
   useEffect(() => {
     let cancelled = false;
-    const path = editableTrack?.path;
-    if (!path) {
+    if (!editableTrack?.path || editableTrack.source?.type === "navidrome") {
       setTrackTechnicalInfo(null);
       return;
     }
+    const path = editableTrack.path;
 
     (async () => {
       try {
@@ -1499,6 +1730,136 @@ export function App() {
     const queueTrackIds = buildLibraryQueueOrder(filteredTrackIds, track.id);
     const normalizedQueueTrackIds = queueTrackIds.length ? queueTrackIds : [track.id];
     return startPlaybackSession(normalizedQueueTrackIds, track.id, "");
+  }
+
+  function getNavidromeFormInput(): NavidromeConnectionInput | null {
+    const baseUrl = navidromeBaseUrl.trim();
+    const username = navidromeUsername.trim();
+    if (!baseUrl || !username || !navidromePassword) {
+      setNavidromeStatus("Server URL, username and password are required.");
+      return null;
+    }
+    return {
+      name: navidromeName.trim() || defaultNavidromeBookmarkName(baseUrl),
+      baseUrl,
+      username,
+      password: navidromePassword,
+    };
+  }
+
+  async function connectToNavidrome(input: NavidromeConnectionInput, bookmarkId = "") {
+    setIsConnectingNavidrome(true);
+    setNavidromeStatus(`Connecting to ${input.name || input.baseUrl}...`);
+    try {
+      const result = await adapter.connectNavidrome(input);
+      if (!result.ok) {
+        setConnectedNavidromeBookmarkId("");
+        setNavidromeStatus(result.message || "Navidrome connection rejected.");
+        return;
+      }
+
+      const library = await adapter.scanNavidromeLibrary(input);
+      const connectedAt = new Date().toLocaleString(userLocale, {
+        dateStyle: "short",
+        timeStyle: "short",
+      });
+      setConnectedNavidromeBookmarkId(bookmarkId);
+      if (bookmarkId) {
+        setNavidromeBookmarks((prev) => prev.map((bookmark) => (
+          bookmark.id === bookmarkId
+            ? { ...bookmark, lastConnectedAt: connectedAt }
+            : bookmark
+        )));
+      }
+      setFolderPath(library.folderPath);
+      setTracks(library.tracks);
+      const firstTrack = library.tracks[0];
+      setSelectedTrackId(firstTrack?.id ?? "");
+      setPlaybackPlaylistId("");
+      setPlaybackTrackId("");
+      clearPlaybackQueueState();
+      setShouldAutoplay(false);
+      if (firstTrack) {
+        setSearchTitle(firstTrack.title);
+        setSearchArtist(firstTrack.artist);
+        setSearchAlbum(firstTrack.album);
+      }
+      setOnlineResults([]);
+      setSelectedResultId("");
+      setIsNavidromePanelOpen(false);
+      setNavidromeStatus(
+        `Connected to ${input.name || input.baseUrl} · loaded ${library.tracks.length} tracks${result.serverVersion ? ` · server ${result.serverVersion}` : ""}${result.apiVersion ? ` · API ${result.apiVersion}` : ""}`
+      );
+      setSearchStatus(`Navidrome library loaded: ${library.tracks.length} tracks.`);
+    } catch (error) {
+      setConnectedNavidromeBookmarkId("");
+      setNavidromeStatus(`Navidrome connection error: ${formatError(error)}`);
+    } finally {
+      setIsConnectingNavidrome(false);
+    }
+  }
+
+  function handleSaveNavidromeBookmark() {
+    const input = getNavidromeFormInput();
+    if (!input) {
+      return;
+    }
+    setNavidromeBookmarks((prev) => {
+      const existing = prev.find((bookmark) => (
+        bookmark.baseUrl === input.baseUrl && bookmark.username === input.username
+      ));
+      const nextBookmark: NavidromeBookmark = {
+        ...(existing ?? { id: buildNavidromeBookmarkId() }),
+        ...input,
+        connectOnOpen: navidromeConnectOnOpen,
+      };
+      const next = existing
+        ? prev.map((bookmark) => (bookmark.id === existing.id ? nextBookmark : bookmark))
+        : [...prev, nextBookmark];
+      if (!navidromeConnectOnOpen) {
+        return next;
+      }
+      return next.map((bookmark) => ({
+        ...bookmark,
+        connectOnOpen: bookmark.id === nextBookmark.id,
+      }));
+    });
+    setNavidromeStatus(`Saved bookmark ${input.name}.`);
+  }
+
+  function handleConnectNavidrome() {
+    const input = getNavidromeFormInput();
+    if (!input) {
+      return;
+    }
+    const matchingBookmark = navidromeBookmarks.find((bookmark) => (
+      bookmark.baseUrl === input.baseUrl && bookmark.username === input.username
+    ));
+    void connectToNavidrome(input, matchingBookmark?.id ?? "");
+  }
+
+  function handleConnectNavidromeBookmark(bookmark: NavidromeBookmark) {
+    setNavidromeName(bookmark.name);
+    setNavidromeBaseUrl(bookmark.baseUrl);
+    setNavidromeUsername(bookmark.username);
+    setNavidromePassword(bookmark.password);
+    setNavidromeConnectOnOpen(bookmark.connectOnOpen);
+    void connectToNavidrome(bookmark, bookmark.id);
+  }
+
+  function handleDeleteNavidromeBookmark(bookmarkId: string) {
+    setNavidromeBookmarks((prev) => prev.filter((bookmark) => bookmark.id !== bookmarkId));
+    if (connectedNavidromeBookmarkId === bookmarkId) {
+      setConnectedNavidromeBookmarkId("");
+      setNavidromeStatus("Navidrome bookmark removed.");
+    }
+  }
+
+  function handleToggleNavidromeBookmarkConnectOnOpen(bookmarkId: string, enabled: boolean) {
+    setNavidromeBookmarks((prev) => prev.map((bookmark) => ({
+      ...bookmark,
+      connectOnOpen: enabled ? bookmark.id === bookmarkId : bookmark.id === bookmarkId ? false : bookmark.connectOnOpen,
+    })));
   }
 
   async function handleScan() {
@@ -1803,6 +2164,10 @@ export function App() {
     if (!folderPath) {
       return;
     }
+    if (folderPath.startsWith("Navidrome/")) {
+      setSearchStatus("Navidrome libraries are remote, no local folder to open.");
+      return;
+    }
     try {
       await adapter.openTrackInFileManager(folderPath);
     } catch (error) {
@@ -2066,6 +2431,27 @@ export function App() {
       setOnlineResults([]);
       setSelectedResultId("");
       setSearchStatus("Ready");
+    }
+  }
+
+  function handleLibraryArtistClick(artist: LibraryArtistSummary) {
+    setIsNavidromePanelOpen(false);
+    setQuery(artist.name === "Unknown artist" ? "" : artist.name);
+    const firstTrack = tracks.find((track) => (track.artist.trim() || "Unknown artist") === artist.name);
+    if (firstTrack) {
+      selectTrack(firstTrack);
+    }
+  }
+
+  function handleLibraryAlbumClick(album: LibraryAlbumSummary) {
+    setIsNavidromePanelOpen(false);
+    setQuery(album.title === "Unknown album" ? "" : album.title);
+    const firstTrack = tracks.find((track) => (
+      (track.album.trim() || "Unknown album") === album.title &&
+      (track.artist.trim() || "Unknown artist") === album.artist
+    ));
+    if (firstTrack) {
+      selectTrack(firstTrack);
     }
   }
 
@@ -2722,6 +3108,32 @@ export function App() {
   }
 
   const hasAudioLoaded = Boolean(audioSrc && audioTrackId === playbackTrackId);
+  const libraryNavidromeProps = {
+    isNavidromePanelOpen,
+    onToggleNavidromePanel: () => setIsNavidromePanelOpen((prev) => !prev),
+    navidromeName,
+    onNavidromeNameChange: setNavidromeName,
+    navidromeBaseUrl,
+    onNavidromeBaseUrlChange: setNavidromeBaseUrl,
+    navidromeUsername,
+    onNavidromeUsernameChange: setNavidromeUsername,
+    navidromePassword,
+    onNavidromePasswordChange: setNavidromePassword,
+    navidromeConnectOnOpen,
+    onNavidromeConnectOnOpenChange: setNavidromeConnectOnOpen,
+    navidromeBookmarks,
+    connectedNavidromeBookmarkId,
+    navidromeStatus,
+    isConnectingNavidrome,
+    onConnectNavidrome: handleConnectNavidrome,
+    onSaveNavidromeBookmark: handleSaveNavidromeBookmark,
+    onConnectNavidromeBookmark: handleConnectNavidromeBookmark,
+    onDeleteNavidromeBookmark: handleDeleteNavidromeBookmark,
+    onToggleNavidromeBookmarkConnectOnOpen: handleToggleNavidromeBookmarkConnectOnOpen,
+    IconGlobe,
+    IconSave,
+    IconTrash,
+  };
 
   return (
     <div className={colorMode === "dark" ? "app-shell theme-dark" : "app-shell"} style={appStyle}>
@@ -2824,6 +3236,7 @@ export function App() {
               }}
               isLoadingScan={isLoadingScan}
               onScan={handleScan}
+              {...libraryNavidromeProps}
               query={query}
               onQueryChange={setQuery}
               libraryViewMode={libraryViewMode}
@@ -2930,6 +3343,7 @@ export function App() {
             },
             isLoadingScan,
             onScan: handleScan,
+            ...libraryNavidromeProps,
             query,
             onQueryChange: setQuery,
             libraryViewMode,
@@ -3004,6 +3418,62 @@ export function App() {
         />
       )}
 
+      {activeScreen === "library" && (
+        <LibraryBrowserSection
+          libraryProps={{
+            folderPath,
+            onOpenFolderPathClick: () => {
+              void handleOpenLibraryFolder();
+            },
+            isLoadingScan,
+            onScan: handleScan,
+            ...libraryNavidromeProps,
+            query,
+            onQueryChange: setQuery,
+            libraryViewMode,
+            onLibraryViewModeChange: setLibraryViewMode,
+            isFileSystemView,
+            onFileSystemViewChange: setIsFileSystemView,
+            fileSystemEntries,
+            fileSystemCurrentPath,
+            canGoUpFileSystemFolder,
+            onOpenFileSystemFolder: openFileSystemFolder,
+            onGoUpFileSystemFolder: goUpFileSystemFolder,
+            librarySortMode,
+            librarySortDirection,
+            onLibrarySortClick: handleLibrarySortClick,
+            trackCount: tracks.length,
+            folderCount,
+            trackListRef,
+            onTrackListScroll: handleTrackListScroll,
+            virtualTrackWindow,
+            selectedTrackId,
+            onSelectTrack: selectTrack,
+            onSearchTrack: handleQuickSearchTrack,
+            onPlayFromLibraryCover: handlePlayFromLibraryCover,
+            IconFolder,
+            IconArrowUp,
+            IconMusicNote,
+            IconSortTitle,
+            IconSortArtist,
+            IconSortAdded,
+            IconSortRelease,
+            IconGrid,
+            IconListCompact,
+            IconPlay,
+            IconSearch,
+          }}
+          artists={libraryArtists}
+          albums={libraryAlbums}
+          tracks={tracks}
+          onArtistClick={handleLibraryArtistClick}
+          onAlbumClick={handleLibraryAlbumClick}
+          IconArtist={IconSortArtist}
+          IconAlbum={IconCover}
+          IconMusicNote={IconMusicNote}
+        />
+      )}
+
       {activeScreen === "player" && (
         <PlayerSection
           libraryProps={{
@@ -3013,6 +3483,7 @@ export function App() {
             },
             isLoadingScan,
             onScan: handleScan,
+            ...libraryNavidromeProps,
             query,
             onQueryChange: setQuery,
             libraryViewMode,

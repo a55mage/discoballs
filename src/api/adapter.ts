@@ -1,4 +1,15 @@
-import type { OnlineMatch, RenameConfig, SaveTrackResult, ScanResult, SearchQuery, TrackTechnicalInfo, TrackUpdate } from "../types";
+import type {
+  NavidromeConnectionInput,
+  NavidromeConnectionResult,
+  OnlineMatch,
+  RenameConfig,
+  SaveTrackResult,
+  ScanResult,
+  SearchQuery,
+  Track,
+  TrackTechnicalInfo,
+  TrackUpdate,
+} from "../types";
 
 export interface MusicAdapter {
   selectFolderAndScan(): Promise<ScanResult>;
@@ -13,8 +24,11 @@ export interface MusicAdapter {
     removeCover?: boolean
   ): Promise<SaveTrackResult>;
   renameTrack(path: string, update: TrackUpdate, renameConfig: RenameConfig): Promise<SaveTrackResult>;
-  getAudioSource(path: string): Promise<string>;
+  getAudioSource(track: Track): Promise<string>;
   getTrackTechnicalInfo(path: string): Promise<TrackTechnicalInfo | null>;
+  getTrackCoverSource(track: Track): Promise<string | null>;
   searchOnline(query: SearchQuery): Promise<OnlineMatch[]>;
+  connectNavidrome(input: NavidromeConnectionInput): Promise<NavidromeConnectionResult>;
+  scanNavidromeLibrary(input: NavidromeConnectionInput): Promise<ScanResult>;
   openTrackInFileManager(path: string): Promise<void>;
 }

@@ -1,6 +1,6 @@
 import { type ComponentType, type DragEvent, type MouseEvent, type PointerEvent, type RefObject, type SVGProps, type UIEvent } from "react";
 import { Card } from "../components/Card";
-import type { Track } from "../types";
+import type { NavidromeBookmark, Track } from "../types";
 import type { FileSystemEntry, LibraryViewMode } from "../hooks/useLibraryView";
 
 type LibrarySortMode = "title" | "artist" | "added" | "release";
@@ -18,6 +18,27 @@ export type LibrarySectionProps = {
   onOpenFolderPathClick: () => void;
   isLoadingScan: boolean;
   onScan: () => void;
+  isNavidromePanelOpen: boolean;
+  onToggleNavidromePanel: () => void;
+  navidromeName: string;
+  onNavidromeNameChange: (value: string) => void;
+  navidromeBaseUrl: string;
+  onNavidromeBaseUrlChange: (value: string) => void;
+  navidromeUsername: string;
+  onNavidromeUsernameChange: (value: string) => void;
+  navidromePassword: string;
+  onNavidromePasswordChange: (value: string) => void;
+  navidromeConnectOnOpen: boolean;
+  onNavidromeConnectOnOpenChange: (value: boolean) => void;
+  navidromeBookmarks: NavidromeBookmark[];
+  connectedNavidromeBookmarkId: string;
+  navidromeStatus: string;
+  isConnectingNavidrome: boolean;
+  onConnectNavidrome: () => void;
+  onSaveNavidromeBookmark: () => void;
+  onConnectNavidromeBookmark: (bookmark: NavidromeBookmark) => void;
+  onDeleteNavidromeBookmark: (bookmarkId: string) => void;
+  onToggleNavidromeBookmarkConnectOnOpen: (bookmarkId: string, enabled: boolean) => void;
   query: string;
   onQueryChange: (value: string) => void;
   libraryViewMode: LibraryViewMode;
@@ -61,9 +82,12 @@ export type LibrarySectionProps = {
   IconSortAdded: IconComponent;
   IconSortRelease: IconComponent;
   IconGrid: IconComponent;
+  IconGlobe: IconComponent;
   IconListCompact: IconComponent;
   IconPlay: IconComponent;
+  IconSave: IconComponent;
   IconSearch: IconComponent;
+  IconTrash: IconComponent;
   IconTrackAction?: IconComponent;
   IconBulkTrackAction?: IconComponent;
 };
@@ -73,6 +97,27 @@ export function LibrarySection({
   onOpenFolderPathClick,
   isLoadingScan,
   onScan,
+  isNavidromePanelOpen,
+  onToggleNavidromePanel,
+  navidromeName,
+  onNavidromeNameChange,
+  navidromeBaseUrl,
+  onNavidromeBaseUrlChange,
+  navidromeUsername,
+  onNavidromeUsernameChange,
+  navidromePassword,
+  onNavidromePasswordChange,
+  navidromeConnectOnOpen,
+  onNavidromeConnectOnOpenChange,
+  navidromeBookmarks,
+  connectedNavidromeBookmarkId,
+  navidromeStatus,
+  isConnectingNavidrome,
+  onConnectNavidrome,
+  onSaveNavidromeBookmark,
+  onConnectNavidromeBookmark,
+  onDeleteNavidromeBookmark,
+  onToggleNavidromeBookmarkConnectOnOpen,
   query,
   onQueryChange,
   libraryViewMode,
@@ -116,9 +161,12 @@ export function LibrarySection({
   IconSortAdded,
   IconSortRelease,
   IconGrid,
+  IconGlobe,
   IconListCompact,
   IconPlay,
+  IconSave,
   IconSearch,
+  IconTrash,
   IconTrackAction,
   IconBulkTrackAction,
 }: LibrarySectionProps) {
@@ -161,11 +209,136 @@ export function LibrarySection({
         </>
       }
       headerRight={
-        <button onClick={onScan} disabled={isLoadingScan} title={isLoadingScan ? "Scanning..." : "Select folder"} aria-label={isLoadingScan ? "Scanning..." : "Select folder"}>
-          <span className="btn-content"><IconFolder className="btn-icon" /></span>
-        </button>
+        <div className="library-source-actions">
+          <button onClick={onScan} disabled={isLoadingScan} title={isLoadingScan ? "Scanning..." : "Select folder"} aria-label={isLoadingScan ? "Scanning..." : "Select folder"}>
+            <span className="btn-content"><IconFolder className="btn-icon" /></span>
+          </button>
+          <button
+            type="button"
+            className={isNavidromePanelOpen ? "view-mode-button active" : "view-mode-button"}
+            onClick={onToggleNavidromePanel}
+            title={isNavidromePanelOpen ? "Hide Navidrome connection" : "Connect to Navidrome"}
+            aria-label={isNavidromePanelOpen ? "Hide Navidrome connection" : "Connect to Navidrome"}
+          >
+            <span className="btn-content"><IconGlobe className="btn-icon" /></span>
+          </button>
+        </div>
       }
     >
+      {isNavidromePanelOpen ? (
+        <div className="navidrome-panel">
+          <div className="navidrome-form">
+            <div className="navidrome-form-grid">
+              <label className="field">
+                <span>Bookmark name</span>
+                <input
+                  className="input"
+                  value={navidromeName}
+                  onChange={(event) => onNavidromeNameChange(event.target.value)}
+                  placeholder="Home server"
+                />
+              </label>
+              <label className="field">
+                <span>Server URL</span>
+                <input
+                  className="input"
+                  value={navidromeBaseUrl}
+                  onChange={(event) => onNavidromeBaseUrlChange(event.target.value)}
+                  placeholder="http://192.168.1.10:4533"
+                  autoComplete="url"
+                />
+              </label>
+              <label className="field">
+                <span>Username</span>
+                <input
+                  className="input"
+                  value={navidromeUsername}
+                  onChange={(event) => onNavidromeUsernameChange(event.target.value)}
+                  autoComplete="username"
+                />
+              </label>
+              <label className="field">
+                <span>Password</span>
+                <input
+                  className="input"
+                  type="password"
+                  value={navidromePassword}
+                  onChange={(event) => onNavidromePasswordChange(event.target.value)}
+                  autoComplete="current-password"
+                />
+              </label>
+            </div>
+            <div className="navidrome-connect-row">
+              <label className="toggle-row navidrome-autoconnect">
+                <input
+                  type="checkbox"
+                  checked={navidromeConnectOnOpen}
+                  onChange={(event) => onNavidromeConnectOnOpenChange(event.target.checked)}
+                />
+                <span>Connect on open</span>
+              </label>
+              <div className="navidrome-actions">
+                <button type="button" className="ghost-button" onClick={onSaveNavidromeBookmark}>
+                  <span className="btn-content"><IconSave className="btn-icon" /> Save</span>
+                </button>
+                <button type="button" onClick={onConnectNavidrome} disabled={isConnectingNavidrome}>
+                  <span className="btn-content"><IconGlobe className="btn-icon" /> {isConnectingNavidrome ? "Connecting..." : "Connect"}</span>
+                </button>
+              </div>
+            </div>
+            <p className="navidrome-status">{navidromeStatus}</p>
+          </div>
+
+          <div className="navidrome-bookmarks">
+            <div className="navidrome-bookmarks-heading">Bookmarks</div>
+            {navidromeBookmarks.length ? (
+              <ul className="navidrome-bookmark-list">
+                {navidromeBookmarks.map((bookmark) => (
+                  <li key={bookmark.id} className={bookmark.id === connectedNavidromeBookmarkId ? "navidrome-bookmark-item active" : "navidrome-bookmark-item"}>
+                    <div className="navidrome-bookmark-main">
+                      <strong>{bookmark.name || bookmark.baseUrl}</strong>
+                      <small>{bookmark.username} · {bookmark.baseUrl}</small>
+                      {bookmark.lastConnectedAt && <small className="muted">Last connected {bookmark.lastConnectedAt}</small>}
+                    </div>
+                    <label className="toggle-row navidrome-bookmark-auto">
+                      <input
+                        type="checkbox"
+                        checked={bookmark.connectOnOpen}
+                        onChange={(event) => onToggleNavidromeBookmarkConnectOnOpen(bookmark.id, event.target.checked)}
+                      />
+                      <span>Open</span>
+                    </label>
+                    <div className="navidrome-bookmark-actions">
+                      <button
+                        type="button"
+                        className="ghost-button"
+                        onClick={() => onConnectNavidromeBookmark(bookmark)}
+                        disabled={isConnectingNavidrome}
+                        title="Connect"
+                        aria-label={`Connect to ${bookmark.name || bookmark.baseUrl}`}
+                      >
+                        <span className="btn-content"><IconGlobe className="btn-icon" /></span>
+                      </button>
+                      <button
+                        type="button"
+                        className="ghost-button"
+                        onClick={() => onDeleteNavidromeBookmark(bookmark.id)}
+                        title="Delete bookmark"
+                        aria-label={`Delete ${bookmark.name || bookmark.baseUrl}`}
+                      >
+                        <span className="btn-content"><IconTrash className="btn-icon" /></span>
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="navidrome-empty">No Navidrome bookmarks yet.</p>
+            )}
+          </div>
+        </div>
+      ) : (
+        <>
       <div className="library-filter-row">
         <input
           className="input"
@@ -488,6 +661,8 @@ export function LibrarySection({
             />
           )}
         </ul>
+      )}
+        </>
       )}
     </Card>
   );

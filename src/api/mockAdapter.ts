@@ -1,5 +1,16 @@
 import type { MusicAdapter } from "./adapter";
-import type { OnlineMatch, RenameConfig, SaveTrackResult, ScanResult, SearchQuery, Track, TrackTechnicalInfo, TrackUpdate } from "../types";
+import type {
+  NavidromeConnectionInput,
+  NavidromeConnectionResult,
+  OnlineMatch,
+  RenameConfig,
+  SaveTrackResult,
+  ScanResult,
+  SearchQuery,
+  Track,
+  TrackTechnicalInfo,
+  TrackUpdate,
+} from "../types";
 
 let tracks: Track[] = [
   {
@@ -110,8 +121,13 @@ export const mockAdapter: MusicAdapter = {
     return { path: nextPath };
   },
 
-  async getAudioSource(_path: string): Promise<string> {
+  async getAudioSource(_track: Track): Promise<string> {
     return "";
+  },
+
+  async getTrackCoverSource(track: Track): Promise<string | null> {
+    await wait(60);
+    return track.coverUrl ?? null;
   },
 
   async getTrackTechnicalInfo(path: string): Promise<TrackTechnicalInfo | null> {
@@ -171,6 +187,45 @@ export const mockAdapter: MusicAdapter = {
         coverUrl: "https://picsum.photos/seed/itunes-a/500/500",
       },
     ];
+  },
+
+  async connectNavidrome(input: NavidromeConnectionInput): Promise<NavidromeConnectionResult> {
+    await wait(250);
+    if (!input.baseUrl.trim() || !input.username.trim() || !input.password.trim()) {
+      return {
+        ok: false,
+        message: "Server URL, username and password are required.",
+      };
+    }
+    return {
+      ok: true,
+      serverVersion: "0.54.0 mock",
+      apiVersion: "1.16.1",
+      message: `Connected to ${input.name || input.baseUrl}`,
+    };
+  },
+
+  async scanNavidromeLibrary(input: NavidromeConnectionInput): Promise<ScanResult> {
+    await wait(350);
+    const serverName = input.name || input.baseUrl || "Navidrome";
+    return {
+      folderPath: `Navidrome/${serverName}`,
+      tracks: tracks.map((track, index) => ({
+        ...track,
+        id: `navidrome:${input.baseUrl}:${track.id}`,
+        path: `Navidrome/${serverName}/${track.artist || "Unknown Artist"}/${track.album || "Unknown Album"}/${String(index + 1).padStart(2, "0")} - ${track.title || "Untitled"}.mp3`,
+        source: {
+          type: "navidrome",
+          baseUrl: input.baseUrl,
+          username: input.username,
+          password: input.password,
+          songId: track.id,
+          coverArtId: track.hasCover ? `cover-${track.id}` : undefined,
+          suffix: "mp3",
+          contentType: "audio/mpeg",
+        },
+      })),
+    };
   },
 
   async openTrackInFileManager(_path: string): Promise<void> {

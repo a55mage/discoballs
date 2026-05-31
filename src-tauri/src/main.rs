@@ -13,6 +13,7 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::time::Duration;
 use tauri::Manager;
 use walkdir::WalkDir;
 
@@ -28,6 +29,18 @@ struct Track {
     genre: String,
     has_cover: bool,
     cover_data_url: Option<String>,
+    navidrome_source: Option<NavidromeTrackSource>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct NavidromeTrackSource {
+    base_url: String,
+    username: String,
+    password: String,
+    song_id: String,
+    cover_art_id: Option<String>,
+    suffix: Option<String>,
+    content_type: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -86,6 +99,21 @@ struct TrackTechnicalInfo {
     file_size_bytes: Option<u64>,
     channels: Option<u8>,
     bit_depth: Option<u8>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct NavidromeConnectInput {
+    base_url: String,
+    username: String,
+    password: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct NavidromeConnectResult {
+    ok: bool,
+    server_version: Option<String>,
+    api_version: Option<String>,
+    message: Option<String>,
 }
 
 #[tauri::command]
@@ -166,6 +194,195 @@ async fn search_online(query: OnlineQuery) -> Result<Vec<OnlineMatch>, String> {
 }
 
 #[tauri::command]
+async fn navidrome_ping(input: NavidromeConnectInput) -> Result<NavidromeConnectResult, String> {
+    let base_url = normalize_navidrome_base_url(&input.base_url)?;
+    let username = input.username.trim();
+    if username.is_empty() {
+        return Err("Navidrome username is required".to_string());
+    }
+    if input.password.is_empty() {
+        return Err("Navidrome password is required".to_string());
+    }
+
+    let client = Client::builder()
+        .user_agent("discoballs/1.5.0 (desktop app)")
+        .timeout(Duration::from_secs(12))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let response = client
+        .get(format!("{base_url}/rest/ping.view"))
+        .query(&[
+            ("u", username.to_string()),
+            ("p", format!("enc:{}", hex_encode(&input.password))),
+            ("v", "1.16.1".to_string()),
+            ("c", "DiscoBalls".to_string()),
+            ("f", "json".to_string()),
+        ])
+        .send()
+        .await
+        .map_err(|e| format!("Navidrome connection failed: {e}"))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Navidrome returned HTTP {}", response.status()));
+    }
+
+    let payload = response
+        .json::<Value>()
+        .await
+        .map_err(|e| format!("Invalid Navidrome response: {e}"))?;
+    let subsonic_response = payload
+        .get("subsonic-response")
+        .and_then(Value::as_object)
+        .ok_or_else(|| "Invalid Navidrome response: missing subsonic-response".to_string())?;
+    let status = subsonic_response
+        .get("status")
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    let api_version = subsonic_response
+        .get("version")
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    let server_version = subsonic_response
+        .get("serverVersion")
+        .and_then(Value::as_str)
+        .map(str::to_string);
+
+    if status == "ok" {
+        return Ok(NavidromeConnectResult {
+            ok: true,
+            server_version,
+            api_version,
+            message: Some("Connected to Navidrome".to_string()),
+        });
+    }
+
+    let message = subsonic_response
+        .get("error")
+        .and_then(|error| error.get("message"))
+        .and_then(Value::as_str)
+        .unwrap_or("Navidrome rejected the connection")
+        .to_string();
+
+    Ok(NavidromeConnectResult {
+        ok: false,
+        server_version,
+        api_version,
+        message: Some(message),
+    })
+}
+
+#[tauri::command]
+async fn navidrome_scan_library(input: NavidromeConnectInput) -> Result<ScanResult, String> {
+    let base_url = normalize_navidrome_base_url(&input.base_url)?;
+    let username = input.username.trim();
+    if username.is_empty() {
+        return Err("Navidrome username is required".to_string());
+    }
+    if input.password.is_empty() {
+        return Err("Navidrome password is required".to_string());
+    }
+
+    let client = Client::builder()
+        .user_agent("discoballs/1.5.0 (desktop app)")
+        .timeout(Duration::from_secs(30))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let mut album_ids = Vec::new();
+    let mut offset = 0usize;
+    let page_size = 500usize;
+    loop {
+        let response = navidrome_get(
+            &client,
+            &base_url,
+            username,
+            &input.password,
+            "getAlbumList2",
+            vec![
+                ("type".to_string(), "alphabeticalByArtist".to_string()),
+                ("size".to_string(), page_size.to_string()),
+                ("offset".to_string(), offset.to_string()),
+            ],
+        )
+        .await?;
+        let albums = response
+            .get("albumList2")
+            .and_then(|album_list| album_list.get("album"))
+            .map(json_items)
+            .unwrap_or_default();
+        let count = albums.len();
+        for album in albums {
+            if let Some(id) = json_text(album, "id") {
+                album_ids.push(id);
+            }
+        }
+        if count < page_size {
+            break;
+        }
+        offset += count;
+    }
+
+    let mut tracks = Vec::new();
+    let mut seen = HashSet::new();
+    let server_label = sanitize_virtual_path_part(&base_url, "Server");
+    for album_chunk in album_ids.chunks(16) {
+        let mut tasks = Vec::new();
+        for album_id in album_chunk {
+            let client = client.clone();
+            let base_url = base_url.clone();
+            let username = username.to_string();
+            let password = input.password.clone();
+            let server_label = server_label.clone();
+            let album_id = album_id.clone();
+            tasks.push(tokio::spawn(async move {
+                let response = navidrome_get(
+                    &client,
+                    &base_url,
+                    &username,
+                    &password,
+                    "getAlbum",
+                    vec![("id".to_string(), album_id)],
+                )
+                .await?;
+                let mut album_tracks = Vec::new();
+                let Some(album) = response.get("album") else {
+                    return Ok::<Vec<Track>, String>(album_tracks);
+                };
+                for song in album.get("song").map(json_items).unwrap_or_default() {
+                    if let Some(track) = navidrome_song_to_track(song, &base_url, &username, &password, &server_label) {
+                        album_tracks.push(track);
+                    }
+                }
+                Ok::<Vec<Track>, String>(album_tracks)
+            }));
+        }
+
+        for task in tasks {
+            let album_tracks = task.await.map_err(|e| format!("Navidrome album task failed: {e}"))??;
+            for track in album_tracks {
+                if seen.insert(track.id.clone()) {
+                    tracks.push(track);
+                }
+            }
+        }
+    }
+
+    tracks.sort_by(|a, b| {
+        a.artist
+            .to_lowercase()
+            .cmp(&b.artist.to_lowercase())
+            .then_with(|| a.album.to_lowercase().cmp(&b.album.to_lowercase()))
+            .then_with(|| a.tracknumber.cmp(&b.tracknumber))
+            .then_with(|| a.title.to_lowercase().cmp(&b.title.to_lowercase()))
+    });
+
+    Ok(ScanResult {
+        folder_path: format!("Navidrome/{server_label}"),
+        tracks,
+    })
+}
+
+#[tauri::command]
 fn save_track(input: SaveTrackInput) -> Result<SaveTrackOutput, String> {
     let original_path = PathBuf::from(&input.path);
     if !original_path.exists() {
@@ -198,6 +415,60 @@ fn get_audio_data_url(path: String) -> Result<String, String> {
     let bytes = fs::read(&path).map_err(|e| format!("Audio read error: {e}"))?;
     let mime = mime_from_audio_path(&path);
     Ok(format!("data:{};base64,{}", mime, BASE64.encode(bytes)))
+}
+
+#[tauri::command]
+async fn navidrome_get_audio_data_url(source: NavidromeTrackSource) -> Result<String, String> {
+    let base_url = normalize_navidrome_base_url(&source.base_url)?;
+    let client = Client::builder()
+        .user_agent("discoballs/1.5.0 (desktop app)")
+        .timeout(Duration::from_secs(45))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let (bytes, response_mime) = navidrome_get_bytes(
+        &client,
+        &base_url,
+        &source.username,
+        &source.password,
+        "stream",
+        vec![
+            ("id".to_string(), source.song_id.clone()),
+            ("format".to_string(), "mp3".to_string()),
+            ("maxBitRate".to_string(), "320".to_string()),
+        ],
+    )
+    .await?;
+    let mime = response_mime
+        .or(source.content_type)
+        .unwrap_or_else(|| "audio/mpeg".to_string());
+    Ok(format!("data:{};base64,{}", mime, BASE64.encode(bytes)))
+}
+
+#[tauri::command]
+async fn navidrome_get_cover_data_url(source: NavidromeTrackSource) -> Result<Option<String>, String> {
+    let Some(cover_art_id) = source.cover_art_id.clone() else {
+        return Ok(None);
+    };
+    let base_url = normalize_navidrome_base_url(&source.base_url)?;
+    let client = Client::builder()
+        .user_agent("discoballs/1.5.0 (desktop app)")
+        .timeout(Duration::from_secs(20))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let (bytes, response_mime) = navidrome_get_bytes(
+        &client,
+        &base_url,
+        &source.username,
+        &source.password,
+        "getCoverArt",
+        vec![
+            ("id".to_string(), cover_art_id),
+            ("size".to_string(), "300".to_string()),
+        ],
+    )
+    .await?;
+    let mime = response_mime.unwrap_or_else(|| "image/jpeg".to_string());
+    Ok(Some(format!("data:{};base64,{}", mime, BASE64.encode(bytes))))
 }
 
 #[tauri::command]
@@ -411,6 +682,7 @@ fn read_track(path: &Path) -> Track {
         genre,
         has_cover: cover_data_url.is_some(),
         cover_data_url,
+        navidrome_source: None,
     }
 }
 
@@ -605,6 +877,212 @@ fn parse_u32_prefix(value: &str) -> Option<u32> {
 fn parse_u32_year(value: &str) -> Option<u32> {
     let year = value.trim().chars().take(4).collect::<String>();
     year.parse::<u32>().ok()
+}
+
+fn hex_encode(input: &str) -> String {
+    input
+        .as_bytes()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>()
+}
+
+fn normalize_navidrome_base_url(url: &str) -> Result<String, String> {
+    let trimmed = url.trim().trim_end_matches('/');
+    if trimmed.is_empty() {
+        return Err("Navidrome server URL is required".to_string());
+    }
+    if !trimmed.starts_with("http://") && !trimmed.starts_with("https://") {
+        return Err("Navidrome server URL must start with http:// or https://".to_string());
+    }
+    Ok(trimmed.to_string())
+}
+
+async fn navidrome_get(
+    client: &Client,
+    base_url: &str,
+    username: &str,
+    password: &str,
+    endpoint: &str,
+    mut params: Vec<(String, String)>,
+) -> Result<Value, String> {
+    params.extend([
+        ("u".to_string(), username.to_string()),
+        ("p".to_string(), format!("enc:{}", hex_encode(password))),
+        ("v".to_string(), "1.16.1".to_string()),
+        ("c".to_string(), "DiscoBalls".to_string()),
+        ("f".to_string(), "json".to_string()),
+    ]);
+    let response = client
+        .get(format!("{base_url}/rest/{endpoint}.view"))
+        .query(&params)
+        .send()
+        .await
+        .map_err(|e| format!("Navidrome request failed: {e}"))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Navidrome returned HTTP {}", response.status()));
+    }
+
+    let payload = response
+        .json::<Value>()
+        .await
+        .map_err(|e| format!("Invalid Navidrome response: {e}"))?;
+    let subsonic_response = payload
+        .get("subsonic-response")
+        .ok_or_else(|| "Invalid Navidrome response: missing subsonic-response".to_string())?;
+    let status = subsonic_response
+        .get("status")
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    if status == "ok" {
+        return Ok(subsonic_response.clone());
+    }
+
+    let message = subsonic_response
+        .get("error")
+        .and_then(|error| error.get("message"))
+        .and_then(Value::as_str)
+        .unwrap_or("Navidrome rejected the request");
+    Err(message.to_string())
+}
+
+async fn navidrome_get_bytes(
+    client: &Client,
+    base_url: &str,
+    username: &str,
+    password: &str,
+    endpoint: &str,
+    mut params: Vec<(String, String)>,
+) -> Result<(Vec<u8>, Option<String>), String> {
+    params.extend([
+        ("u".to_string(), username.to_string()),
+        ("p".to_string(), format!("enc:{}", hex_encode(password))),
+        ("v".to_string(), "1.16.1".to_string()),
+        ("c".to_string(), "DiscoBalls".to_string()),
+    ]);
+    let response = client
+        .get(format!("{base_url}/rest/{endpoint}.view"))
+        .query(&params)
+        .send()
+        .await
+        .map_err(|e| format!("Navidrome media request failed: {e}"))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Navidrome returned HTTP {}", response.status()));
+    }
+
+    let mime = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.split(';').next())
+        .map(str::trim)
+        .filter(|value| !value.is_empty() && !value.contains("json"))
+        .map(str::to_string);
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|e| format!("Navidrome media read error: {e}"))?
+        .to_vec();
+
+    if bytes.is_empty() {
+        return Err("Navidrome returned empty media data".to_string());
+    }
+
+    Ok((bytes, mime))
+}
+
+fn json_items(value: &Value) -> Vec<&Value> {
+    match value {
+        Value::Array(items) => items.iter().collect(),
+        Value::Object(_) => vec![value],
+        _ => Vec::new(),
+    }
+}
+
+fn json_text(value: &Value, key: &str) -> Option<String> {
+    let field = value.get(key)?;
+    if let Some(text) = field.as_str() {
+        let trimmed = text.trim();
+        if !trimmed.is_empty() {
+            return Some(trimmed.to_string());
+        }
+    }
+    if let Some(number) = field.as_u64() {
+        return Some(number.to_string());
+    }
+    if let Some(number) = field.as_i64() {
+        return Some(number.to_string());
+    }
+    None
+}
+
+fn sanitize_virtual_path_part(value: &str, fallback: &str) -> String {
+    let sanitized = value
+        .replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|'], "_")
+        .trim()
+        .to_string();
+    if sanitized.is_empty() {
+        fallback.to_string()
+    } else {
+        sanitized
+    }
+}
+
+fn navidrome_song_to_track(
+    song: &Value,
+    base_url: &str,
+    username: &str,
+    password: &str,
+    server_label: &str,
+) -> Option<Track> {
+    let song_id = json_text(song, "id")?;
+    let title = json_text(song, "title").unwrap_or_else(|| "Untitled".to_string());
+    let artist = json_text(song, "artist").unwrap_or_else(|| "Unknown artist".to_string());
+    let album = json_text(song, "album").unwrap_or_else(|| "Unknown album".to_string());
+    let tracknumber = json_text(song, "track").unwrap_or_default();
+    let year = json_text(song, "year").unwrap_or_default();
+    let genre = json_text(song, "genre").unwrap_or_default();
+    let suffix = json_text(song, "suffix").unwrap_or_else(|| "mp3".to_string());
+    let cover_art_id = json_text(song, "coverArt");
+    let content_type = json_text(song, "contentType");
+    let filename_prefix = if tracknumber.is_empty() {
+        String::new()
+    } else {
+        format!("{tracknumber} - ")
+    };
+    let path = format!(
+        "Navidrome/{}/{}/{}/{}{}.{}",
+        server_label,
+        sanitize_virtual_path_part(&artist, "Unknown artist"),
+        sanitize_virtual_path_part(&album, "Unknown album"),
+        filename_prefix,
+        sanitize_virtual_path_part(&title, "Untitled"),
+        sanitize_virtual_path_part(&suffix, "audio")
+    );
+
+    Some(Track {
+        id: format!("navidrome:{base_url}:{song_id}"),
+        path,
+        title,
+        artist,
+        album,
+        tracknumber,
+        year,
+        genre,
+        has_cover: cover_art_id.is_some(),
+        cover_data_url: None,
+        navidrome_source: Some(NavidromeTrackSource {
+            base_url: base_url.to_string(),
+            username: username.to_string(),
+            password: password.to_string(),
+            song_id,
+            cover_art_id,
+            suffix: Some(suffix),
+            content_type,
+        }),
+    })
 }
 
 fn primary_tag_type_for_path(path: &Path) -> Result<TagType, String> {
@@ -901,6 +1379,10 @@ fn main() {
             pick_music_folder,
             scan_folder,
             search_online,
+            navidrome_ping,
+            navidrome_scan_library,
+            navidrome_get_audio_data_url,
+            navidrome_get_cover_data_url,
             save_track,
             rename_track,
             get_audio_data_url,

@@ -5,7 +5,7 @@ import { getTrackReleaseSortKey } from "../utils/appHelpers";
 const TRACK_LIST_OVERSCAN_ROWS = 4;
 const TRACK_LIST_CARD_MIN_WIDTH = 250;
 const TRACK_LIST_COMPACT_MIN_WIDTH = 320;
-const TRACK_LIST_CARD_ROW_HEIGHT = 68;
+const TRACK_LIST_CARD_ROW_HEIGHT = 64;
 const TRACK_LIST_COMPACT_ROW_HEIGHT = 32;
 const TRACK_LIST_CARD_GAP = 8;
 const TRACK_LIST_COMPACT_GAP = 4;
@@ -47,6 +47,7 @@ export function useLibraryView(tracks: Track[], activeScreen: string, folderPath
   const [trackListScrollTop, setTrackListScrollTop] = useState(0);
   const [trackListViewportHeight, setTrackListViewportHeight] = useState(420);
   const [trackListWidth, setTrackListWidth] = useState(0);
+  const [trackListMeasuredRowHeight, setTrackListMeasuredRowHeight] = useState(TRACK_LIST_CARD_ROW_HEIGHT);
 
   useEffect(() => {
     const list = trackListRef.current;
@@ -56,6 +57,15 @@ export function useLibraryView(tracks: Track[], activeScreen: string, folderPath
     const updateMetrics = () => {
       setTrackListViewportHeight(list.clientHeight || 420);
       setTrackListWidth(list.clientWidth || 0);
+      const row = list.querySelector<HTMLElement>("li:not(.track-list-spacer)");
+      const fallbackRowHeight = libraryViewMode === "compact" ? TRACK_LIST_COMPACT_ROW_HEIGHT : TRACK_LIST_CARD_ROW_HEIGHT;
+      if (!row) {
+        setTrackListMeasuredRowHeight(fallbackRowHeight);
+        return;
+      }
+      const rowGap = Number.parseFloat(window.getComputedStyle(list).rowGap || "0");
+      const measured = Math.ceil(row.getBoundingClientRect().height + (Number.isFinite(rowGap) ? rowGap : 0));
+      setTrackListMeasuredRowHeight(measured > 0 ? measured : fallbackRowHeight);
     };
     updateMetrics();
     if (typeof window.ResizeObserver === "function") {
@@ -70,7 +80,7 @@ export function useLibraryView(tracks: Track[], activeScreen: string, folderPath
     return () => {
       window.removeEventListener("resize", updateMetrics);
     };
-  }, [libraryViewMode, activeScreen]);
+  }, [libraryViewMode, activeScreen, tracks.length]);
 
   useEffect(() => {
     const list = trackListRef.current;
@@ -122,7 +132,10 @@ export function useLibraryView(tracks: Track[], activeScreen: string, folderPath
   const virtualTrackWindow = useMemo(() => {
     const isCompact = libraryViewMode === "compact";
     const gap = isCompact ? TRACK_LIST_COMPACT_GAP : TRACK_LIST_CARD_GAP;
-    const rowHeight = isCompact ? TRACK_LIST_COMPACT_ROW_HEIGHT : TRACK_LIST_CARD_ROW_HEIGHT;
+    const rowHeight = Math.max(
+      isCompact ? TRACK_LIST_COMPACT_ROW_HEIGHT : TRACK_LIST_CARD_ROW_HEIGHT,
+      trackListMeasuredRowHeight
+    );
     const minWidth = isCompact ? TRACK_LIST_COMPACT_MIN_WIDTH : TRACK_LIST_CARD_MIN_WIDTH;
     const columns = Math.max(1, Math.floor((trackListWidth + gap) / (minWidth + gap)));
     const totalRows = Math.ceil(filteredTracks.length / columns);
@@ -147,7 +160,7 @@ export function useLibraryView(tracks: Track[], activeScreen: string, folderPath
       topSpacerHeight: startRow * rowHeight,
       bottomSpacerHeight: Math.max(0, (totalRows - endRow) * rowHeight),
     };
-  }, [filteredTracks, libraryViewMode, trackListScrollTop, trackListViewportHeight, trackListWidth]);
+  }, [filteredTracks, libraryViewMode, trackListMeasuredRowHeight, trackListScrollTop, trackListViewportHeight, trackListWidth]);
 
   useEffect(() => {
     setFileSystemPathSegments([]);

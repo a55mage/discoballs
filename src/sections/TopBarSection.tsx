@@ -4,7 +4,7 @@ import { formatTime } from "../utils/common";
 import { VISUALIZER_PRESETS, type VisualizerPresetId } from "./MusicVisualizerSection";
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
-type TopBarScreen = "dashboard" | "tagging" | "player" | "settings";
+type TopBarScreen = "dashboard" | "library" | "tagging" | "player" | "settings";
 
 type TopBarSectionProps = {
   activeScreen: TopBarScreen;
@@ -196,7 +196,15 @@ export function TopBarSection({
             title="Player"
             aria-label="Player"
           >
-            <span className="btn-content"><IconPlayer className="btn-icon" /></span>
+            <span className="btn-content"><IconPlayer className="btn-icon" /><span className="sidebar-nav-label">Player</span></span>
+          </button>
+          <button
+            className={activeScreen === "library" ? "sidebar-nav-btn is-active-toggle" : "ghost-button sidebar-nav-btn"}
+            onClick={() => onScreenChange("library")}
+            title="Library"
+            aria-label="Library"
+          >
+            <span className="btn-content"><IconLibrary className="btn-icon" /><span className="sidebar-nav-label">Library</span></span>
           </button>
           <button
             className={activeScreen === "dashboard" ? "sidebar-nav-btn is-active-toggle" : "ghost-button sidebar-nav-btn"}
@@ -204,7 +212,7 @@ export function TopBarSection({
             title="Playlists"
             aria-label="Playlists"
           >
-            <span className="btn-content"><IconDashboard className="btn-icon" /></span>
+            <span className="btn-content"><IconDashboard className="btn-icon" /><span className="sidebar-nav-label">Playlists</span></span>
           </button>
           <button
             className={activeScreen === "tagging" ? "sidebar-nav-btn is-active-toggle" : "ghost-button sidebar-nav-btn"}
@@ -212,7 +220,7 @@ export function TopBarSection({
             title="Tags"
             aria-label="Tags"
           >
-            <span className="btn-content"><IconTagging className="btn-icon" /></span>
+            <span className="btn-content"><IconTagging className="btn-icon" /><span className="sidebar-nav-label">Tags</span></span>
           </button>
           <button
             className={activeScreen === "settings" ? "sidebar-nav-btn is-active-toggle" : "ghost-button sidebar-nav-btn"}
@@ -220,7 +228,7 @@ export function TopBarSection({
             title="Settings"
             aria-label="Settings"
           >
-            <span className="btn-content"><IconSettings className="btn-icon" /></span>
+            <span className="btn-content"><IconSettings className="btn-icon" /><span className="sidebar-nav-label">Settings</span></span>
           </button>
         </nav>
 

@@ -1,3 +1,14 @@
+export type NavidromeTrackSource = {
+  type: "navidrome";
+  baseUrl: string;
+  username: string;
+  password: string;
+  songId: string;
+  coverArtId?: string;
+  suffix?: string;
+  contentType?: string;
+};
+
 export type Track = {
   id: string;
   path: string;
@@ -9,6 +20,7 @@ export type Track = {
   genre: string;
   hasCover: boolean;
   coverUrl?: string;
+  source?: NavidromeTrackSource;
 };
 
 export type TrackTechnicalInfo = {
@@ -49,6 +61,26 @@ export type SearchQuery = {
   title: string;
   artist: string;
   album: string;
+};
+
+export type NavidromeConnectionInput = {
+  name: string;
+  baseUrl: string;
+  username: string;
+  password: string;
+};
+
+export type NavidromeConnectionResult = {
+  ok: boolean;
+  serverVersion?: string;
+  apiVersion?: string;
+  message?: string;
+};
+
+export type NavidromeBookmark = NavidromeConnectionInput & {
+  id: string;
+  connectOnOpen: boolean;
+  lastConnectedAt?: string;
 };
 
 export type ScanResult = {

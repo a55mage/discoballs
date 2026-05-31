@@ -9,8 +9,8 @@ type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
 type SettingsSectionProps = {
   autoOpenDefaultFolder: boolean;
   onAutoOpenDefaultFolderChange: (value: boolean) => void;
-  startupScreen: "tagging" | "dashboard" | "player";
-  onStartupScreenChange: (value: "tagging" | "dashboard" | "player") => void;
+  startupScreen: "tagging" | "library" | "dashboard" | "player";
+  onStartupScreenChange: (value: "tagging" | "library" | "dashboard" | "player") => void;
   defaultFolderPath: string;
   onChooseDefaultFolder: () => void;
   folderPath: string;
@@ -242,10 +242,11 @@ export function SettingsSection({
                   <select
                     className="input playlist-control settings-genre-eq-select"
                     value={startupScreen}
-                    onChange={(event) => onStartupScreenChange(event.target.value as "tagging" | "dashboard" | "player")}
+                    onChange={(event) => onStartupScreenChange(event.target.value as "tagging" | "library" | "dashboard" | "player")}
                     aria-label="Startup screen"
                   >
                     <option value="tagging">Music tagging</option>
+                    <option value="library">Library</option>
                     <option value="dashboard">Playlist editor</option>
                     <option value="player">Player</option>
                   </select>

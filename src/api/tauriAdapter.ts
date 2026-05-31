@@ -1,5 +1,16 @@
 import type { MusicAdapter } from "./adapter";
-import type { OnlineMatch, RenameConfig, SaveTrackResult, ScanResult, SearchQuery, Track, TrackTechnicalInfo, TrackUpdate } from "../types";
+import type {
+  NavidromeConnectionInput,
+  NavidromeConnectionResult,
+  OnlineMatch,
+  RenameConfig,
+  SaveTrackResult,
+  ScanResult,
+  SearchQuery,
+  Track,
+  TrackTechnicalInfo,
+  TrackUpdate,
+} from "../types";
 
 type TauriInvoke = <T>(command: string, args?: Record<string, unknown>) => Promise<T>;
 type TauriInternals = {
@@ -33,6 +44,17 @@ type TauriTrack = {
   genre: string;
   has_cover: boolean;
   cover_data_url?: string | null;
+  navidrome_source?: TauriNavidromeTrackSource | null;
+};
+
+type TauriNavidromeTrackSource = {
+  base_url: string;
+  username: string;
+  password: string;
+  song_id: string;
+  cover_art_id?: string | null;
+  suffix?: string | null;
+  content_type?: string | null;
 };
 
 type TauriScanResult = {
@@ -62,7 +84,48 @@ type TauriTrackTechnicalInfo = {
   bit_depth?: number | null;
 };
 
+type TauriNavidromeConnectionResult = {
+  ok: boolean;
+  server_version?: string | null;
+  api_version?: string | null;
+  message?: string | null;
+};
+
+function hexEncode(value: string): string {
+  return Array.from(new TextEncoder().encode(value))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function buildNavidromeRestUrl(
+  source: TauriNavidromeTrackSource | NonNullable<Track["source"]>,
+  endpoint: "stream" | "getCoverArt",
+  params: Record<string, string>
+): string {
+  const baseUrl = "base_url" in source ? source.base_url : source.baseUrl;
+  const username = source.username;
+  const password = source.password;
+  const searchParams = new URLSearchParams({
+    ...params,
+    u: username,
+    p: `enc:${hexEncode(password)}`,
+    v: "1.16.1",
+    c: "DiscoBalls",
+  });
+  return `${baseUrl.replace(/\/+$/, "")}/rest/${endpoint}.view?${searchParams.toString()}`;
+}
+
 function mapTrack(t: TauriTrack): Track {
+  const navidromeSource = t.navidrome_source ? {
+    type: "navidrome" as const,
+    baseUrl: t.navidrome_source.base_url,
+    username: t.navidrome_source.username,
+    password: t.navidrome_source.password,
+    songId: t.navidrome_source.song_id,
+    coverArtId: t.navidrome_source.cover_art_id ?? undefined,
+    suffix: t.navidrome_source.suffix ?? undefined,
+    contentType: t.navidrome_source.content_type ?? undefined,
+  } : undefined;
   return {
     id: t.id,
     path: t.path,
@@ -73,7 +136,10 @@ function mapTrack(t: TauriTrack): Track {
     year: t.year,
     genre: t.genre,
     hasCover: t.has_cover,
-    coverUrl: t.cover_data_url ?? undefined,
+    coverUrl: t.cover_data_url ?? (t.navidrome_source?.cover_art_id
+      ? buildNavidromeRestUrl(t.navidrome_source, "getCoverArt", { id: t.navidrome_source.cover_art_id, size: "300" })
+      : undefined),
+    source: navidromeSource,
   };
 }
 
@@ -100,6 +166,15 @@ function mapTrackTechnicalInfo(info: TauriTrackTechnicalInfo): TrackTechnicalInf
     fileSizeBytes: info.file_size_bytes ?? undefined,
     channels: info.channels ?? undefined,
     bitDepth: info.bit_depth ?? undefined,
+  };
+}
+
+function mapNavidromeConnectionResult(result: TauriNavidromeConnectionResult): NavidromeConnectionResult {
+  return {
+    ok: result.ok,
+    serverVersion: result.server_version ?? undefined,
+    apiVersion: result.api_version ?? undefined,
+    message: result.message ?? undefined,
   };
 }
 
@@ -164,6 +239,33 @@ export const tauriAdapter: MusicAdapter = {
     return result.map(mapOnlineMatch);
   },
 
+  async connectNavidrome(input: NavidromeConnectionInput): Promise<NavidromeConnectionResult> {
+    const invoke = getInvoke();
+    const result = await invoke<TauriNavidromeConnectionResult>("navidrome_ping", {
+      input: {
+        base_url: input.baseUrl,
+        username: input.username,
+        password: input.password,
+      },
+    });
+    return mapNavidromeConnectionResult(result);
+  },
+
+  async scanNavidromeLibrary(input: NavidromeConnectionInput): Promise<ScanResult> {
+    const invoke = getInvoke();
+    const result = await invoke<TauriScanResult>("navidrome_scan_library", {
+      input: {
+        base_url: input.baseUrl,
+        username: input.username,
+        password: input.password,
+      },
+    });
+    return {
+      folderPath: result.folder_path,
+      tracks: result.tracks.map(mapTrack),
+    };
+  },
+
   async renameTrack(path: string, update: TrackUpdate, renameConfig: RenameConfig): Promise<SaveTrackResult> {
     const invoke = getInvoke();
     return await invoke<SaveTrackResult>("rename_track", {
@@ -181,15 +283,35 @@ export const tauriAdapter: MusicAdapter = {
     });
   },
 
-  async getAudioSource(path: string): Promise<string> {
+  async getAudioSource(track: Track): Promise<string> {
     const invoke = getInvoke();
-    return await invoke<string>("get_audio_data_url", { path });
+    if (track.source?.type === "navidrome") {
+      return await invoke<string>("navidrome_get_audio_data_url", {
+        source: {
+          base_url: track.source.baseUrl,
+          username: track.source.username,
+          password: track.source.password,
+          song_id: track.source.songId,
+          cover_art_id: track.source.coverArtId ?? null,
+          suffix: track.source.suffix ?? null,
+          content_type: track.source.contentType ?? null,
+        },
+      });
+    }
+    return await invoke<string>("get_audio_data_url", { path: track.path });
   },
 
   async getTrackTechnicalInfo(path: string): Promise<TrackTechnicalInfo | null> {
     const invoke = getInvoke();
     const result = await invoke<TauriTrackTechnicalInfo | null>("get_track_technical_info", { path });
     return result ? mapTrackTechnicalInfo(result) : null;
+  },
+
+  async getTrackCoverSource(track: Track): Promise<string | null> {
+    if (!track.source || track.source.type !== "navidrome" || !track.source.coverArtId) {
+      return track.coverUrl ?? null;
+    }
+    return buildNavidromeRestUrl(track.source, "getCoverArt", { id: track.source.coverArtId, size: "300" });
   },
 
   async openTrackInFileManager(path: string): Promise<void> {
