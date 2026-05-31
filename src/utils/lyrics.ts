@@ -32,7 +32,7 @@ export function parseSyncedLyrics(lrc: string): LyricLine[] {
       lines.push({ timeSec, text });
     }
   }
-  return lines.sort((a, b) => a.timeSec - b.timeSec);
+  return lines.sort((a, b) => (a.timeSec ?? 0) - (b.timeSec ?? 0));
 }
 
 export function parsePlainLyrics(text: string): LyricLine[] {

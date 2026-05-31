@@ -1,7 +1,7 @@
 import { type ComponentType, type RefObject, type SVGProps, useEffect, useMemo, useRef, useState } from "react";
 import { Card } from "../components/Card";
 import { LibrarySection, type LibrarySectionProps } from "./LibrarySection";
-import { MusicVisualizerSection, VISUALIZER_PRESETS, type VisualizerPresetId } from "./MusicVisualizerSection";
+import { MusicVisualizerSection, type VisualizerPresetId } from "./MusicVisualizerSection";
 import type { Track } from "../types";
 import type { LyricLine } from "../utils/lyrics";
 
@@ -22,21 +22,7 @@ type PlayerSectionProps = {
   showVisualizerColumn: boolean;
   showQueueColumn: boolean;
   showLyricsSection: boolean;
-  onToggleLibraryColumn: () => void;
-  onToggleVisualizerColumn: () => void;
-  onToggleQueueColumn: () => void;
-  onToggleLyricsSection: () => void;
-  IconLibrary: IconComponent;
-  IconVisualizer: IconComponent;
-  IconQueue: IconComponent;
-  IconLyrics: IconComponent;
   visualizerPresetId: VisualizerPresetId;
-  onVisualizerPresetChange: (presetId: VisualizerPresetId) => void;
-  equalizerPresets: Array<{ id: string; name: string }>;
-  equalizerPresetId: string;
-  onEqualizerPresetChange: (presetId: string) => void;
-  autoEqEnabled: boolean;
-  onToggleAutoEq: () => void;
   queueHistoryTracks: Track[];
   queueTracks: Track[];
   hasMoreQueueTracks: boolean;
@@ -48,7 +34,6 @@ type PlayerSectionProps = {
   canClearQueue: boolean;
   IconPlay: IconComponent;
   IconTrash: IconComponent;
-  IconAutoEq: IconComponent;
   lyricsStatus: string;
   lyricsIsSynced: boolean;
   lyricsLines: LyricLine[];
@@ -70,21 +55,7 @@ export function PlayerSection({
   showVisualizerColumn,
   showQueueColumn,
   showLyricsSection,
-  onToggleLibraryColumn,
-  onToggleVisualizerColumn,
-  onToggleQueueColumn,
-  onToggleLyricsSection,
-  IconLibrary,
-  IconVisualizer,
-  IconQueue,
-  IconLyrics,
   visualizerPresetId,
-  onVisualizerPresetChange,
-  equalizerPresets,
-  equalizerPresetId,
-  onEqualizerPresetChange,
-  autoEqEnabled,
-  onToggleAutoEq,
   queueHistoryTracks,
   queueTracks,
   hasMoreQueueTracks,
@@ -96,7 +67,6 @@ export function PlayerSection({
   canClearQueue,
   IconPlay,
   IconTrash,
-  IconAutoEq,
   lyricsStatus,
   lyricsIsSynced,
   lyricsLines,
@@ -334,84 +304,6 @@ export function PlayerSection({
             )}
           </div>
         )}
-      </div>
-
-      <div className="player-subbar" role="group" aria-label="Player layout controls">
-        <div className="player-subbar-columns">
-          <button
-            className={showLibraryColumn ? "top-section-btn is-active-toggle" : "ghost-button top-section-btn"}
-            onClick={onToggleLibraryColumn}
-            title={showLibraryColumn ? "Hide library column" : "Show library column"}
-            aria-label={showLibraryColumn ? "Hide library column" : "Show library column"}
-          >
-            <span className="btn-content"><IconLibrary className="btn-icon" /></span>
-          </button>
-          <button
-            className={showLyricsSection ? "top-section-btn is-active-toggle" : "ghost-button top-section-btn"}
-            onClick={onToggleLyricsSection}
-            title={showLyricsSection ? "Hide lyrics section" : "Show lyrics section"}
-            aria-label={showLyricsSection ? "Hide lyrics section" : "Show lyrics section"}
-          >
-            <span className="btn-content"><IconLyrics className="btn-icon" /></span>
-          </button>
-          <button
-            className={showVisualizerColumn ? "top-section-btn is-active-toggle" : "ghost-button top-section-btn"}
-            onClick={onToggleVisualizerColumn}
-            title={showVisualizerColumn ? "Hide visualizer column" : "Show visualizer column"}
-            aria-label={showVisualizerColumn ? "Hide visualizer column" : "Show visualizer column"}
-          >
-            <span className="btn-content"><IconVisualizer className="btn-icon" /></span>
-          </button>
-          <button
-            className={showQueueColumn ? "top-section-btn is-active-toggle" : "ghost-button top-section-btn"}
-            onClick={onToggleQueueColumn}
-            title={showQueueColumn ? "Hide queue column" : "Show queue column"}
-            aria-label={showQueueColumn ? "Hide queue column" : "Show queue column"}
-          >
-            <span className="btn-content"><IconQueue className="btn-icon" /></span>
-          </button>
-        </div>
-        <div className="player-subbar-selectors">
-          <div className="player-subbar-select-group">
-            <label className="player-subbar-eq-label" htmlFor="player-visualizer-preset">Viz</label>
-            <select
-              id="player-visualizer-preset"
-              className="input playlist-control player-subbar-select"
-              value={visualizerPresetId}
-              onChange={(event) => onVisualizerPresetChange(event.target.value as VisualizerPresetId)}
-              title="Visualizer type"
-              aria-label="Visualizer type"
-            >
-              {VISUALIZER_PRESETS.map((preset) => (
-                <option key={preset.id} value={preset.id}>{preset.label}</option>
-              ))}
-            </select>
-          </div>
-          <div className="player-subbar-select-group">
-            <label className="player-subbar-eq-label" htmlFor="player-eq-preset">EQ</label>
-          <select
-            id="player-eq-preset"
-            className="input playlist-control player-subbar-select"
-            value={equalizerPresetId}
-            onChange={(event) => onEqualizerPresetChange(event.target.value)}
-            title="Equalizer preset"
-            aria-label="Equalizer preset"
-          >
-            <option value="">Custom</option>
-            {equalizerPresets.map((preset) => (
-              <option key={preset.id} value={preset.id}>{preset.name}</option>
-            ))}
-          </select>
-          </div>
-          <button
-            className={autoEqEnabled ? "top-section-btn is-active-toggle player-subbar-autoeq" : "ghost-button top-section-btn player-subbar-autoeq"}
-            onClick={onToggleAutoEq}
-            title={autoEqEnabled ? "Disable Auto EQ" : "Enable Auto EQ"}
-            aria-label={autoEqEnabled ? "Disable Auto EQ" : "Enable Auto EQ"}
-          >
-            <span className="btn-content"><IconAutoEq className="btn-icon" />Auto EQ</span>
-          </button>
-        </div>
       </div>
     </main>
   );

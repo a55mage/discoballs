@@ -80,7 +80,7 @@ export function TrackDetailsSection({
       <div className="detail-layout">
         <div className="detail-cover-wrap">
           <input
-            ref={coverInputRef}
+            ref={coverInputRef as RefObject<HTMLInputElement>}
             type="file"
             accept="image/*"
             onChange={onCoverFileChange}

@@ -37,8 +37,8 @@ export type MediaAudioGraph = {
   outputGain: GainNode;
   filters: BiquadFilterNode[];
   analyser: AnalyserNode;
-  frequencyData: Uint8Array;
-  timeData: Uint8Array;
+  frequencyData: Uint8Array<ArrayBuffer>;
+  timeData: Uint8Array<ArrayBuffer>;
 };
 
 type EqualizerRuntimeSettings = {

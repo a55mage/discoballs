@@ -220,7 +220,7 @@ function drawAlchemy(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
-  freq: Uint8Array,
+  freq: Uint8Array<ArrayBuffer>,
   accentColor: string,
   isPlaying: boolean
 ) {
@@ -266,7 +266,7 @@ function drawAlchemy(
   ctx.fill();
 }
 
-function bandEnergy(freq: Uint8Array, start: number, end: number): number {
+function bandEnergy(freq: Uint8Array<ArrayBuffer>, start: number, end: number): number {
   const from = Math.max(0, Math.min(freq.length - 1, start));
   const to = Math.max(from + 1, Math.min(freq.length, end));
   let sum = 0;
@@ -280,7 +280,7 @@ function drawXpBars(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
-  freq: Uint8Array,
+  freq: Uint8Array<ArrayBuffer>,
   accentColor: string,
   isPlaying: boolean
 ) {
@@ -310,7 +310,7 @@ function drawScope(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
-  time: Uint8Array,
+  time: Uint8Array<ArrayBuffer>,
   accentColor: string,
   isPlaying: boolean
 ) {

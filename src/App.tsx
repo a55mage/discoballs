@@ -1,4 +1,4 @@
-import { type ChangeEvent, type CSSProperties, type KeyboardEvent, type MouseEvent, type PointerEvent, type UIEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type ChangeEvent, type CSSProperties, type KeyboardEvent, type MouseEvent, type PointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import { createAdapter } from "./api/tauriAdapter";
 import { mockAdapter } from "./api/mockAdapter";
 import appIcon from "./assets/discoballs-icon.png";
@@ -52,6 +52,20 @@ import { SettingsSection } from "./sections/SettingsSection";
 import { TopBarSection } from "./sections/TopBarSection";
 import { TrackDetailsSection } from "./sections/TrackDetailsSection";
 import type { OnlineMatch, RenameField, SearchQuery, Track, TrackTechnicalInfo } from "./types";
+import { BUILTIN_EQ_PRESET_IDS, buildUniqueEqualizerPresetName } from "./domain/equalizer";
+import {
+  areTrackIdListsEqual,
+  buildLibraryQueueOrder,
+  buildPlaylistQueueOrder,
+  buildUniquePlaylistName,
+  normalizePlaylistName,
+  shuffleTrackIds,
+  type Playlist,
+  type PlaylistEntry,
+} from "./domain/playlist";
+import { RENAME_FIELD_KEYS, RENAME_FIELD_OPTIONS, renameFieldLabel } from "./domain/rename";
+import { ACCENT_THEMES, buildSoftAccent, buildStrongAccent, type AccentTheme } from "./domain/theme";
+import { useLibraryView } from "./hooks/useLibraryView";
 import { formatError, getFileName, getUserLocale } from "./utils/common";
 import {
   applyEqualizerSettings,
@@ -69,7 +83,6 @@ import {
   formatTrackTechnicalBadge,
   formatTrackTechnicalSummary,
   getOnlineMatchDateSortKey,
-  getTrackReleaseSortKey,
   inferGenrePresetId,
   NO_GENRE_EQ_KEY,
   normalizeGenreKey,
@@ -78,33 +91,6 @@ import {
 import { fetchLyrics, getActiveLyricIndex, type LyricLine } from "./utils/lyrics";
 
 const adapter = createAdapter(mockAdapter);
-const ACCENT_THEMES = [
-  { accent: "#ee703e", soft: "#e9dfce", strong: "#df6535" },
-  { accent: "#2d9c5f", soft: "#d8ebdd", strong: "#23804c" },
-  { accent: "#2f7dd1", soft: "#dbe7f4", strong: "#2565aa" },
-  { accent: "#b85cc8", soft: "#ebddf1", strong: "#9b49aa" },
-  { accent: "#d14f6a", soft: "#f3d9df", strong: "#ae3d56" },
-  { accent: "#cc8a22", soft: "#efe3ce", strong: "#aa721b" },
-  { accent: "#3a8b8f", soft: "#d5e7e8", strong: "#2e7073" },
-] as const;
-type AccentTheme = { accent: string; soft: string; strong: string };
-const RENAME_FIELD_OPTIONS: Array<{ key: RenameField; label: string }> = [
-  { key: "tracknumber", label: "Track number" },
-  { key: "artist", label: "Artist" },
-  { key: "album", label: "Album" },
-  { key: "title", label: "Title" },
-  { key: "year", label: "Year" },
-  { key: "genre", label: "Genre" },
-];
-const RENAME_FIELD_KEYS = new Set<RenameField>(RENAME_FIELD_OPTIONS.map((option) => option.key));
-const TRACK_LIST_OVERSCAN_ROWS = 4;
-const TRACK_LIST_CARD_MIN_WIDTH = 250;
-const TRACK_LIST_COMPACT_MIN_WIDTH = 320;
-const TRACK_LIST_CARD_ROW_HEIGHT = 68;
-const TRACK_LIST_COMPACT_ROW_HEIGHT = 32;
-const TRACK_LIST_CARD_GAP = 8;
-const TRACK_LIST_COMPACT_GAP = 4;
-const TRACK_LIST_VIRTUALIZE_AFTER = 120;
 const STORAGE_PLAYLISTS_KEY = "musicmanager-playlists";
 const STORAGE_ACTIVE_PLAYLIST_ID_KEY = "musicmanager-active-playlist-id";
 const STORAGE_PLAYER_COLUMNS_KEY = "musicmanager-player-columns";
@@ -113,142 +99,13 @@ const STORAGE_PLAYER_SHOW_LYRICS_KEY = "musicmanager-player-show-lyrics";
 const STORAGE_STARTUP_SCREEN_KEY = "musicmanager-startup-screen";
 const PLAYER_QUEUE_PAGE_SIZE = 50;
 const PLAYER_QUEUE_HISTORY_SIZE = 1;
-type LibrarySortMode = "title" | "artist" | "added" | "release";
-type SortDirection = "asc" | "desc";
 type AppScreen = "tagging" | "dashboard" | "settings" | "player";
 type StartupScreen = "tagging" | "dashboard" | "player";
-type PlaylistEntry = { id: string; trackId: string };
-type Playlist = { id: string; name: string; entries: PlaylistEntry[] };
 type PlayerColumnVisibility = { library: boolean; visualizer: boolean; queue: boolean };
-const BUILTIN_EQ_PRESET_IDS = new Set(EQUALIZER_PRESETS.map((preset) => preset.id));
-
-function shuffleTrackIds(trackIds: string[]): string[] {
-  const shuffled = [...trackIds];
-  for (let index = shuffled.length - 1; index > 0; index -= 1) {
-    const randomIndex = Math.floor(Math.random() * (index + 1));
-    const current = shuffled[index];
-    shuffled[index] = shuffled[randomIndex];
-    shuffled[randomIndex] = current;
-  }
-  return shuffled;
-}
-
-function buildPlaylistQueueOrder(trackIds: string[], shuffleEnabled: boolean, startTrackId?: string): string[] {
-  const normalizedTrackIds = trackIds.filter((trackId, index) => trackId && trackIds.indexOf(trackId) === index);
-  if (!normalizedTrackIds.length) {
-    return [];
-  }
-  const startId = startTrackId && normalizedTrackIds.includes(startTrackId) ? startTrackId : normalizedTrackIds[0];
-  if (!startId) {
-    return normalizedTrackIds;
-  }
-  const remainingTrackIds = normalizedTrackIds.filter((trackId) => trackId !== startId);
-  if (shuffleEnabled) {
-    return [startId, ...shuffleTrackIds(remainingTrackIds)];
-  }
-  const startIndex = normalizedTrackIds.indexOf(startId);
-  return normalizedTrackIds.slice(startIndex);
-}
-
-function buildLibraryQueueOrder(trackIds: string[], startTrackId: string): string[] {
-  const startIndex = trackIds.findIndex((trackId) => trackId === startTrackId);
-  if (startIndex < 0) {
-    return [];
-  }
-  return trackIds.slice(startIndex);
-}
-
-function areTrackIdListsEqual(left: string[], right: string[]): boolean {
-  if (left.length !== right.length) {
-    return false;
-  }
-  return left.every((trackId, index) => trackId === right[index]);
-}
-
-function normalizePlaylistName(value: string): string {
-  return value.trim().toLowerCase();
-}
-
-function buildUniquePlaylistName(playlists: Playlist[], baseName: string, excludeId?: string): string {
-  const fallbackBase = baseName.trim() || "New Playlist";
-  const usedNames = new Set(
-    playlists
-      .filter((playlist) => playlist.id !== excludeId)
-      .map((playlist) => normalizePlaylistName(playlist.name))
-  );
-  if (!usedNames.has(normalizePlaylistName(fallbackBase))) {
-    return fallbackBase;
-  }
-  let index = 2;
-  while (usedNames.has(normalizePlaylistName(`${fallbackBase} (${index})`))) {
-    index += 1;
-  }
-  return `${fallbackBase} (${index})`;
-}
-
-function normalizeEqualizerPresetName(value: string): string {
-  return value.trim().toLowerCase();
-}
-
-function buildUniqueEqualizerPresetName(presets: EqualizerPreset[], baseName: string, excludeId?: string): string {
-  const fallbackBase = baseName.trim() || "New Preset";
-  const usedNames = new Set(
-    presets
-      .filter((preset) => preset.id !== excludeId)
-      .map((preset) => normalizeEqualizerPresetName(preset.name))
-  );
-  if (!usedNames.has(normalizeEqualizerPresetName(fallbackBase))) {
-    return fallbackBase;
-  }
-  let index = 2;
-  while (usedNames.has(normalizeEqualizerPresetName(`${fallbackBase} (${index})`))) {
-    index += 1;
-  }
-  return `${fallbackBase} (${index})`;
-}
-
-function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
-  const normalized = hex.trim().replace("#", "");
-  if (!/^[0-9a-fA-F]{6}$/.test(normalized)) {
-    return null;
-  }
-  const r = Number.parseInt(normalized.slice(0, 2), 16);
-  const g = Number.parseInt(normalized.slice(2, 4), 16);
-  const b = Number.parseInt(normalized.slice(4, 6), 16);
-  return { r, g, b };
-}
-
-function rgbToHex(r: number, g: number, b: number): string {
-  const clamp = (value: number) => Math.max(0, Math.min(255, Math.round(value)));
-  return `#${[clamp(r), clamp(g), clamp(b)].map((value) => value.toString(16).padStart(2, "0")).join("")}`;
-}
-
-function mixHex(base: string, target: string, ratio: number): string {
-  const baseRgb = hexToRgb(base);
-  const targetRgb = hexToRgb(target);
-  if (!baseRgb || !targetRgb) {
-    return base;
-  }
-  const safeRatio = Math.max(0, Math.min(1, ratio));
-  return rgbToHex(
-    baseRgb.r + (targetRgb.r - baseRgb.r) * safeRatio,
-    baseRgb.g + (targetRgb.g - baseRgb.g) * safeRatio,
-    baseRgb.b + (targetRgb.b - baseRgb.b) * safeRatio
-  );
-}
-
-function buildSoftAccent(accent: string): string {
-  return mixHex(accent, "#ffffff", 0.78);
-}
-
-function buildStrongAccent(accent: string): string {
-  return mixHex(accent, "#000000", 0.12);
-}
 
 export function App() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const coverInputRef = useRef<HTMLInputElement | null>(null);
-  const trackListRef = useRef<HTMLUListElement | null>(null);
   const selectTrackRef = useRef<(track: Track) => void>(() => undefined);
   const playbackQueueTracksRef = useRef<Track[]>([]);
   const playbackTrackIdRef = useRef("");
@@ -272,9 +129,6 @@ export function App() {
   const [folderPath, setFolderPath] = useState("");
   const [activeScreen, setActiveScreen] = useState<AppScreen>("tagging");
   const [startupScreen, setStartupScreen] = useState<StartupScreen>("tagging");
-  const [query, setQuery] = useState("");
-  const [librarySortMode, setLibrarySortMode] = useState<LibrarySortMode>("added");
-  const [librarySortDirection, setLibrarySortDirection] = useState<SortDirection>("asc");
   const [selectedTrackId, setSelectedTrackId] = useState<string>("");
   const [playbackTrackId, setPlaybackTrackId] = useState<string>("");
   const [playbackPlaylistId, setPlaybackPlaylistId] = useState<string>("");
@@ -327,10 +181,6 @@ export function App() {
   const [lyricsStatus, setLyricsStatus] = useState("Select a track to load lyrics.");
   const [trackTechnicalInfo, setTrackTechnicalInfo] = useState<TrackTechnicalInfo | null>(null);
   const [shouldAutoplay, setShouldAutoplay] = useState(false);
-  const [libraryViewMode, setLibraryViewMode] = useState<"card" | "compact">("card");
-  const [trackListScrollTop, setTrackListScrollTop] = useState(0);
-  const [trackListViewportHeight, setTrackListViewportHeight] = useState(420);
-  const [trackListWidth, setTrackListWidth] = useState(0);
   const [accentThemes, setAccentThemes] = useState<AccentTheme[]>(ACCENT_THEMES.map((theme) => ({ ...theme })));
   const [accentIndex, setAccentIndex] = useState(0);
   const [colorMode, setColorMode] = useState<"light" | "dark">("light");
@@ -344,6 +194,26 @@ export function App() {
   const [isDashboardDragging, setIsDashboardDragging] = useState(false);
   const [dashboardDropArea, setDashboardDropArea] = useState<"none" | "dropzone" | "playlist">("none");
   const [dashboardDropEntryId, setDashboardDropEntryId] = useState("");
+  const {
+    query,
+    setQuery,
+    librarySortMode,
+    librarySortDirection,
+    libraryViewMode,
+    setLibraryViewMode,
+    isFileSystemView,
+    setIsFileSystemView,
+    fileSystemEntries,
+    fileSystemCurrentPath,
+    canGoUpFileSystemFolder,
+    openFileSystemFolder,
+    goUpFileSystemFolder,
+    trackListRef,
+    handleTrackListScroll,
+    handleLibrarySortClick,
+    filteredTracks,
+    virtualTrackWindow,
+  } = useLibraryView(tracks, activeScreen, folderPath);
   const userLocale = useMemo(() => getUserLocale(), []);
   const activePlaylist = useMemo(
     () => playlists.find((playlist) => playlist.id === activePlaylistId) ?? null,
@@ -1085,7 +955,7 @@ export function App() {
   }, [folderPath, tracks]);
 
   useEffect(() => {
-    const onPointerMove = (event: PointerEvent) => {
+    const onPointerMove = (event: globalThis.PointerEvent) => {
       const state = pointerDragStateRef.current;
       if (state.kind === "none") {
         return;
@@ -1108,7 +978,7 @@ export function App() {
       setDashboardDropEntryId((prev) => (prev === nextDropEntryId ? prev : nextDropEntryId));
     };
 
-    const onPointerUp = (event: PointerEvent) => {
+    const onPointerUp = (event: globalThis.PointerEvent) => {
       const state = pointerDragStateRef.current;
       if (activeScreen !== "dashboard" || state.kind === "none") {
         clearDragState();
@@ -1159,37 +1029,6 @@ export function App() {
   }, [selectedTrackId, tracks]);
 
   useEffect(() => {
-    const list = trackListRef.current;
-    if (!list) {
-      return;
-    }
-    const updateMetrics = () => {
-      setTrackListViewportHeight(list.clientHeight || 420);
-      setTrackListWidth(list.clientWidth || 0);
-    };
-    updateMetrics();
-    if (typeof window.ResizeObserver === "function") {
-      const observer = new window.ResizeObserver(updateMetrics);
-      observer.observe(list);
-      return () => {
-        observer.disconnect();
-      };
-    }
-
-    window.addEventListener("resize", updateMetrics);
-    return () => {
-      window.removeEventListener("resize", updateMetrics);
-    };
-  }, [libraryViewMode, activeScreen]);
-
-  useEffect(() => {
-    const list = trackListRef.current;
-    if (list) {
-      list.scrollTop = 0;
-    }
-    setTrackListScrollTop(0);
-  }, [query, libraryViewMode, tracks.length, activeScreen]);
-  useEffect(() => {
     const audio = audioRef.current;
     if (!audio) {
       return;
@@ -1204,6 +1043,7 @@ export function App() {
       if (isRepeatTrackEnabledRef.current && currentTrackId) {
         audio.currentTime = 0;
         try {
+          await ensureAudioGraphReady();
           await audio.play();
           setIsPlaying(true);
           setAudioError("");
@@ -1331,6 +1171,7 @@ export function App() {
     let cancelled = false;
     (async () => {
       try {
+        await ensureAudioGraphReady();
         await audio.play();
         if (cancelled) {
           return;
@@ -1427,81 +1268,6 @@ export function App() {
     };
   }, [lyricsTrack?.id]);
 
-  const filteredTracks = useMemo(() => {
-    const q = query.toLowerCase();
-    const sourceTracks = query.trim()
-      ? tracks.filter(
-          (t) =>
-            t.title.toLowerCase().includes(q) ||
-            t.artist.toLowerCase().includes(q) ||
-            t.album.toLowerCase().includes(q) ||
-            t.path.toLowerCase().includes(q)
-      )
-      : tracks;
-    const collator = new Intl.Collator(undefined, { sensitivity: "base" });
-    const tracksInScanOrder = [...sourceTracks];
-    let sortedTracks = tracksInScanOrder;
-    switch (librarySortMode) {
-      case "title":
-        sortedTracks = [...sourceTracks].sort((a, b) => collator.compare(a.title || "", b.title || ""));
-        break;
-      case "artist":
-        sortedTracks = [...sourceTracks].sort((a, b) => collator.compare(a.artist || "", b.artist || ""));
-        break;
-      case "release":
-        sortedTracks = [...sourceTracks].sort((a, b) => {
-          const aYear = getTrackReleaseSortKey(a.year);
-          const bYear = getTrackReleaseSortKey(b.year);
-          if (aYear !== bYear) {
-            return aYear - bYear;
-          }
-          return collator.compare(a.title || "", b.title || "");
-        });
-        break;
-      case "added":
-      default:
-        sortedTracks = tracksInScanOrder;
-        break;
-    }
-    return librarySortDirection === "desc" ? [...sortedTracks].reverse() : sortedTracks;
-  }, [tracks, query, librarySortMode, librarySortDirection]);
-  function handleLibrarySortClick(mode: LibrarySortMode) {
-    if (mode === librarySortMode) {
-      setLibrarySortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
-      return;
-    }
-    setLibrarySortMode(mode);
-    setLibrarySortDirection("asc");
-  }
-  const virtualTrackWindow = useMemo(() => {
-    const isCompact = libraryViewMode === "compact";
-    const gap = isCompact ? TRACK_LIST_COMPACT_GAP : TRACK_LIST_CARD_GAP;
-    const rowHeight = isCompact ? TRACK_LIST_COMPACT_ROW_HEIGHT : TRACK_LIST_CARD_ROW_HEIGHT;
-    const minWidth = isCompact ? TRACK_LIST_COMPACT_MIN_WIDTH : TRACK_LIST_CARD_MIN_WIDTH;
-    const columns = Math.max(1, Math.floor((trackListWidth + gap) / (minWidth + gap)));
-    const totalRows = Math.ceil(filteredTracks.length / columns);
-    const shouldVirtualize = filteredTracks.length > TRACK_LIST_VIRTUALIZE_AFTER;
-
-    if (!shouldVirtualize) {
-      return {
-        visibleTracks: filteredTracks,
-        topSpacerHeight: 0,
-        bottomSpacerHeight: 0,
-      };
-    }
-
-    const viewportRows = Math.max(1, Math.ceil(trackListViewportHeight / rowHeight));
-    const startRow = Math.max(0, Math.floor(trackListScrollTop / rowHeight) - TRACK_LIST_OVERSCAN_ROWS);
-    const endRow = Math.min(totalRows, startRow + viewportRows + TRACK_LIST_OVERSCAN_ROWS * 2);
-    const startIndex = startRow * columns;
-    const endIndex = Math.min(filteredTracks.length, endRow * columns);
-
-    return {
-      visibleTracks: filteredTracks.slice(startIndex, endIndex),
-      topSpacerHeight: startRow * rowHeight,
-      bottomSpacerHeight: Math.max(0, (totalRows - endRow) * rowHeight),
-    };
-  }, [filteredTracks, libraryViewMode, trackListScrollTop, trackListViewportHeight, trackListWidth]);
   const trackById = useMemo(() => new Map(tracks.map((track) => [track.id, track])), [tracks]);
   const playbackQueueTracks = useMemo(
     () =>
@@ -2111,7 +1877,7 @@ export function App() {
     setAccentIndex(0);
   }
 
-  function ensureAudioGraphReady() {
+  async function ensureAudioGraphReady() {
     const audio = audioRef.current;
     if (!audio) {
       return;
@@ -2125,9 +1891,9 @@ export function App() {
       preampDb: equalizerPreampDb,
       wetMixPercent: equalizerWetMixPercent,
     });
-    void graph.context.resume().catch(() => {
-      // Resume may fail without a user gesture in some environments.
-    });
+    if (graph.context.state === "suspended") {
+      await graph.context.resume();
+    }
   }
 
   async function handleTogglePlayPause() {
@@ -2140,7 +1906,13 @@ export function App() {
       setIsPlaying(false);
       return;
     }
-    ensureAudioGraphReady();
+    try {
+      await ensureAudioGraphReady();
+    } catch {
+      setAudioError("Unable to start playback in this environment.");
+      setIsPlaying(false);
+      return;
+    }
 
     const targetTrack = playbackTrack ?? selectedTrack;
     if (targetTrack && targetTrack.id !== playbackTrackId) {
@@ -2161,6 +1933,7 @@ export function App() {
     }
 
     try {
+      await ensureAudioGraphReady();
       await audio.play();
       setIsPlaying(true);
       setAudioError("");
@@ -2170,9 +1943,15 @@ export function App() {
     }
   }
 
-  function handlePlayFromLibraryCover(event: MouseEvent<HTMLElement>, track: Track) {
+  async function handlePlayFromLibraryCover(event: MouseEvent<HTMLElement>, track: Track) {
     event.stopPropagation();
-    ensureAudioGraphReady();
+    try {
+      await ensureAudioGraphReady();
+    } catch {
+      setAudioError("Unable to start playback in this environment.");
+      setIsPlaying(false);
+      return;
+    }
     if (!startPlaybackFromLibrary(track)) {
       return;
     }
@@ -2183,16 +1962,15 @@ export function App() {
       return;
     }
 
-    void audio.play().then(
-      () => {
-        setIsPlaying(true);
-        setAudioError("");
-      },
-      () => {
-        setAudioError("Unable to start playback in this environment.");
-        setIsPlaying(false);
-      }
-    );
+    try {
+      await ensureAudioGraphReady();
+      await audio.play();
+      setIsPlaying(true);
+      setAudioError("");
+    } catch {
+      setAudioError("Unable to start playback in this environment.");
+      setIsPlaying(false);
+    }
   }
 
   function handleSeek(value: number) {
@@ -2227,10 +2005,6 @@ export function App() {
     if (clamped > 0 && audio.muted) {
       audio.muted = false;
     }
-  }
-
-  function handleTrackListScroll(event: UIEvent<HTMLUListElement>) {
-    setTrackListScrollTop(event.currentTarget.scrollTop);
   }
 
   function handleSelectCoverClick() {
@@ -2295,8 +2069,14 @@ export function App() {
     }
   }
 
-  function handlePrevTrack() {
-    ensureAudioGraphReady();
+  async function handlePrevTrack() {
+    try {
+      await ensureAudioGraphReady();
+    } catch {
+      setAudioError("Unable to start playback in this environment.");
+      setIsPlaying(false);
+      return;
+    }
     const prev = playbackTrackIndex > 0 ? playbackQueueTracks[playbackTrackIndex - 1] ?? null : null;
     if (prev) {
       setPlaybackTrackId(prev.id);
@@ -2305,8 +2085,14 @@ export function App() {
     }
   }
 
-  function handleNextTrack() {
-    ensureAudioGraphReady();
+  async function handleNextTrack() {
+    try {
+      await ensureAudioGraphReady();
+    } catch {
+      setAudioError("Unable to start playback in this environment.");
+      setIsPlaying(false);
+      return;
+    }
     const next =
       playbackTrackIndex >= 0 && playbackTrackIndex < playbackQueueTracks.length - 1
         ? playbackQueueTracks[playbackTrackIndex + 1] ?? null
@@ -2318,17 +2104,29 @@ export function App() {
     }
   }
 
-  function handlePlayTrackFromPlaylist(track: Track, playlistId?: string) {
-    ensureAudioGraphReady();
+  async function handlePlayTrackFromPlaylist(track: Track, playlistId?: string) {
+    try {
+      await ensureAudioGraphReady();
+    } catch {
+      setAudioError("Unable to start playback in this environment.");
+      setIsPlaying(false);
+      return;
+    }
     if (!playlistId) {
-      handlePlayTrackFromPlayerQueue(track);
+      await handlePlayTrackFromPlayerQueue(track);
       return;
     }
     startPlaybackFromPlaylist(playlistId, track.id);
   }
 
-  function handlePlayTrackFromPlayerQueue(track: Track) {
-    ensureAudioGraphReady();
+  async function handlePlayTrackFromPlayerQueue(track: Track) {
+    try {
+      await ensureAudioGraphReady();
+    } catch {
+      setAudioError("Unable to start playback in this environment.");
+      setIsPlaying(false);
+      return;
+    }
     if (track.id !== selectedTrackId) {
       selectTrack(track);
     }
@@ -2342,23 +2140,28 @@ export function App() {
       setShouldAutoplay(true);
       return;
     }
-    void audio.play().then(
-      () => {
-        setIsPlaying(true);
-        setAudioError("");
-      },
-      () => {
-        setAudioError("Unable to start playback in this environment.");
-        setIsPlaying(false);
-      }
-    );
+    try {
+      await ensureAudioGraphReady();
+      await audio.play();
+      setIsPlaying(true);
+      setAudioError("");
+    } catch {
+      setAudioError("Unable to start playback in this environment.");
+      setIsPlaying(false);
+    }
   }
 
-  function handlePlayActivePlaylist() {
+  async function handlePlayActivePlaylist() {
     if (!activePlaylist) {
       return;
     }
-    ensureAudioGraphReady();
+    try {
+      await ensureAudioGraphReady();
+    } catch {
+      setAudioError("Unable to start playback in this environment.");
+      setIsPlaying(false);
+      return;
+    }
     startPlaybackFromPlaylist(activePlaylist.id);
   }
 
@@ -2928,6 +2731,8 @@ export function App() {
         audioRef={audioRef}
         audioSrc={audioSrc}
         playerInfoTrack={playerInfoTrack}
+        playerTechnicalBadge={trackTechnicalBadge}
+        playerTechnicalSummary={trackTechnicalSummary}
         isPlaying={isPlaying}
         currentTime={currentTime}
         duration={duration}
@@ -2953,6 +2758,37 @@ export function App() {
         onSeek={handleSeek}
         onToggleMute={() => setIsMuted((prev) => !prev)}
         onVolumeChange={handleVolumeChange}
+        equalizerPresets={equalizerPresets}
+        equalizerPresetId={equalizerPresetId}
+        onEqualizerPresetChange={handleEqualizerPresetChange}
+        autoEqEnabled={audioAutoEq}
+        onToggleAutoEq={() => setAudioAutoEq((prev) => !prev)}
+        showLibraryColumn={playerColumnVisibility.library}
+        showVisualizerColumn={playerColumnVisibility.visualizer}
+        showQueueColumn={playerColumnVisibility.queue}
+        showLyricsSection={showPlayerLyricsSection}
+        onToggleLibraryColumn={() => togglePlayerColumn("library")}
+        onToggleVisualizerColumn={() => togglePlayerColumn("visualizer")}
+        onToggleQueueColumn={() => togglePlayerColumn("queue")}
+        onToggleLyricsSection={handleTogglePlayerLyricsSection}
+        visualizerPresetId={playerVisualizerPresetId}
+        onVisualizerPresetChange={setPlayerVisualizerPresetId}
+        activePlaylistId={activePlaylistId}
+        isPlaylistRenaming={isPlaylistRenaming}
+        playlistNameDraft={playlistNameDraft}
+        playlists={playlists}
+        hasActivePlaylist={Boolean(activePlaylist)}
+        canPlayActivePlaylist={Boolean(activePlaylist?.entries.length)}
+        onActivePlaylistChange={handleActivePlaylistChange}
+        onPlaylistDraftChange={handlePlaylistDraftChange}
+        onCreatePlaylist={handleCreatePlaylist}
+        onRenamePlaylist={handleRenamePlaylistButtonClick}
+        onPlaylistRenameInputKeyDown={handlePlaylistRenameInputKeyDown}
+        onDeletePlaylist={handleDeletePlaylist}
+        onPlayActivePlaylist={handlePlayActivePlaylist}
+        onOpenExternalLink={(url) => {
+          void handleOpenExternalLink({ preventDefault: () => {} }, url);
+        }}
         IconShuffle={IconShuffle}
         IconPrev={IconPrev}
         IconPause={IconPause}
@@ -2961,6 +2797,17 @@ export function App() {
         IconRepeatTrack={IconRepeatOne}
         IconMute={IconMute}
         IconVolume={IconVolume}
+        IconAutoEq={IconAutoEq}
+        IconLibrary={IconFolder}
+        IconVisualizer={IconVisualizerBars}
+        IconQueue={IconListCompact}
+        IconLyrics={IconMic}
+        IconPlus={IconPlus}
+        IconRename={IconRename}
+        IconTrash={IconTrash}
+        IconGlobe={IconGlobe}
+        IconUser={IconUser}
+        IconHeart={IconHeart}
         IconDashboard={IconPlaylist}
         IconTagging={IconTag}
         IconPlayer={IconPlay}
@@ -2981,6 +2828,13 @@ export function App() {
               onQueryChange={setQuery}
               libraryViewMode={libraryViewMode}
               onLibraryViewModeChange={setLibraryViewMode}
+              isFileSystemView={isFileSystemView}
+              onFileSystemViewChange={setIsFileSystemView}
+              fileSystemEntries={fileSystemEntries}
+              fileSystemCurrentPath={fileSystemCurrentPath}
+              canGoUpFileSystemFolder={canGoUpFileSystemFolder}
+              onOpenFileSystemFolder={openFileSystemFolder}
+              onGoUpFileSystemFolder={goUpFileSystemFolder}
               librarySortMode={librarySortMode}
               librarySortDirection={librarySortDirection}
               onLibrarySortClick={handleLibrarySortClick}
@@ -2994,6 +2848,7 @@ export function App() {
               onSearchTrack={handleQuickSearchTrack}
               onPlayFromLibraryCover={handlePlayFromLibraryCover}
               IconFolder={IconFolder}
+              IconArrowUp={IconArrowUp}
               IconMusicNote={IconMusicNote}
               IconSortTitle={IconSortTitle}
               IconSortArtist={IconSortArtist}
@@ -3068,8 +2923,6 @@ export function App() {
 
       {activeScreen === "dashboard" && (
         <DashboardSection
-          activePlaylistId={activePlaylistId}
-          isPlaylistRenaming={isPlaylistRenaming}
           libraryProps={{
             folderPath,
             onOpenFolderPathClick: () => {
@@ -3081,6 +2934,13 @@ export function App() {
             onQueryChange: setQuery,
             libraryViewMode,
             onLibraryViewModeChange: setLibraryViewMode,
+            isFileSystemView,
+            onFileSystemViewChange: setIsFileSystemView,
+            fileSystemEntries,
+            fileSystemCurrentPath,
+            canGoUpFileSystemFolder,
+            onOpenFileSystemFolder: openFileSystemFolder,
+            onGoUpFileSystemFolder: goUpFileSystemFolder,
             librarySortMode,
             librarySortDirection,
             onLibrarySortClick: handleLibrarySortClick,
@@ -3107,6 +2967,7 @@ export function App() {
                 ? pointerDragStateRef.current.id
                 : "",
             IconFolder,
+            IconArrowUp,
             IconMusicNote,
             IconSortTitle,
             IconSortArtist,
@@ -3119,10 +2980,6 @@ export function App() {
             IconTrackAction: IconPlus,
             IconBulkTrackAction: IconMusicArrowRight,
           }}
-          playlistNameDraft={playlistNameDraft}
-          playlists={playlists}
-          hasActivePlaylist={Boolean(activePlaylist)}
-          canPlayActivePlaylist={Boolean(activePlaylist?.entries.length)}
           activePlaylistEntries={activePlaylist?.entries ?? []}
           tracks={tracks}
           isDashboardDragging={isDashboardDragging}
@@ -3133,13 +2990,6 @@ export function App() {
               ? pointerDragStateRef.current.id
               : ""
           }
-          onActivePlaylistChange={handleActivePlaylistChange}
-          onPlaylistDraftChange={handlePlaylistDraftChange}
-          onCreatePlaylist={handleCreatePlaylist}
-          onRenamePlaylist={handleRenamePlaylistButtonClick}
-          onPlaylistRenameInputKeyDown={handlePlaylistRenameInputKeyDown}
-          onDeletePlaylist={handleDeletePlaylist}
-          onPlayActivePlaylist={handlePlayActivePlaylist}
           onPlaylistEntryPointerDown={handlePlaylistEntryPointerDown}
           onPlaylistEntryClick={(track) => {
             if (suppressNextPlaylistItemClickRef.current) {
@@ -3149,8 +2999,6 @@ export function App() {
             handlePlayTrackFromPlaylist(track, activePlaylist?.id);
           }}
           onRemovePlaylistEntry={removePlaylistEntry}
-          IconPlus={IconPlus}
-          IconRename={IconRename}
           IconTrash={IconTrash}
           IconPlay={IconPlay}
         />
@@ -3169,6 +3017,13 @@ export function App() {
             onQueryChange: setQuery,
             libraryViewMode,
             onLibraryViewModeChange: setLibraryViewMode,
+            isFileSystemView,
+            onFileSystemViewChange: setIsFileSystemView,
+            fileSystemEntries,
+            fileSystemCurrentPath,
+            canGoUpFileSystemFolder,
+            onOpenFileSystemFolder: openFileSystemFolder,
+            onGoUpFileSystemFolder: goUpFileSystemFolder,
             librarySortMode,
             librarySortDirection,
             onLibrarySortClick: handleLibrarySortClick,
@@ -3188,6 +3043,7 @@ export function App() {
             bulkTrackActionAriaLabel: "Add all visible tracks to queue",
             onPlayFromLibraryCover: handlePlayFromLibraryCover,
             IconFolder,
+            IconArrowUp,
             IconMusicNote,
             IconSortTitle,
             IconSortArtist,
@@ -3213,23 +3069,7 @@ export function App() {
           showVisualizerColumn={playerColumnVisibility.visualizer}
           showQueueColumn={playerColumnVisibility.queue}
           showLyricsSection={showPlayerLyricsSection}
-          onToggleLibraryColumn={() => togglePlayerColumn("library")}
-          onToggleVisualizerColumn={() => togglePlayerColumn("visualizer")}
-          onToggleQueueColumn={() => togglePlayerColumn("queue")}
-          onToggleLyricsSection={handleTogglePlayerLyricsSection}
-          IconLibrary={IconFolder}
-          IconVisualizer={IconVisualizerBars}
-          IconQueue={IconListCompact}
-          IconLyrics={IconMic}
           visualizerPresetId={playerVisualizerPresetId}
-          onVisualizerPresetChange={setPlayerVisualizerPresetId}
-          equalizerPresets={equalizerPresets}
-          startupEqualizerPresetId={startupEqualizerPresetId}
-          onStartupEqualizerPresetIdChange={setStartupEqualizerPresetId}
-          equalizerPresetId={equalizerPresetId}
-          onEqualizerPresetChange={handleEqualizerPresetChange}
-          autoEqEnabled={audioAutoEq}
-          onToggleAutoEq={() => setAudioAutoEq((prev) => !prev)}
           queueHistoryTracks={playerQueueHistoryTracks}
           queueTracks={playerQueueUpcomingTracks}
           hasMoreQueueTracks={hasMorePlayerQueueTracks}
@@ -3241,7 +3081,6 @@ export function App() {
           canClearQueue={playbackQueueTrackIds.length > 0}
           IconPlay={IconPlay}
           IconTrash={IconTrash}
-          IconAutoEq={IconAutoEq}
           lyricsStatus={lyricsStatus}
           lyricsIsSynced={lyricsIsSynced}
           lyricsLines={lyricsLines}
@@ -3282,6 +3121,8 @@ export function App() {
           accentRotateOnLaunch={accentRotateOnLaunch}
           onAccentRotateOnLaunchChange={setAccentRotateOnLaunch}
           equalizerPresets={equalizerPresets}
+          startupEqualizerPresetId={startupEqualizerPresetId}
+          onStartupEqualizerPresetIdChange={setStartupEqualizerPresetId}
           equalizerPresetId={equalizerPresetId}
           onEqualizerPresetIdChange={(value) => {
             setEqualizerPresetId(value);
@@ -3308,18 +3149,12 @@ export function App() {
           onDeleteEqualizerPreset={handleDeleteEqualizerPreset}
           onSaveEqualizerPreset={handleSaveEqualizerPreset}
           onResetEqualizer={handleResetEqualizer}
-          onOpenExternalLink={(url) => {
-            void handleOpenExternalLink({ preventDefault: () => {} }, url);
-          }}
           IconPlus={IconPlus}
           IconRename={IconRename}
           IconTrash={IconTrash}
           IconSave={IconSave}
           IconFolder={IconFolder}
           IconExternalLink={IconExternalLink}
-          IconGlobe={IconGlobe}
-          IconUser={IconUser}
-          IconHeart={IconHeart}
         />
       )}
 
@@ -3340,9 +3175,4 @@ export function App() {
       />
     </div>
   );
-}
-
-function renameFieldLabel(field: RenameField): string {
-  const found = RENAME_FIELD_OPTIONS.find((f) => f.key === field);
-  return found?.label ?? field;
 }

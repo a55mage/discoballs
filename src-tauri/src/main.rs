@@ -1,8 +1,7 @@
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
 use lofty::config::WriteOptions;
-use lofty::file::AudioFile;
-use lofty::file::TaggedFileExt;
+use lofty::file::{AudioFile, FileType, TaggedFileExt};
 use lofty::picture::{MimeType, Picture, PictureType};
 use lofty::prelude::Accessor;
 use lofty::probe::Probe;
@@ -609,17 +608,19 @@ fn parse_u32_year(value: &str) -> Option<u32> {
 }
 
 fn primary_tag_type_for_path(path: &Path) -> Result<TagType, String> {
-    let ext = path
-        .extension()
-        .and_then(|s| s.to_str())
-        .unwrap_or_default()
-        .to_lowercase();
+    let file_type = FileType::from_path(path).ok_or_else(|| {
+        let ext = path
+            .extension()
+            .and_then(|s| s.to_str())
+            .unwrap_or_default();
+        if ext.is_empty() {
+            "Unsupported format: missing file extension".to_string()
+        } else {
+            format!("Unsupported format: .{ext}")
+        }
+    })?;
 
-    match ext.as_str() {
-        "mp3" => Ok(TagType::Id3v2),
-        "flac" => Ok(TagType::VorbisComments),
-        _ => Err(format!("Unsupported format: .{ext}")),
-    }
+    Ok(file_type.primary_tag_type())
 }
 
 fn mime_from_audio_path(path: &str) -> &'static str {
@@ -909,4 +910,33 @@ fn main() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn primary_tag_type_matches_scanned_audio_formats() {
+        let cases = [
+            ("track.mp3", TagType::Id3v2),
+            ("track.flac", TagType::VorbisComments),
+            ("track.m4a", TagType::Mp4Ilst),
+            ("track.ogg", TagType::VorbisComments),
+            ("track.wav", TagType::Id3v2),
+        ];
+
+        for (path, expected) in cases {
+            assert_eq!(
+                primary_tag_type_for_path(Path::new(path)).unwrap(),
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn cover_sidecars_are_not_scanned_as_audio_tracks() {
+        assert!(!is_supported_audio_path(Path::new("album.cover.mp3")));
+        assert!(!is_supported_audio_path(Path::new("cover.flac.cover")));
+    }
 }

@@ -59,16 +59,12 @@ type SettingsSectionProps = {
   onDeleteEqualizerPreset: () => void;
   onSaveEqualizerPreset: () => void;
   onResetEqualizer: () => void;
-  onOpenExternalLink: (url: string) => void;
   IconPlus: IconComponent;
   IconRename: IconComponent;
   IconTrash: IconComponent;
   IconSave: IconComponent;
   IconFolder: IconComponent;
   IconExternalLink: IconComponent;
-  IconGlobe: IconComponent;
-  IconUser: IconComponent;
-  IconHeart: IconComponent;
 };
 
 export function SettingsSection({
@@ -124,16 +120,12 @@ export function SettingsSection({
   onDeleteEqualizerPreset,
   onSaveEqualizerPreset,
   onResetEqualizer,
-  onOpenExternalLink,
   IconPlus,
   IconRename,
   IconTrash,
   IconSave,
   IconFolder,
   IconExternalLink,
-  IconGlobe,
-  IconUser,
-  IconHeart,
 }: SettingsSectionProps) {
   const curveBgCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const curveBgContainerRef = useRef<HTMLDivElement | null>(null);
@@ -238,23 +230,6 @@ export function SettingsSection({
       <div className="settings-main-column">
         <Card title="Settings" className="settings-main-card">
           <div className="settings-main-content">
-            <section className="settings-block">
-              <div className="settings-app-head">
-                <strong>DiscoBalls v1.5.0</strong>
-                <div className="settings-app-links">
-                  <button className="ghost-button settings-link-btn" onClick={() => onOpenExternalLink("https://a55mage.github.io/discoballs/")} title="Website" aria-label="Website">
-                    <span className="btn-content"><IconGlobe className="btn-icon" />Website</span>
-                  </button>
-                  <button className="ghost-button settings-link-btn" onClick={() => onOpenExternalLink("https://a55mage.github.io/")} title="Developer" aria-label="Developer">
-                    <span className="btn-content"><IconUser className="btn-icon" />Developer</span>
-                  </button>
-                  <button className="ghost-button settings-link-btn" onClick={() => onOpenExternalLink("https://www.paypal.com/donate/?business=r.macis%40live.it")} title="Donate" aria-label="Donate">
-                    <span className="btn-content"><IconHeart className="btn-icon" />Donate</span>
-                  </button>
-                </div>
-              </div>
-            </section>
-
             <section className="settings-block">
               <h3 className="settings-block-title">General</h3>
               <div className="settings-grid">
@@ -597,7 +572,7 @@ function drawXpBars(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
-  freq: Uint8Array,
+  freq: Uint8Array<ArrayBuffer>,
   accentColor: string,
   alpha = 1
 ) {
