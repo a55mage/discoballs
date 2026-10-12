@@ -54,6 +54,11 @@ import { TopBarSection } from "./sections/TopBarSection";
 import { TrackDetailsSection } from "./sections/TrackDetailsSection";
 import type { AppScreen, NavidromeBookmark, NavidromeConnectionInput, OnlineMatch, RenameField, SearchQuery, Track, TrackTechnicalInfo } from "./types";
 import { useEqualizerStore } from "./store/equalizerStore";
+import { useLibraryStore } from "./store/libraryStore";
+import { consumePendingStartupConnection, useNavidromeStore } from "./store/navidromeStore";
+import { PLAYER_QUEUE_HISTORY_SIZE, PLAYER_QUEUE_PAGE_SIZE, usePlayerStore } from "./store/playerStore";
+import { useTagEditorStore } from "./store/tagEditorStore";
+import { buildNavidromeBookmarkId, defaultNavidromeBookmarkName } from "./domain/navidrome";
 import { usePlaylistStore } from "./store/playlistStore";
 import { useSettingsStore } from "./store/settingsStore";
 import { BUILTIN_EQ_PRESET_IDS, buildUniqueEqualizerPresetName } from "./domain/equalizer";
@@ -99,50 +104,6 @@ const STORAGE_PLAYER_COLUMNS_KEY = "musicmanager-player-columns";
 const STORAGE_PLAYER_VISUALIZER_PRESET_KEY = "musicmanager-player-visualizer-preset";
 const STORAGE_PLAYER_SHOW_LYRICS_KEY = "musicmanager-player-show-lyrics";
 const STORAGE_STARTUP_SCREEN_KEY = "musicmanager-startup-screen";
-const STORAGE_NAVIDROME_BOOKMARKS_KEY = "musicmanager-navidrome-bookmarks";
-const PLAYER_QUEUE_PAGE_SIZE = 50;
-const PLAYER_QUEUE_HISTORY_SIZE = 1;
-
-function buildNavidromeBookmarkId(): string {
-  return `navidrome-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function defaultNavidromeBookmarkName(baseUrl: string): string {
-  try {
-    return new URL(baseUrl).host || baseUrl.trim();
-  } catch {
-    return baseUrl.trim() || "Navidrome server";
-  }
-}
-
-function normalizeNavidromeBookmark(item: unknown): NavidromeBookmark | null {
-  if (!item || typeof item !== "object") {
-    return null;
-  }
-  const candidate = item as Record<string, unknown>;
-  const baseUrl = typeof candidate.baseUrl === "string" ? candidate.baseUrl.trim() : "";
-  const username = typeof candidate.username === "string" ? candidate.username.trim() : "";
-  const password = typeof candidate.password === "string" ? candidate.password : "";
-  if (!baseUrl || !username || !password) {
-    return null;
-  }
-  const name = typeof candidate.name === "string" && candidate.name.trim()
-    ? candidate.name.trim()
-    : defaultNavidromeBookmarkName(baseUrl);
-  const id = typeof candidate.id === "string" && candidate.id.trim()
-    ? candidate.id
-    : buildNavidromeBookmarkId();
-  const lastConnectedAt = typeof candidate.lastConnectedAt === "string" ? candidate.lastConnectedAt : undefined;
-  return {
-    id,
-    name,
-    baseUrl,
-    username,
-    password,
-    connectOnOpen: candidate.connectOnOpen === true,
-    lastConnectedAt,
-  };
-}
 
 export function App() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -158,7 +119,7 @@ export function App() {
   const searchRequestCounterRef = useRef(0);
   const hasAutoOpenedDefaultFolderRef = useRef(false);
   const didAutoConnectNavidromeRef = useRef(false);
-  const shouldRunNavidromeStartupConnectionRef = useRef(false);
+  const shouldRunNavidromeStartupConnectionRef = useRef(consumePendingStartupConnection());
   const didRestoreLibrarySnapshotRef = useRef(false);
   const coverRequestIdsRef = useRef<Set<string>>(new Set());
   const coverCacheRef = useRef<Map<string, string | null>>(new Map());
@@ -170,34 +131,7 @@ export function App() {
     moved: boolean;
   }>({ kind: "none", id: "", startX: 0, startY: 0, moved: false });
   const suppressNextPlaylistItemClickRef = useRef(false);
-  const [tracks, setTracks] = useState<Track[]>([]);
-  const [folderPath, setFolderPath] = useState("");
   const [activeScreen, setActiveScreen] = useState<AppScreen>(() => useSettingsStore.getState().startupScreen);
-  const [selectedTrackId, setSelectedTrackId] = useState<string>("");
-  const [playbackTrackId, setPlaybackTrackId] = useState<string>("");
-  const [playbackPlaylistId, setPlaybackPlaylistId] = useState<string>("");
-  const [playbackQueueTrackIds, setPlaybackQueueTrackIds] = useState<string[]>([]);
-  const [playbackHistoryTrackIds, setPlaybackHistoryTrackIds] = useState<string[]>([]);
-  const [playerQueueVisibleCount, setPlayerQueueVisibleCount] = useState(PLAYER_QUEUE_PAGE_SIZE);
-  const [trackDraft, setTrackDraft] = useState<Track | null>(null);
-  const [onlineResults, setOnlineResults] = useState<OnlineMatch[]>([]);
-  const [selectedResultId, setSelectedResultId] = useState<string>("");
-  const [isLoadingScan, setIsLoadingScan] = useState(false);
-  const [isLoadingSearch, setIsLoadingSearch] = useState(false);
-  const [searchStatus, setSearchStatus] = useState("Ready");
-  const [searchTitle, setSearchTitle] = useState("");
-  const [searchArtist, setSearchArtist] = useState("");
-  const [searchAlbum, setSearchAlbum] = useState("");
-  const [isNavidromePanelOpen, setIsNavidromePanelOpen] = useState(false);
-  const [navidromeName, setNavidromeName] = useState("");
-  const [navidromeBaseUrl, setNavidromeBaseUrl] = useState("");
-  const [navidromeUsername, setNavidromeUsername] = useState("");
-  const [navidromePassword, setNavidromePassword] = useState("");
-  const [navidromeConnectOnOpen, setNavidromeConnectOnOpen] = useState(false);
-  const [navidromeBookmarks, setNavidromeBookmarks] = useState<NavidromeBookmark[]>([]);
-  const [connectedNavidromeBookmarkId, setConnectedNavidromeBookmarkId] = useState("");
-  const [navidromeStatus, setNavidromeStatus] = useState("Navidrome not connected.");
-  const [isConnectingNavidrome, setIsConnectingNavidrome] = useState(false);
   const [showRenameSettings, setShowRenameSettings] = useState(false);
   const {
     playlists,
@@ -215,21 +149,10 @@ export function App() {
     moveEntry: movePlaylistEntry,
     removeEntry: removePlaylistEntry,
   } = usePlaylistStore();
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isShuffleEnabled, setIsShuffleEnabled] = useState(false);
-  const [isRepeatTrackEnabled, setIsRepeatTrackEnabled] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [volume, setVolume] = useState(0.7);
-  const [isMuted, setIsMuted] = useState(false);
-  const [audioSrc, setAudioSrc] = useState("");
-  const [audioTrackId, setAudioTrackId] = useState("");
-  const [audioError, setAudioError] = useState("");
   const [lyricsLines, setLyricsLines] = useState<LyricLine[]>([]);
   const [lyricsIsSynced, setLyricsIsSynced] = useState(false);
   const [lyricsStatus, setLyricsStatus] = useState("Select a track to load lyrics.");
   const [trackTechnicalInfo, setTrackTechnicalInfo] = useState<TrackTechnicalInfo | null>(null);
-  const [shouldAutoplay, setShouldAutoplay] = useState(false);
   const {
     startupScreen,
     setStartupScreen,
@@ -293,6 +216,82 @@ export function App() {
     deletePreset: handleDeleteEqualizerPreset,
     reset: handleResetEqualizer,
   } = useEqualizerStore();
+  const { tracks, folderPath, selectedTrackId, isLoadingScan, setTracks, setFolderPath, setSelectedTrackId, setIsLoadingScan } =
+    useLibraryStore();
+  const {
+    trackDraft,
+    onlineResults,
+    selectedResultId,
+    isLoadingSearch,
+    searchStatus,
+    searchTitle,
+    searchArtist,
+    searchAlbum,
+    setTrackDraft,
+    setOnlineResults,
+    setSelectedResultId,
+    setIsLoadingSearch,
+    setSearchStatus,
+    setSearchTitle,
+    setSearchArtist,
+    setSearchAlbum,
+  } = useTagEditorStore();
+  const {
+    isNavidromePanelOpen,
+    navidromeName,
+    navidromeBaseUrl,
+    navidromeUsername,
+    navidromePassword,
+    navidromeConnectOnOpen,
+    navidromeBookmarks,
+    connectedNavidromeBookmarkId,
+    navidromeStatus,
+    isConnectingNavidrome,
+    setIsNavidromePanelOpen,
+    setNavidromeName,
+    setNavidromeBaseUrl,
+    setNavidromeUsername,
+    setNavidromePassword,
+    setNavidromeConnectOnOpen,
+    setNavidromeBookmarks,
+    setConnectedNavidromeBookmarkId,
+    setNavidromeStatus,
+    setIsConnectingNavidrome,
+  } = useNavidromeStore();
+  const {
+    playbackTrackId,
+    playbackPlaylistId,
+    playbackQueueTrackIds,
+    playbackHistoryTrackIds,
+    playerQueueVisibleCount,
+    isPlaying,
+    isShuffleEnabled,
+    isRepeatTrackEnabled,
+    currentTime,
+    duration,
+    volume,
+    isMuted,
+    audioSrc,
+    audioTrackId,
+    audioError,
+    shouldAutoplay,
+    setPlaybackTrackId,
+    setPlaybackPlaylistId,
+    setPlaybackQueueTrackIds,
+    setPlaybackHistoryTrackIds,
+    setPlayerQueueVisibleCount,
+    setIsPlaying,
+    setIsShuffleEnabled,
+    setIsRepeatTrackEnabled,
+    setCurrentTime,
+    setDuration,
+    setVolume,
+    setIsMuted,
+    setAudioSrc,
+    setAudioTrackId,
+    setAudioError,
+    setShouldAutoplay,
+  } = usePlayerStore();
   const [isDashboardDragging, setIsDashboardDragging] = useState(false);
   const [dashboardDropArea, setDashboardDropArea] = useState<"none" | "dropzone" | "playlist">("none");
   const [dashboardDropEntryId, setDashboardDropEntryId] = useState("");
@@ -553,40 +552,6 @@ export function App() {
   } as CSSProperties;
 
   useEffect(() => {
-    const savedNavidromeBookmarks = window.localStorage.getItem(STORAGE_NAVIDROME_BOOKMARKS_KEY);
-    if (savedNavidromeBookmarks) {
-      try {
-        const parsed = JSON.parse(savedNavidromeBookmarks);
-        if (Array.isArray(parsed)) {
-          const restoredBookmarks = parsed
-            .map(normalizeNavidromeBookmark)
-            .filter((bookmark): bookmark is NavidromeBookmark => Boolean(bookmark));
-          if (restoredBookmarks.length) {
-            const connectOnOpenBookmark = restoredBookmarks.find((bookmark) => bookmark.connectOnOpen) ?? restoredBookmarks[0];
-            shouldRunNavidromeStartupConnectionRef.current = restoredBookmarks.some((bookmark) => bookmark.connectOnOpen);
-            setNavidromeBookmarks(restoredBookmarks);
-            setNavidromeName(connectOnOpenBookmark.name);
-            setNavidromeBaseUrl(connectOnOpenBookmark.baseUrl);
-            setNavidromeUsername(connectOnOpenBookmark.username);
-            setNavidromePassword(connectOnOpenBookmark.password);
-            setNavidromeConnectOnOpen(connectOnOpenBookmark.connectOnOpen);
-          }
-        }
-      } catch {
-        // Ignore invalid Navidrome bookmarks.
-      }
-    }
-
-    const savedShuffle = window.localStorage.getItem("musicmanager-player-shuffle");
-    if (savedShuffle === "true") {
-      setIsShuffleEnabled(true);
-    }
-
-    const savedRepeatTrack = window.localStorage.getItem("musicmanager-player-repeat-track");
-    if (savedRepeatTrack === "true") {
-      setIsRepeatTrackEnabled(true);
-    }
-
     const savedLibrarySnapshot = window.localStorage.getItem("musicmanager-library-snapshot");
     if (useSettingsStore.getState().autoOpenDefaultFolder && savedLibrarySnapshot) {
       try {
@@ -678,10 +643,6 @@ export function App() {
   }, [autoOpenDefaultFolder, defaultFolderPath, folderPath, selectedTrackId, tracks.length]);
 
   useEffect(() => {
-    window.localStorage.setItem(STORAGE_NAVIDROME_BOOKMARKS_KEY, JSON.stringify(navidromeBookmarks));
-  }, [navidromeBookmarks]);
-
-  useEffect(() => {
     if (
       didAutoConnectNavidromeRef.current ||
       !shouldRunNavidromeStartupConnectionRef.current ||
@@ -760,14 +721,6 @@ export function App() {
     equalizerPreampDb,
     equalizerWetMixPercent,
   ]);
-
-  useEffect(() => {
-    window.localStorage.setItem("musicmanager-player-shuffle", String(isShuffleEnabled));
-  }, [isShuffleEnabled]);
-
-  useEffect(() => {
-    window.localStorage.setItem("musicmanager-player-repeat-track", String(isRepeatTrackEnabled));
-  }, [isRepeatTrackEnabled]);
 
   useEffect(() => {
     if (!folderPath || !tracks.length || folderPath.startsWith("Navidrome/")) {
