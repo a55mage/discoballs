@@ -1,0 +1,96 @@
+/*
+ * DiscoBalls design tokens.
+ * Light/dark is driven by `data-theme` on <html>; the accent by `--db-accent` (set from settings).
+ * Everything else derives from those two inputs.
+ */
+@import "@fontsource-variable/manrope";
+@import "@fontsource-variable/syne";
+
+:root {
+  /* Typography */
+  --db-font-sans: "Manrope Variable", "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --db-font-display: "Syne Variable", "Syne", var(--db-font-sans);
+  --db-text-xs: 12px;
+  --db-text-sm: 13px;
+  --db-text-md: 14px;
+  --db-text-lg: 16px;
+  --db-text-xl: 20px;
+  --db-text-2xl: 24px;
+  --db-text-3xl: 32px;
+
+  /* Spacing (4px grid) */
+  --db-space-1: 4px;
+  --db-space-2: 8px;
+  --db-space-3: 12px;
+  --db-space-4: 16px;
+  --db-space-5: 24px;
+  --db-space-6: 32px;
+
+  /* Shape */
+  --db-radius-sm: 8px;
+  --db-radius-md: 12px;
+  --db-radius-lg: 16px;
+  --db-radius-xl: 24px;
+  --db-radius-full: 999px;
+
+  /* Motion */
+  --db-ease: cubic-bezier(0.2, 0, 0, 1);
+  --db-dur-fast: 120ms;
+  --db-dur: 200ms;
+
+  /* Accent (overridden at runtime) */
+  --db-accent: #ee703e;
+}
+
+/* Light theme */
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
+  --db-bg: #ece6da;
+  --db-solid: #f6f1e7;
+  --db-surface: rgba(255, 255, 255, 0.55);
+  --db-surface-2: rgba(255, 255, 255, 0.3);
+  --db-content: rgba(255, 255, 255, 0.5);
+  --db-line: rgba(80, 60, 30, 0.17);
+  --db-ink: #241f1a;
+  --db-ink-2: #5b5348;
+  --db-hover: rgba(255, 255, 255, 0.5);
+  --db-warn: #a8620a;
+  --db-ok: #2f8a55;
+  --db-highlight: rgba(255, 255, 255, 0.9);
+  --db-glass: linear-gradient(180deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.4) 48%, rgba(255, 255, 255, 0.5));
+  --db-veil: radial-gradient(120% 60% at 8% 0%, rgba(255, 255, 255, 0.55), transparent 60%),
+    linear-gradient(115deg, rgba(255, 252, 246, 0.58), rgba(255, 252, 246, 0.34) 45%, rgba(255, 252, 246, 0.56));
+  --db-shadow: 0 8px 30px rgba(60, 40, 10, 0.16);
+  --db-accent-text: color-mix(in srgb, var(--db-accent) 68%, #000);
+  --db-accent-soft: color-mix(in srgb, var(--db-accent) 14%, transparent);
+}
+
+/* Dark theme */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --db-bg: #0b0d11;
+  --db-solid: #171a20;
+  --db-surface: rgba(255, 255, 255, 0.08);
+  --db-surface-2: rgba(255, 255, 255, 0.05);
+  --db-content: rgba(10, 12, 16, 0.42);
+  --db-line: rgba(255, 255, 255, 0.13);
+  --db-ink: #f1efea;
+  --db-ink-2: #a9acb4;
+  --db-hover: rgba(255, 255, 255, 0.09);
+  --db-warn: #e8a647;
+  --db-ok: #4cc27e;
+  --db-highlight: rgba(255, 255, 255, 0.3);
+  --db-glass: linear-gradient(180deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.05) 48%, rgba(255, 255, 255, 0.08));
+  --db-veil: radial-gradient(120% 60% at 8% 0%, rgba(255, 255, 255, 0.1), transparent 60%),
+    linear-gradient(180deg, rgba(8, 9, 13, 0.5), rgba(8, 9, 13, 0.74));
+  --db-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+  --db-accent-text: color-mix(in srgb, var(--db-accent) 82%, #fff);
+  --db-accent-soft: color-mix(in srgb, var(--db-accent) 22%, transparent);
+}
+
+:root {
+  /* Derived from the accent; white text on this fill keeps AA contrast. */
+  --db-accent-fill: color-mix(in srgb, var(--db-accent) 80%, #000);
+  --db-focus: 0 0 0 3px color-mix(in srgb, var(--db-accent) 45%, transparent);
+}

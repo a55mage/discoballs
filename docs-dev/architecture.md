@@ -55,3 +55,17 @@ the previous versions, so existing user data keeps working. Rules of thumb:
 
 `npm run dev` serves the UI in a normal browser with `api/mockAdapter` (sample tracks, a synthesized
 tone for playback). Use it for UI work; use `npm run tauri:dev` before merging.
+
+## Design system (`src/ui`)
+
+- `tokens.css`: CSS custom properties (`--db-*`) for color, type, spacing, radii and motion. Light/dark
+  comes from `data-theme` on `<html>`, the accent from `--db-accent`; both are mirrored from the
+  settings store by `useApplyTheme()`. Fonts (Manrope, Syne) are bundled with the app via
+  `@fontsource-variable`, so the desktop app never needs the network for them.
+- `ui.css` + `components/`: `Button`, `IconButton`, `Chip`, `Segmented`, `ToggleGroup`, `Switch`, `Field`,
+  `TextInput`, `Select`, `Slider`, `Badge`, `Cover`, `Pane`. All classes are prefixed `db-` so they
+  coexist with the legacy `styles.css` until the screens are migrated.
+- Accessibility is part of the components: icon buttons require a `label`, switches/radios/toggles use the
+  right ARIA roles and states, focus rings use the accent, inputs are labelled by nesting in `Field`.
+- Living reference: run `npm run dev` and open `http://localhost:5173/#styleguide` (dev builds only).
+- Import from `src/ui` only (`import { Button } from "../ui"`), never from the component files.

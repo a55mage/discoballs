@@ -1,0 +1,400 @@
+/* Base components. Every class is prefixed `db-` so it can live next to the legacy stylesheet. */
+
+.db-glass {
+  background: var(--db-glass);
+  -webkit-backdrop-filter: blur(22px) saturate(1.6);
+  backdrop-filter: blur(22px) saturate(1.6);
+  box-shadow: inset 0 1px 0 var(--db-highlight);
+}
+
+.db-text-display {
+  font-family: var(--db-font-display);
+  letter-spacing: -0.01em;
+}
+
+/* ---------- Button ---------- */
+.db-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--db-space-2);
+  height: 40px;
+  padding: 0 var(--db-space-4);
+  border: 0;
+  border-radius: var(--db-radius-md);
+  font: 700 var(--db-text-md) / 1 var(--db-font-sans);
+  white-space: nowrap;
+  cursor: pointer;
+  color: var(--db-ink);
+  transition: filter var(--db-dur-fast) var(--db-ease), border-color var(--db-dur-fast) var(--db-ease),
+    background var(--db-dur-fast) var(--db-ease);
+}
+.db-btn:focus-visible,
+.db-icon-btn:focus-visible,
+.db-chip:focus-visible,
+.db-seg-btn:focus-visible,
+.db-switch:focus-visible {
+  outline: none;
+  box-shadow: var(--db-focus);
+}
+.db-btn:disabled,
+.db-icon-btn:disabled,
+.db-chip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.db-btn--sm {
+  height: 32px;
+  padding: 0 var(--db-space-3);
+  font-size: var(--db-text-sm);
+  border-radius: 10px;
+}
+.db-btn--lg {
+  height: 48px;
+  padding: 0 var(--db-space-5);
+  font-size: var(--db-text-lg);
+}
+.db-btn--block {
+  width: 100%;
+}
+.db-btn--primary {
+  color: #fff;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--db-accent-fill) 88%, #fff) 0,
+    var(--db-accent-fill) 52%,
+    color-mix(in srgb, var(--db-accent-fill) 86%, #000) 100%
+  );
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 1px 3px rgba(0, 0, 0, 0.28);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);
+}
+.db-btn--primary:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+.db-btn--primary:focus-visible {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), var(--db-focus);
+}
+.db-btn--secondary {
+  background: var(--db-surface-2);
+  border: 1px solid var(--db-line);
+}
+.db-btn--secondary:hover:not(:disabled) {
+  border-color: var(--db-ink-2);
+}
+.db-btn--ghost {
+  background: transparent;
+  color: var(--db-ink-2);
+}
+.db-btn--ghost:hover:not(:disabled) {
+  background: var(--db-hover);
+  color: var(--db-ink);
+}
+.db-btn--danger {
+  background: var(--db-surface-2);
+  border: 1px solid var(--db-line);
+  color: var(--db-warn);
+}
+.db-btn__icon {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+
+/* ---------- IconButton ---------- */
+.db-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--db-ink-2);
+  cursor: pointer;
+  transition: background var(--db-dur-fast) var(--db-ease), color var(--db-dur-fast) var(--db-ease);
+}
+.db-icon-btn:hover:not(:disabled) {
+  background: var(--db-hover);
+  color: var(--db-ink);
+}
+.db-icon-btn--sm {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--db-radius-sm);
+}
+.db-icon-btn--lg {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--db-radius-md);
+}
+.db-icon-btn--active {
+  background: var(--db-accent-soft);
+  color: var(--db-accent-text);
+}
+.db-icon-btn--solid {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--db-radius-full);
+  color: #fff;
+  background: var(--db-accent-fill);
+}
+.db-icon-btn--solid:hover:not(:disabled) {
+  background: var(--db-accent-fill);
+  color: #fff;
+  filter: brightness(1.1);
+}
+.db-icon-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ---------- Chip ---------- */
+.db-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 var(--db-space-3);
+  border: 1px solid var(--db-line);
+  border-radius: var(--db-radius-full);
+  background: var(--db-surface);
+  color: var(--db-ink-2);
+  font: 700 var(--db-text-sm) / 1 var(--db-font-sans);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color var(--db-dur-fast) var(--db-ease), color var(--db-dur-fast) var(--db-ease);
+}
+.db-chip:hover:not(:disabled) {
+  border-color: var(--db-ink-2);
+  color: var(--db-ink);
+}
+.db-chip--on {
+  background: var(--db-accent-soft);
+  border-color: var(--db-accent);
+  color: var(--db-accent-text);
+}
+.db-chip__count {
+  font-weight: 800;
+}
+
+/* ---------- Segmented ---------- */
+.db-seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--db-line);
+  border-radius: var(--db-radius-md);
+  background: var(--db-surface-2);
+}
+.db-seg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--db-ink-2);
+  font: 700 var(--db-text-sm) / 1 var(--db-font-sans);
+  cursor: pointer;
+}
+.db-seg-btn:hover {
+  color: var(--db-ink);
+}
+.db-seg-btn[aria-checked="true"],
+.db-seg-btn[aria-pressed="true"] {
+  background: var(--db-solid);
+  color: var(--db-ink);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+}
+
+/* ---------- Switch ---------- */
+.db-switch {
+  position: relative;
+  width: 44px;
+  height: 26px;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: var(--db-radius-full);
+  background: var(--db-line);
+  cursor: pointer;
+  transition: background var(--db-dur) var(--db-ease);
+}
+.db-switch::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transition: transform var(--db-dur) var(--db-ease);
+}
+.db-switch[aria-checked="true"] {
+  background: var(--db-accent-fill);
+}
+.db-switch[aria-checked="true"]::after {
+  transform: translateX(18px);
+}
+.db-switch:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ---------- Field / inputs ---------- */
+.db-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.db-field__label {
+  font: 700 var(--db-text-xs) / 1.2 var(--db-font-sans);
+  letter-spacing: 0.02em;
+  color: var(--db-ink-2);
+}
+.db-field__hint {
+  font-size: var(--db-text-xs);
+  color: var(--db-ink-2);
+}
+.db-input {
+  width: 100%;
+  height: 40px;
+  padding: 0 var(--db-space-3);
+  border: 1px solid var(--db-line);
+  border-radius: var(--db-radius-md);
+  background: var(--db-surface);
+  color: var(--db-ink);
+  font: 500 var(--db-text-md) / 1 var(--db-font-sans);
+  outline: none;
+  transition: border-color var(--db-dur-fast) var(--db-ease), box-shadow var(--db-dur-fast) var(--db-ease);
+}
+.db-input::placeholder {
+  color: var(--db-ink-2);
+  opacity: 0.8;
+}
+.db-input:focus {
+  border-color: var(--db-accent);
+  box-shadow: var(--db-focus);
+}
+.db-input--changed {
+  border-color: var(--db-accent);
+  background: var(--db-accent-soft);
+}
+.db-input--invalid {
+  border-color: var(--db-warn);
+}
+select.db-input {
+  appearance: none;
+  padding-right: 32px;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
+    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: calc(100% - 18px) 17px, calc(100% - 13px) 17px;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+}
+
+/* ---------- Slider ---------- */
+.db-slider {
+  width: 100%;
+  accent-color: var(--db-accent);
+  cursor: pointer;
+}
+.db-slider--vertical {
+  width: 26px;
+  writing-mode: vertical-lr;
+  direction: rtl;
+}
+.db-slider:focus-visible {
+  outline: 2px solid var(--db-accent);
+  outline-offset: 3px;
+}
+
+/* ---------- Badge ---------- */
+.db-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: var(--db-radius-full);
+  background: var(--db-accent-soft);
+  color: var(--db-accent-text);
+  font: 800 11.5px / 1 var(--db-font-sans);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.db-badge--neutral {
+  background: var(--db-surface-2);
+  color: var(--db-ink-2);
+}
+.db-badge--warn {
+  background: color-mix(in srgb, var(--db-warn) 16%, transparent);
+  color: var(--db-warn);
+}
+.db-badge--ok {
+  background: color-mix(in srgb, var(--db-ok) 16%, transparent);
+  color: var(--db-ok);
+}
+
+/* ---------- Cover ---------- */
+.db-cover {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  overflow: hidden;
+  background: var(--db-surface-2);
+  color: var(--db-ink-2);
+}
+.db-cover--empty {
+  border: 1.5px dashed var(--db-line);
+}
+.db-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.db-cover__icon {
+  width: 38%;
+  height: 38%;
+}
+
+/* ---------- Pane (flush surface used by the app shell) ---------- */
+.db-pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.db-pane--divider-left {
+  border-left: 1px solid var(--db-line);
+}
+.db-pane--divider-right {
+  border-right: 1px solid var(--db-line);
+}
+.db-scroll {
+  overflow: auto;
+  min-height: 0;
+}
+
+/* ---------- Visually hidden (a11y helper) ---------- */
+.db-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

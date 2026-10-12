@@ -119,6 +119,7 @@ import { useTagEditorStore } from "./store/tagEditorStore";
 import { usePlaylistStore } from "./store/playlistStore";
 import { useSettingsStore } from "./store/settingsStore";
 import { useUiStore } from "./store/uiStore";
+import { useApplyTheme } from "./ui/useApplyTheme";
 import { useAutoEqualizer } from "./hooks/useAutoEqualizer";
 import { usePlaybackQueueView } from "./hooks/usePlaybackQueueView";
 import { useTagDraftSync } from "./hooks/useTagDraftSync";
@@ -139,6 +140,7 @@ import { getActiveLyricIndex, } from "./utils/lyrics";
 
 
 export function App() {
+  useApplyTheme();
   const coverInputRef = useRef<HTMLInputElement | null>(null);
   const { activeScreen, setActiveScreen, showRenameSettings, setShowRenameSettings } = useUiStore();
   const {
