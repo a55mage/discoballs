@@ -118,3 +118,40 @@ describe("settingsStore", () => {
     expect(store.getState().accentThemes).toHaveLength(initialCount);
   });
 });
+
+describe("settingsStore dynamic background", () => {
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("defaults to on at 70% and restores stored values", async () => {
+    installStorage();
+    let state = (await loadStore()).getState();
+    expect(state.dynamicBackground).toBe(true);
+    expect(state.backgroundIntensity).toBe(70);
+
+    installStorage({ "musicmanager-dynamic-background": "false", "musicmanager-background-intensity": "25" });
+    state = (await loadStore()).getState();
+    expect(state.dynamicBackground).toBe(false);
+    expect(state.backgroundIntensity).toBe(25);
+  });
+
+  it("clamps the intensity and falls back on invalid stored values", async () => {
+    installStorage({ "musicmanager-background-intensity": "abc" });
+    const store = await loadStore();
+    expect(store.getState().backgroundIntensity).toBe(70);
+    store.getState().setBackgroundIntensity(250);
+    expect(store.getState().backgroundIntensity).toBe(100);
+    store.getState().setBackgroundIntensity(-5);
+    expect(store.getState().backgroundIntensity).toBe(0);
+  });
+
+  it("persists changes", async () => {
+    const data = installStorage();
+    const store = await loadStore();
+    store.getState().setDynamicBackground(false);
+    store.getState().setBackgroundIntensity(40);
+    expect(data.get("musicmanager-dynamic-background")).toBe("false");
+    expect(data.get("musicmanager-background-intensity")).toBe("40");
+  });
+});

@@ -342,3 +342,38 @@ export const IconAutoEq = (props: SVGProps<SVGSVGElement>) => (
     <polyline points="14.5 4.5 17 2 19.5 4.5" />
   </IconBase>
 );
+
+export const IconLibrary = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <rect x="3" y="4" width="4" height="16" rx="1" />
+    <rect x="9" y="4" width="4" height="16" rx="1" />
+    <path d="M15.5 5.5l3.6-1 2.4 15-3.6 1z" />
+  </IconBase>
+);
+
+export const IconDisc = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <circle cx="12" cy="12" r="9" />
+    <circle cx="12" cy="12" r="3" />
+    <path d="M12 3a9 9 0 0 1 9 9" />
+  </IconBase>
+);
+
+export const IconQueue = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <path d="M4 6h12M4 11h12M4 16h6" />
+    <path d="M15 15l5 3-5 3z" fill="currentColor" />
+  </IconBase>
+);
+
+export const IconExpand = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+  </IconBase>
+);
+
+export const IconCollapse = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" />
+  </IconBase>
+);

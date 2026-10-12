@@ -23,6 +23,8 @@ const KEYS = {
   normalizeVolume: "musicmanager-audio-normalize-volume",
   autoEq: "musicmanager-audio-auto-eq",
   smartCrossfade: "musicmanager-audio-smart-crossfade",
+  dynamicBackground: "musicmanager-dynamic-background",
+  backgroundIntensity: "musicmanager-background-intensity",
 } as const;
 
 const VISUALIZER_IDS: VisualizerPresetId[] = ["scope", "alchemy", "xp-bars", "turntable"];
@@ -100,6 +102,9 @@ export type SettingsState = {
   audioAutoEq: boolean;
   audioNormalizeVolume: boolean;
   audioSmartCrossfade: boolean;
+  dynamicBackground: boolean;
+  /** 0-100: how strongly the cover tints the interface. */
+  backgroundIntensity: number;
 
   setColorMode: (mode: ColorMode) => void;
   setStartupScreen: (screen: StartupScreen) => void;
@@ -121,7 +126,19 @@ export type SettingsState = {
   setAudioAutoEq: (value: boolean) => void;
   setAudioNormalizeVolume: (value: boolean) => void;
   setAudioSmartCrossfade: (value: boolean) => void;
+  setDynamicBackground: (value: boolean) => void;
+  setBackgroundIntensity: (value: number) => void;
 };
+
+export const DEFAULT_BACKGROUND_INTENSITY = 70;
+
+export function readIntensity(raw: string | null): number {
+  const value = Number(raw);
+  if (raw === null || raw.trim() === "" || !Number.isFinite(value)) {
+    return DEFAULT_BACKGROUND_INTENSITY;
+  }
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
 
 function loadInitialState(): Pick<
   SettingsState,
@@ -140,6 +157,8 @@ function loadInitialState(): Pick<
   | "audioAutoEq"
   | "audioNormalizeVolume"
   | "audioSmartCrossfade"
+  | "dynamicBackground"
+  | "backgroundIntensity"
 > {
   const savedColorMode = readString(KEYS.colorMode);
   const savedStartup = readString(KEYS.startupScreen);
@@ -178,6 +197,8 @@ function loadInitialState(): Pick<
     audioAutoEq: readString(KEYS.autoEq) === "true",
     audioNormalizeVolume: readString(KEYS.normalizeVolume) === "true",
     audioSmartCrossfade: readString(KEYS.smartCrossfade) === "true",
+    dynamicBackground: readString(KEYS.dynamicBackground) !== "false",
+    backgroundIntensity: readIntensity(readString(KEYS.backgroundIntensity)),
   };
 }
 
@@ -273,6 +294,8 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   setAudioAutoEq: (audioAutoEq) => set({ audioAutoEq }),
   setAudioNormalizeVolume: (audioNormalizeVolume) => set({ audioNormalizeVolume }),
   setAudioSmartCrossfade: (audioSmartCrossfade) => set({ audioSmartCrossfade }),
+  setDynamicBackground: (dynamicBackground) => set({ dynamicBackground }),
+  setBackgroundIntensity: (value) => set({ backgroundIntensity: readIntensity(String(value)) }),
 }));
 
 function persistAll(state: SettingsState): void {
@@ -291,6 +314,8 @@ function persistAll(state: SettingsState): void {
   writeString(KEYS.autoEq, String(state.audioAutoEq));
   writeString(KEYS.normalizeVolume, String(state.audioNormalizeVolume));
   writeString(KEYS.smartCrossfade, String(state.audioSmartCrossfade));
+  writeString(KEYS.dynamicBackground, String(state.dynamicBackground));
+  writeString(KEYS.backgroundIntensity, String(state.backgroundIntensity));
 }
 
 // Persist the initial snapshot (it may include the rotated accent), then every change.
@@ -314,4 +339,6 @@ useSettingsStore.subscribe((state, previous) => {
   if (state.audioAutoEq !== previous.audioAutoEq) writeString(KEYS.autoEq, String(state.audioAutoEq));
   if (state.audioNormalizeVolume !== previous.audioNormalizeVolume) writeString(KEYS.normalizeVolume, String(state.audioNormalizeVolume));
   if (state.audioSmartCrossfade !== previous.audioSmartCrossfade) writeString(KEYS.smartCrossfade, String(state.audioSmartCrossfade));
+  if (state.dynamicBackground !== previous.dynamicBackground) writeString(KEYS.dynamicBackground, String(state.dynamicBackground));
+  if (state.backgroundIntensity !== previous.backgroundIntensity) writeString(KEYS.backgroundIntensity, String(state.backgroundIntensity));
 });

@@ -80,7 +80,13 @@ export function usePlaybackEngine(): void {
       }
       state.setIsPlaying(false);
     };
-    const onError = () => player().setAudioError("Playback unavailable for this track.");
+    const onError = () => {
+      // Clearing the source (no track) also raises an error event; only report real failures.
+      if (!audio.getAttribute("src")) {
+        return;
+      }
+      player().setAudioError("Playback unavailable for this track.");
+    };
 
     audio.addEventListener("timeupdate", onTimeUpdate);
     audio.addEventListener("loadedmetadata", onLoadedMetadata);

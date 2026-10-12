@@ -1,3 +1,4 @@
+import { useSettingsStore } from "../store/settingsStore";
 import { type ComponentType, type CSSProperties, type KeyboardEvent, type RefObject, type SVGProps, useEffect, useMemo, useRef, useState } from "react";
 import { Card } from "../components/Card";
 import { EQUALIZER_FREQUENCIES } from "../utils/audioGraph";
@@ -127,6 +128,7 @@ export function SettingsSection({
   IconFolder,
   IconExternalLink,
 }: SettingsSectionProps) {
+  const { dynamicBackground, setDynamicBackground, backgroundIntensity, setBackgroundIntensity } = useSettingsStore();
   const curveBgCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const curveBgContainerRef = useRef<HTMLDivElement | null>(null);
   const [isGenreEqAccordionOpen, setIsGenreEqAccordionOpen] = useState(false);
@@ -356,6 +358,22 @@ export function SettingsSection({
                 <label className="settings-toggle">
                   <input type="checkbox" checked={accentRotateOnLaunch} onChange={(event) => onAccentRotateOnLaunchChange(event.target.checked)} />
                   <span>Rotate accent palette on launch</span>
+                </label>
+                <label className="settings-toggle">
+                  <input type="checkbox" checked={dynamicBackground} onChange={(event) => setDynamicBackground(event.target.checked)} />
+                  <span>Dynamic background (tint the window with the current cover)</span>
+                </label>
+                <label className="settings-toggle">
+                  <span>Background intensity: {backgroundIntensity}%</span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={backgroundIntensity}
+                    disabled={!dynamicBackground}
+                    aria-label="Background intensity"
+                    onChange={(event) => setBackgroundIntensity(Number(event.target.value))}
+                  />
                 </label>
                 <div className="settings-inline-actions">
                   <button className="ghost-button" onClick={onAddAccentTheme}>

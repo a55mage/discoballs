@@ -69,3 +69,21 @@ tone for playback). Use it for UI work; use `npm run tauri:dev` before merging.
   right ARIA roles and states, focus rings use the accent, inputs are labelled by nesting in `Field`.
 - Living reference: run `npm run dev` and open `http://localhost:5173/#styleguide` (dev builds only).
 - Import from `src/ui` only (`import { Button } from "../ui"`), never from the component files.
+
+## App shell (`src/shell`)
+
+`AppShell` is the window frame: sidebar, header and player bar form one frosted "C" (a single
+`db-glass` layer behind them) around the rounded content window, over a backdrop tinted by the current
+cover. The screen is passed as `children`; an optional `inspector` slot sits inside the content window.
+
+- `Sidebar`, `Header`, `PlayerBar`: read the stores directly; only `onTogglePlayPause` is passed in because the
+  queue starts from the library list as filtered on screen.
+- `Backdrop`: blurred cover with a crossfade between tracks; **Settings → Appearance** has the on/off switch
+  and the 0–100 intensity (`dynamicBackground`, `backgroundIntensity` in `settingsStore`).
+- `CommandPalette`: ⌘K / Ctrl+K (`useShellShortcuts`), combobox/listbox semantics, screens + commands + tracks.
+- Immersive mode (`uiStore.isImmersive`): hides sidebar, header and player bar; the `<audio>` element stays mounted.
+- `LegacyToolbar`: controls of the old screens (player layout, playlist actions, app links). Temporary; it goes
+  away as each screen is redesigned.
+- Window chrome: on macOS the Tauri window uses `titleBarStyle: Overlay` (see `tauri.conf.json`), the sidebar leaves
+  room for the traffic lights and the header is a drag region (`core:window:allow-start-dragging`).
+  Windows and Linux keep their native title bar.

@@ -1,0 +1,562 @@
+/*
+ * App shell: one frosted "C" (sidebar + header + player bar) around a content window.
+ *
+ *   ┌────────┬──────────────────────────┐
+ *   │ side   │ header                   │
+ *   │        ├──────────────────────────┤
+ *   │        │ content window           │
+ *   ├────────┴──────────────────────────┤
+ *   │ player bar                        │
+ *   └───────────────────────────────────┘
+ */
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+.shell {
+  --shell-side: 236px;
+  --shell-player-h: 96px;
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--shell-side) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) var(--shell-player-h);
+  grid-template-areas:
+    "side head"
+    "side content"
+    "player player";
+  height: 100vh;
+  min-height: 560px;
+  overflow: hidden;
+  background: var(--db-bg);
+  color: var(--db-ink);
+  font-family: var(--db-font-sans);
+  font-size: var(--db-text-md);
+}
+
+.shell--immersive {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-areas: "content";
+}
+
+/* ---------- Background layers ---------- */
+.shell__backdrop,
+.shell__veil,
+.shell__frame {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.shell__backdrop {
+  overflow: hidden;
+  opacity: var(--shell-backdrop-strength, 0.7);
+}
+:root[data-theme="dark"] .shell__backdrop {
+  opacity: calc(var(--shell-backdrop-strength, 0.7) * 0.9);
+}
+.shell__backdrop-img,
+.shell__backdrop-fallback {
+  position: absolute;
+  inset: -80px;
+  width: calc(100% + 160px);
+  height: calc(100% + 160px);
+  object-fit: cover;
+  filter: blur(60px) saturate(1.7);
+  transform: scale(1.15);
+}
+.shell__backdrop-img {
+  animation: shell-fade-in 700ms var(--db-ease) both;
+}
+.shell__backdrop-fallback {
+  background: radial-gradient(circle at 30% 30%, var(--db-accent), transparent 60%),
+    linear-gradient(145deg, color-mix(in srgb, var(--db-accent) 40%, #1f3a5f), #2a2a33);
+}
+.shell__veil {
+  background: var(--db-veil);
+}
+@keyframes shell-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ---------- Sidebar ---------- */
+.shell__sidebar {
+  grid-area: side;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  padding: 18px 14px;
+}
+.shell--overlay-titlebar .shell__sidebar {
+  padding-top: 40px;
+}
+.shell__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 8px 14px;
+  border: 0;
+  background: none;
+  color: var(--db-ink);
+  cursor: pointer;
+  font-size: 20px;
+  font-weight: 800;
+}
+.shell__brand-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+}
+.shell__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.shell__nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: var(--db-radius-md);
+  background: none;
+  color: var(--db-ink-2);
+  font: 700 var(--db-text-md) / 1 var(--db-font-sans);
+  text-align: left;
+  cursor: pointer;
+}
+.shell__nav-btn:hover {
+  background: var(--db-hover);
+  color: var(--db-ink);
+}
+.shell__nav-btn.is-active {
+  background: var(--db-accent-soft);
+  color: var(--db-accent-text);
+}
+.shell__nav-btn:focus-visible,
+.shell__brand:focus-visible,
+.shell__playlist-btn:focus-visible,
+.shell__search:focus-visible,
+.shell__player-cover:focus-visible {
+  outline: none;
+  box-shadow: var(--db-focus);
+}
+.shell__nav-icon {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+.shell__section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 16px 8px 2px;
+  color: var(--db-ink-2);
+  font-size: var(--db-text-xs);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.shell__playlists {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+.shell__playlist-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--db-ink);
+  text-align: left;
+  cursor: pointer;
+}
+.shell__playlist-btn:hover {
+  background: var(--db-hover);
+}
+.shell__playlist-btn.is-active {
+  background: var(--db-accent-soft);
+}
+.shell__playlist-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.shell__playlist-name {
+  overflow: hidden;
+  font-size: 13.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.shell__playlist-meta {
+  font-size: var(--db-text-xs);
+  color: var(--db-ink-2);
+}
+.shell__empty {
+  padding: 8px;
+  color: var(--db-ink-2);
+  font-size: var(--db-text-sm);
+  list-style: none;
+}
+.shell__source {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 12px;
+  border: 1px solid var(--db-line);
+  border-radius: 14px;
+  background: var(--db-surface-2);
+  font-size: var(--db-text-sm);
+}
+.shell__source-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-weight: 700;
+}
+.shell__source-line span:last-child {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.shell__source-line--muted {
+  color: var(--db-ink-2);
+  font-weight: 600;
+}
+.shell__dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--db-ink-2);
+  opacity: 0.6;
+}
+.shell__dot.is-on {
+  background: var(--db-ok);
+  opacity: 1;
+}
+
+/* ---------- Header ---------- */
+.shell__header {
+  grid-area: head;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--db-space-4);
+  flex-wrap: wrap;
+  padding: 14px 24px 14px 8px;
+}
+.shell__title h1 {
+  margin: 0;
+  font-size: var(--db-text-2xl);
+  font-weight: 800;
+  line-height: 1.1;
+}
+.shell__title p {
+  margin: 3px 0 0;
+  color: var(--db-ink-2);
+  font-size: 13.5px;
+}
+.shell__search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 200px;
+  max-width: 460px;
+  height: 42px;
+  margin: 0 auto;
+  padding: 0 14px;
+  border: 1px solid var(--db-line);
+  border-radius: 14px;
+  background: var(--db-surface);
+  color: var(--db-ink-2);
+  font: 600 var(--db-text-md) / 1 var(--db-font-sans);
+  cursor: pointer;
+}
+.shell__search svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+.shell__search span {
+  flex: 1;
+  text-align: left;
+}
+.shell__search kbd {
+  padding: 2px 7px;
+  border: 1px solid var(--db-line);
+  border-radius: 7px;
+  background: var(--db-surface-2);
+  font: 800 var(--db-text-xs) / 1.4 var(--db-font-sans);
+}
+.shell__header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--db-space-2);
+}
+
+/* ---------- Content window ---------- */
+.shell__content {
+  grid-area: content;
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 18px 0 0 18px;
+  background: var(--db-content);
+  box-shadow: inset 0 1px 0 var(--db-highlight), inset 1px 0 0 var(--db-highlight), 0 0 0 1px var(--db-line);
+}
+.shell--immersive .shell__content {
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.shell__screen {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.shell__screen-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.shell__toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--db-space-2);
+  flex-wrap: wrap;
+  padding: 10px 16px 0;
+}
+.shell__toolbar-input {
+  width: 220px;
+}
+
+/* ---------- Player bar ---------- */
+.shell__player {
+  grid-area: player;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 0 24px;
+}
+.shell__player-info {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 300px;
+  min-width: 0;
+  flex: none;
+}
+.shell__player-cover {
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+}
+.shell__player-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.shell__player-text strong,
+.shell__player-text span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.shell__player-text span {
+  color: var(--db-ink-2);
+  font-size: var(--db-text-sm);
+}
+.shell__player-center {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.shell__transport {
+  display: flex;
+  align-items: center;
+  gap: var(--db-space-2);
+}
+.shell__seek {
+  display: flex;
+  align-items: center;
+  gap: var(--db-space-3);
+  width: 100%;
+  max-width: 640px;
+}
+.shell__time {
+  width: 38px;
+  color: var(--db-ink-2);
+  font-size: var(--db-text-xs);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.shell__player-error {
+  position: absolute;
+  bottom: -14px;
+  color: var(--db-warn);
+  font-size: var(--db-text-xs);
+}
+.shell__player-tools {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  width: 360px;
+  flex: none;
+}
+.shell__eq-select {
+  width: 128px;
+  height: 34px;
+}
+.shell__volume {
+  width: 92px;
+}
+
+/* ---------- Command palette ---------- */
+.shell__palette-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  justify-content: center;
+  padding-top: 90px;
+}
+.shell__palette-scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 10, 14, 0.55);
+}
+.shell__palette {
+  position: relative;
+  align-self: flex-start;
+  width: min(620px, 92vw);
+  padding: 10px;
+  border: 1px solid var(--db-line);
+  border-radius: 16px;
+  background: var(--db-solid);
+  color: var(--db-ink);
+  box-shadow: var(--db-shadow);
+}
+.shell__palette-input input {
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-bottom: 1px solid var(--db-line);
+  background: none;
+  color: var(--db-ink);
+  font: 500 16px / 1 var(--db-font-sans);
+  outline: none;
+}
+.shell__palette-list {
+  max-height: 420px;
+  margin: 0;
+  padding: 8px 0 0;
+  overflow: auto;
+  list-style: none;
+}
+.shell__palette-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  cursor: pointer;
+}
+.shell__palette-item.is-active {
+  background: var(--db-accent-soft);
+}
+.shell__palette-item .db-badge {
+  width: 64px;
+  justify-content: center;
+}
+.shell__palette-label {
+  flex: 1;
+  overflow: hidden;
+  font-weight: 700;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.shell__palette-hint {
+  color: var(--db-ink-2);
+  font-size: var(--db-text-sm);
+}
+
+/* ---------- Legacy screens hosted inside the content window ---------- */
+.shell__screen-body > .app-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-areas: "content";
+  min-height: 0;
+  height: 100%;
+  padding: 6px;
+  background: transparent;
+}
+
+/* ---------- Narrow windows: icon-only sidebar ---------- */
+@media (max-width: 960px) {
+  .shell {
+    --shell-side: 76px;
+  }
+  .shell__navlabel {
+    display: none;
+  }
+  .shell__nav-btn,
+  .shell__brand {
+    justify-content: center;
+    padding-inline: 0;
+  }
+  .shell__player-tools {
+    width: auto;
+  }
+  .shell__volume,
+  .shell__eq-select {
+    display: none;
+  }
+  .shell__player-info {
+    width: 200px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell__backdrop-img {
+    animation: none;
+  }
+}

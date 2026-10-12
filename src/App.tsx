@@ -11,7 +11,6 @@ import {
   searchOnlineForTrack as handleQuickSearchTrack,
   selectTrack,
 } from "./actions/library";
-import { openExternalLink } from "./utils/external";
 import {
   applyAndSaveOnlineResult as handleApplyAndSaveOnlineResult,
   applyOnlineCoverOnly as handleApplyOnlineCoverOnly,
@@ -43,28 +42,22 @@ import { useLibrarySession } from "./hooks/useLibrarySession";
 import { useLyrics } from "./hooks/useLyrics";
 import { useTrackTechnicalInfo } from "./hooks/useTrackTechnicalInfo";
 import {
-  changeVolume,
   clearPlayerQueue,
   enqueueTrack,
   enqueueTracks,
   loadMoreQueueTracks,
   playFromLibraryCover,
-  playNextTrack,
   playPlaylist,
-  playPreviousTrack,
   playTrackFromPlaylist,
   playTrackFromQueue,
   removeTrackFromPlayerQueue,
-  seekTo,
   togglePlayPause,
 } from "./actions/playback";
 import { audioRef } from "./audio/audioRef";
 import { usePlaybackEngine } from "./hooks/usePlaybackEngine";
-import appIcon from "./assets/discoballs-icon.png";
 import {
   IconArrowDown,
   IconArrowUp,
-  IconAutoEq,
   IconCheck,
   IconClose,
   IconCover,
@@ -72,34 +65,21 @@ import {
   IconFolder,
   IconGlobe,
   IconGrid,
-  IconHeart,
   IconListCompact,
-  IconMic,
   IconMusicNote,
   IconMusicArrowRight,
-  IconPlaylist,
-  IconMute,
-  IconNext,
-  IconPause,
   IconPlay,
   IconPlus,
-  IconPrev,
   IconRename,
   IconSave,
   IconSaveRename,
   IconSearch,
-  IconShuffle,
   IconSettings,
   IconSortAdded,
   IconSortArtist,
   IconSortRelease,
   IconSortTitle,
-  IconTag,
   IconTrash,
-  IconRepeatOne,
-  IconUser,
-  IconVisualizerBars,
-  IconVolume,
 } from "./components/icons";
 import { DashboardSection } from "./sections/DashboardSection";
 import { LibraryBrowserSection } from "./sections/LibraryBrowserSection";
@@ -108,7 +88,6 @@ import { OnlineSearchSection } from "./sections/OnlineSearchSection";
 import { PlayerSection } from "./sections/PlayerSection";
 import { RenameSettingsModal } from "./sections/RenameSettingsModal";
 import { SettingsSection } from "./sections/SettingsSection";
-import { TopBarSection } from "./sections/TopBarSection";
 import { TrackDetailsSection } from "./sections/TrackDetailsSection";
 import type { Track } from "./types";
 import { useEqualizerStore } from "./store/equalizerStore";
@@ -119,6 +98,7 @@ import { useTagEditorStore } from "./store/tagEditorStore";
 import { usePlaylistStore } from "./store/playlistStore";
 import { useSettingsStore } from "./store/settingsStore";
 import { useUiStore } from "./store/uiStore";
+import { AppShell } from "./shell/AppShell";
 import { useApplyTheme } from "./ui/useApplyTheme";
 import { useAutoEqualizer } from "./hooks/useAutoEqualizer";
 import { usePlaybackQueueView } from "./hooks/usePlaybackQueueView";
@@ -142,18 +122,10 @@ import { getActiveLyricIndex, } from "./utils/lyrics";
 export function App() {
   useApplyTheme();
   const coverInputRef = useRef<HTMLInputElement | null>(null);
-  const { activeScreen, setActiveScreen, showRenameSettings, setShowRenameSettings } = useUiStore();
+  const { activeScreen, showRenameSettings, setShowRenameSettings } = useUiStore();
   const {
     playlists,
     activePlaylistId,
-    playlistNameDraft,
-    isPlaylistRenaming,
-    setPlaylistNameDraft: handlePlaylistDraftChange,
-    setActivePlaylist: handleActivePlaylistChange,
-    createPlaylist: handleCreatePlaylist,
-    renameButtonClick: handleRenamePlaylistButtonClick,
-    confirmRename: confirmPlaylistRename,
-    deleteActivePlaylist: handleDeletePlaylist,
     insertTrack: insertTrackIntoActivePlaylist,
     appendTracks,
     removeEntry: removePlaylistEntry,
@@ -189,11 +161,8 @@ export function App() {
     colorMode,
     setColorMode,
     playerColumnVisibility,
-    togglePlayerColumn,
     playerVisualizerPresetId,
-    setPlayerVisualizerPresetId,
     showPlayerLyricsSection,
-    toggleShowPlayerLyrics: handleTogglePlayerLyricsSection,
   } = useSettingsStore();
   const {
     equalizerPresets,
@@ -257,18 +226,10 @@ export function App() {
     playbackTrackId,
     playbackQueueTrackIds,
     isPlaying,
-    isShuffleEnabled,
-    isRepeatTrackEnabled,
     currentTime,
     duration,
-    volume,
-    isMuted,
     audioSrc,
     audioTrackId,
-    audioError,
-    setIsShuffleEnabled,
-    setIsRepeatTrackEnabled,
-    setIsMuted,
   } = usePlayerStore();
   const {
     query,
@@ -295,8 +256,6 @@ export function App() {
   useTagDraftSync();
   const {
     trackById,
-    playbackQueueTracks,
-    playbackTrackIndex,
     upcomingTracks: playerQueueUpcomingTracks,
     historyTracks: playerQueueHistoryTracks,
     hasMoreUpcomingTracks: hasMorePlayerQueueTracks,
@@ -374,11 +333,6 @@ export function App() {
     void searchOnlineForCurrentQuery();
   }
 
-  async function handleOpenExternalLink(event: { preventDefault: () => void }, url: string) {
-    event.preventDefault();
-    await openExternalLink(url);
-  }
-
   async function handleOpenTrackFolder() {
     if (!editableTrack?.path) {
       return;
@@ -427,10 +381,6 @@ export function App() {
 
   const getVisibleTrackIds = () => filteredTracks.map((track) => track.id);
   const handleTogglePlayPause = () => togglePlayPause(getVisibleTrackIds());
-  const handleSeek = seekTo;
-  const handleVolumeChange = changeVolume;
-  const handlePrevTrack = playPreviousTrack;
-  const handleNextTrack = playNextTrack;
   const handlePlayTrackFromPlaylist = playTrackFromPlaylist;
   const handlePlayTrackFromPlayerQueue = playTrackFromQueue;
   const handleLoadMorePlayerQueueTracks = loadMoreQueueTracks;
@@ -454,14 +404,6 @@ export function App() {
       event.preventDefault();
       handleRenameEqualizerPresetButtonClick();
     }
-  }
-
-  function handlePlaylistRenameInputKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    if (event.key !== "Enter") {
-      return;
-    }
-    event.preventDefault();
-    confirmPlaylistRename();
   }
 
   function appendTrackToActivePlaylist(trackId: string) {
@@ -505,96 +447,12 @@ export function App() {
   };
 
   return (
+    <AppShell
+      onBrandClick={rotateAccent}
+      onTogglePlayPause={handleTogglePlayPause}
+      onPlayActivePlaylist={() => void handlePlayActivePlaylist()}
+    >
     <div className={colorMode === "dark" ? "app-shell theme-dark" : "app-shell"} style={appStyle}>
-      <TopBarSection
-        activeScreen={activeScreen}
-        appIconSrc={appIcon}
-        audioRef={audioRef}
-        audioSrc={audioSrc}
-        playerInfoTrack={playerInfoTrack}
-        playerTechnicalBadge={trackTechnicalBadge}
-        playerTechnicalSummary={trackTechnicalSummary}
-        isPlaying={isPlaying}
-        currentTime={currentTime}
-        duration={duration}
-        volume={volume}
-        isMuted={isMuted}
-        audioError={audioError}
-        showAudioError={Boolean(selectedTrack || playbackTrack)}
-        isPrevDisabled={playbackTrackIndex <= 0}
-        isNextDisabled={playbackTrackIndex < 0 || playbackTrackIndex >= playbackQueueTracks.length - 1}
-        isPlayDisabled={!selectedTrack && !audioSrc}
-        isShuffleEnabled={isShuffleEnabled}
-        isRepeatTrackEnabled={isRepeatTrackEnabled}
-        canSeek={Boolean(audioSrc && audioTrackId === playbackTrackId && duration > 0)}
-        onScreenChange={setActiveScreen}
-        onRotateAccent={rotateAccent}
-        onToggleShuffle={() => setIsShuffleEnabled((prev) => !prev)}
-        onPrev={handlePrevTrack}
-        onPlayPause={() => {
-          void handleTogglePlayPause();
-        }}
-        onNext={handleNextTrack}
-        onToggleRepeatTrack={() => setIsRepeatTrackEnabled((prev) => !prev)}
-        onSeek={handleSeek}
-        onToggleMute={() => setIsMuted((prev) => !prev)}
-        onVolumeChange={handleVolumeChange}
-        equalizerPresets={equalizerPresets}
-        equalizerPresetId={equalizerPresetId}
-        onEqualizerPresetChange={handleEqualizerPresetChange}
-        autoEqEnabled={audioAutoEq}
-        onToggleAutoEq={() => setAudioAutoEq(!audioAutoEq)}
-        showLibraryColumn={playerColumnVisibility.library}
-        showVisualizerColumn={playerColumnVisibility.visualizer}
-        showQueueColumn={playerColumnVisibility.queue}
-        showLyricsSection={showPlayerLyricsSection}
-        onToggleLibraryColumn={() => togglePlayerColumn("library")}
-        onToggleVisualizerColumn={() => togglePlayerColumn("visualizer")}
-        onToggleQueueColumn={() => togglePlayerColumn("queue")}
-        onToggleLyricsSection={handleTogglePlayerLyricsSection}
-        visualizerPresetId={playerVisualizerPresetId}
-        onVisualizerPresetChange={setPlayerVisualizerPresetId}
-        activePlaylistId={activePlaylistId}
-        isPlaylistRenaming={isPlaylistRenaming}
-        playlistNameDraft={playlistNameDraft}
-        playlists={playlists}
-        hasActivePlaylist={Boolean(activePlaylist)}
-        canPlayActivePlaylist={Boolean(activePlaylist?.entries.length)}
-        onActivePlaylistChange={handleActivePlaylistChange}
-        onPlaylistDraftChange={handlePlaylistDraftChange}
-        onCreatePlaylist={handleCreatePlaylist}
-        onRenamePlaylist={handleRenamePlaylistButtonClick}
-        onPlaylistRenameInputKeyDown={handlePlaylistRenameInputKeyDown}
-        onDeletePlaylist={handleDeletePlaylist}
-        onPlayActivePlaylist={handlePlayActivePlaylist}
-        onOpenExternalLink={(url) => {
-          void handleOpenExternalLink({ preventDefault: () => {} }, url);
-        }}
-        IconShuffle={IconShuffle}
-        IconPrev={IconPrev}
-        IconPause={IconPause}
-        IconPlay={IconPlay}
-        IconNext={IconNext}
-        IconRepeatTrack={IconRepeatOne}
-        IconMute={IconMute}
-        IconVolume={IconVolume}
-        IconAutoEq={IconAutoEq}
-        IconLibrary={IconFolder}
-        IconVisualizer={IconVisualizerBars}
-        IconQueue={IconListCompact}
-        IconLyrics={IconMic}
-        IconPlus={IconPlus}
-        IconRename={IconRename}
-        IconTrash={IconTrash}
-        IconGlobe={IconGlobe}
-        IconUser={IconUser}
-        IconHeart={IconHeart}
-        IconDashboard={IconPlaylist}
-        IconTagging={IconTag}
-        IconPlayer={IconPlay}
-        IconSettings={IconSettings}
-      />
-
       {activeScreen === "tagging" && (
         <main className="two-col">
           <div className="col col-left">
@@ -1003,5 +861,6 @@ export function App() {
         IconCheck={IconCheck}
       />
     </div>
+    </AppShell>
   );
 }
