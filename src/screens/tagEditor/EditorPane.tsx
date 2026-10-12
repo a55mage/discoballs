@@ -32,7 +32,7 @@ type EditorPaneProps = {
 export function EditorPane({ saved, draft, changes }: EditorPaneProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { renameFields, renameSeparator } = useSettingsStore();
-  const setShowRenameSettings = useUiStore((state) => state.setShowRenameSettings);
+  const { setActiveScreen, setSettingsTab } = useUiStore();
   const info = useTrackTechnicalInfo(draft);
   const changed = new Set(changes.map((change) => change.field));
   const isRemote = draft.source?.type === "navidrome";
@@ -98,7 +98,10 @@ export function EditorPane({ saved, draft, changes }: EditorPaneProps) {
         <section className="tag-rename" aria-label="File name">
           <header>
             <h3>File name</h3>
-            <Button size="sm" icon={<IconSettings />} onClick={() => setShowRenameSettings(true)}>Pattern</Button>
+            <Button size="sm" icon={<IconSettings />} onClick={() => {
+              setSettingsTab("renaming");
+              setActiveScreen("settings");
+            }}>Pattern</Button>
           </header>
           <div className="tag-rename__chips" aria-label="Pattern fields">
             {renameFields.map((field, index) => (

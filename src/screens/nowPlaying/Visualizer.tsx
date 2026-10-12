@@ -244,7 +244,7 @@ function bandEnergy(freq: Uint8Array<ArrayBuffer>, start: number, end: number): 
   return sum / ((to - from) * 255);
 }
 
-function drawXpBars(
+export function drawXpBars(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,

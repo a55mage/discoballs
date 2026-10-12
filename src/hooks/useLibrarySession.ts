@@ -3,6 +3,7 @@ import { applyLoadedLibrary } from "../actions/library";
 import { connectNavidromeBookmark } from "../actions/navidrome";
 import { cancelOnlineSearch } from "../actions/onlineSearch";
 import { adapter } from "../api";
+import { useVisibleTracks } from "./useVisibleTracks";
 import { useLibraryStore } from "../store/libraryStore";
 import { clearPendingStartupConnection, isStartupConnectionPending, useNavidromeStore } from "../store/navidromeStore";
 import { usePlayerStore } from "../store/playerStore";
@@ -24,9 +25,9 @@ function getRemoteCoverCacheKey(track: Track): string {
 /**
  * Library lifecycle: restores the last library at launch, keeps its snapshot, auto-opens the default
  * folder, reconnects the startup Navidrome server and lazily downloads remote covers.
- * `visibleTracks` are the tracks currently rendered in the library list.
  */
-export function useLibrarySession(visibleTracks: Track[]): void {
+export function useLibrarySession(): void {
+  const { visibleTracks } = useVisibleTracks();
   const { tracks, folderPath, selectedTrackId } = useLibraryStore();
   const playbackTrackId = usePlayerStore((state) => state.playbackTrackId);
   const { autoOpenDefaultFolder, defaultFolderPath } = useSettingsStore();

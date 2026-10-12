@@ -398,3 +398,65 @@ select.db-input {
   white-space: nowrap;
   border: 0;
 }
+
+/* ---------- CoverMosaic ---------- */
+.db-mosaic {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: var(--db-surface-2);
+  color: var(--db-ink-2);
+}
+.db-mosaic--empty {
+  border: 1.5px dashed var(--db-line);
+}
+.db-mosaic img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.db-mosaic--grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+.db-mosaic__icon {
+  width: 40%;
+  height: 40%;
+}
+
+/* ---------- SettingRow ---------- */
+.db-setting {
+  display: flex;
+  align-items: center;
+  gap: var(--db-space-4);
+  padding: 14px 0;
+  border-bottom: 1px solid var(--db-line);
+}
+.db-setting:last-child {
+  border-bottom: 0;
+}
+.db-setting__text {
+  flex: 1;
+  min-width: 0;
+}
+.db-setting__title {
+  display: flex;
+  align-items: center;
+  gap: var(--db-space-2);
+  font-weight: 700;
+}
+.db-setting__desc {
+  margin-top: 2px;
+  color: var(--db-ink-2);
+  font-size: var(--db-text-sm);
+}
+.db-setting__control {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: var(--db-space-2);
+}

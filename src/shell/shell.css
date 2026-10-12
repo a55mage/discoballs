@@ -16,6 +16,11 @@ body,
   height: 100%;
   margin: 0;
 }
+body {
+  background: var(--db-bg);
+  color: var(--db-ink);
+  font-family: var(--db-font-sans);
+}
 
 .shell {
   --shell-side: 236px;

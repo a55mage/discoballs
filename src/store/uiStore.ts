@@ -3,18 +3,20 @@ import type { AppScreen } from "../types";
 import { useSettingsStore } from "./settingsStore";
 import { fieldSetter, type Setter } from "./util";
 
+export type SettingsTab = "general" | "audio" | "appearance" | "renaming" | "library";
+
 export type Toast = { id: number; message: string; tone: "info" | "success" | "error" };
 
 export type UiState = {
   activeScreen: AppScreen;
-  showRenameSettings: boolean;
   isPaletteOpen: boolean;
+  settingsTab: SettingsTab;
   /** Full-window mode: only the content is shown, without sidebar, header and player bar. */
   isImmersive: boolean;
   toast: Toast | null;
   setActiveScreen: Setter<AppScreen>;
-  setShowRenameSettings: Setter<boolean>;
   setPaletteOpen: Setter<boolean>;
+  setSettingsTab: Setter<SettingsTab>;
   setImmersive: Setter<boolean>;
   showToast: (message: string, tone?: Toast["tone"]) => void;
   dismissToast: () => void;
@@ -25,13 +27,13 @@ let toastTimer: ReturnType<typeof setTimeout> | undefined;
 
 export const useUiStore = create<UiState>()((set) => ({
   activeScreen: useSettingsStore.getState().startupScreen,
-  showRenameSettings: false,
   isPaletteOpen: false,
+  settingsTab: "general",
   isImmersive: false,
   toast: null,
   setActiveScreen: fieldSetter(set, "activeScreen"),
-  setShowRenameSettings: fieldSetter(set, "showRenameSettings"),
   setPaletteOpen: fieldSetter(set, "isPaletteOpen"),
+  setSettingsTab: fieldSetter(set, "settingsTab"),
   setImmersive: fieldSetter(set, "isImmersive"),
   showToast: (message, tone = "info") => {
     toastCounter += 1;

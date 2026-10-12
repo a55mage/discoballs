@@ -7,7 +7,6 @@ import { cx } from "../ui";
 import { Backdrop } from "./Backdrop";
 import { CommandPalette } from "./CommandPalette";
 import { Header } from "./Header";
-import { LegacyToolbar } from "./LegacyToolbar";
 import { NavidromeDialog } from "./NavidromeDialog";
 import { Toast } from "./Toast";
 import { PlayerBar } from "./PlayerBar";
@@ -23,14 +22,13 @@ type AppShellProps = {
   inspector?: ReactNode;
   onBrandClick: () => void;
   onTogglePlayPause: () => void;
-  onPlayActivePlaylist: () => void;
 };
 
 /**
  * The window frame. Sidebar, header and player bar are one continuous frosted "C" around the content
  * window, over a backdrop tinted by the current cover. In immersive mode only the content remains.
  */
-export function AppShell({ children, inspector, onBrandClick, onTogglePlayPause, onPlayActivePlaylist }: AppShellProps) {
+export function AppShell({ children, inspector, onBrandClick, onTogglePlayPause }: AppShellProps) {
   useShellShortcuts();
   // Full-window mode only applies to Now Playing; any other screen shows the whole frame again.
   const isImmersive = useUiStore((state) => state.isImmersive && state.activeScreen === "player");
@@ -51,7 +49,6 @@ export function AppShell({ children, inspector, onBrandClick, onTogglePlayPause,
 
       <main className="shell__content">
         <div className="shell__screen">
-          {!isImmersive ? <LegacyToolbar onPlayActivePlaylist={onPlayActivePlaylist} /> : null}
           <div className="shell__screen-body">{children}</div>
         </div>
         {inspector}

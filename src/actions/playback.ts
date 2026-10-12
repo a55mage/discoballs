@@ -239,9 +239,12 @@ export async function playTrackFromPlaylist(track: Track, playlistId?: string): 
   startPlaybackFromPlaylist(playlistId, track.id);
 }
 
-export async function playPlaylist(playlistId: string): Promise<void> {
+export async function playPlaylist(playlistId: string, options: { shuffle?: boolean } = {}): Promise<void> {
   if (!(await prepareAudio())) {
     return;
+  }
+  if (options.shuffle !== undefined) {
+    player().setIsShuffleEnabled(options.shuffle);
   }
   startPlaybackFromPlaylist(playlistId);
 }

@@ -12,7 +12,9 @@ src/
   api/        Backend adapter: Tauri bridge in the app, mock adapter in a plain browser.
   audio/      The single <audio> element reference.
   utils/      Helpers (formatting, lyrics, Web Audio graph).
-  sections/   Current UI sections (to be replaced by the redesigned screens).
+  shell/      The window frame: sidebar, header, player bar, palette, dialogs, toasts.
+  screens/    One folder per screen: library, tagEditor, nowPlaying, playlists, settings.
+  ui/         Design system (tokens, base components, style guide).
 ```
 
 ## Stores
@@ -82,8 +84,23 @@ cover. The screen is passed as `children`; an optional `inspector` slot sits ins
   and the 0–100 intensity (`dynamicBackground`, `backgroundIntensity` in `settingsStore`).
 - `CommandPalette`: ⌘K / Ctrl+K (`useShellShortcuts`), combobox/listbox semantics, screens + commands + tracks.
 - Immersive mode (`uiStore.isImmersive`): hides sidebar, header and player bar; the `<audio>` element stays mounted.
-- `LegacyToolbar`: controls of the old screens (player layout, playlist actions, app links). Temporary; it goes
-  away as each screen is redesigned.
 - Window chrome: on macOS the Tauri window uses `titleBarStyle: Overlay` (see `tauri.conf.json`), the sidebar leaves
   room for the traffic lights and the header is a drag region (`core:window:allow-start-dragging`).
   Windows and Linux keep their native title bar.
+
+## Screens (`src/screens`)
+
+Each screen is a folder with its components and one CSS file. They read stores and call actions; nothing is
+passed down from `App.tsx`, which only picks the screen and mounts the hooks.
+
+- `library/`: sortable, virtualized, multi-select `TrackTable` (ARIA grid), Albums / Artists / Folders views,
+  health filters, and `LibraryInspector` (single track, or batch editing through `actions/batchEdit`).
+  View state (tab, query, filter, sort, selection) lives in `libraryViewStore`; filtering and sorting are pure
+  functions in `domain/libraryView`.
+- `tagEditor/`: file list, editor with per-field change tracking, and online matches with a before/after diff
+  (`domain/matches`).
+- `nowPlaying/`: cover / lyrics / visualizer in any combination (`settingsStore.nowPlayingShow`), queue pane,
+  full-window mode (`uiStore.isImmersive`).
+- `playlists/`: playlist list, editor (pointer drag & drop through `useDashboardDrag`, plus move buttons) and a
+  track picker.
+- `settings/`: one component per tab; `uiStore.settingsTab` lets other screens deep-link into a tab.

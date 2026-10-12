@@ -127,7 +127,7 @@ describe("CommandPalette", () => {
 describe("AppShell", () => {
   const renderShell = () =>
     render(
-      <AppShell onBrandClick={() => undefined} onTogglePlayPause={() => undefined} onPlayActivePlaylist={() => undefined}>
+      <AppShell onBrandClick={() => undefined} onTogglePlayPause={() => undefined}>
         <p>Screen content</p>
       </AppShell>
     );
