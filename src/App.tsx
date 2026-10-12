@@ -53,6 +53,7 @@ import { SettingsSection } from "./sections/SettingsSection";
 import { TopBarSection } from "./sections/TopBarSection";
 import { TrackDetailsSection } from "./sections/TrackDetailsSection";
 import type { AppScreen, NavidromeBookmark, NavidromeConnectionInput, OnlineMatch, RenameField, SearchQuery, Track, TrackTechnicalInfo } from "./types";
+import { usePlaylistStore } from "./store/playlistStore";
 import { useSettingsStore } from "./store/settingsStore";
 import { BUILTIN_EQ_PRESET_IDS, buildUniqueEqualizerPresetName } from "./domain/equalizer";
 import {
@@ -93,8 +94,6 @@ import {
 import { fetchLyrics, getActiveLyricIndex, type LyricLine } from "./utils/lyrics";
 
 const adapter = createAdapter(mockAdapter);
-const STORAGE_PLAYLISTS_KEY = "musicmanager-playlists";
-const STORAGE_ACTIVE_PLAYLIST_ID_KEY = "musicmanager-active-playlist-id";
 const STORAGE_PLAYER_COLUMNS_KEY = "musicmanager-player-columns";
 const STORAGE_PLAYER_VISUALIZER_PRESET_KEY = "musicmanager-player-visualizer-preset";
 const STORAGE_PLAYER_SHOW_LYRICS_KEY = "musicmanager-player-show-lyrics";
@@ -199,10 +198,22 @@ export function App() {
   const [navidromeStatus, setNavidromeStatus] = useState("Navidrome not connected.");
   const [isConnectingNavidrome, setIsConnectingNavidrome] = useState(false);
   const [showRenameSettings, setShowRenameSettings] = useState(false);
-  const [playlists, setPlaylists] = useState<Playlist[]>([]);
-  const [activePlaylistId, setActivePlaylistId] = useState("");
-  const [playlistNameDraft, setPlaylistNameDraft] = useState("");
-  const [isPlaylistRenaming, setIsPlaylistRenaming] = useState(false);
+  const {
+    playlists,
+    activePlaylistId,
+    playlistNameDraft,
+    isPlaylistRenaming,
+    setPlaylistNameDraft: handlePlaylistDraftChange,
+    setActivePlaylist: handleActivePlaylistChange,
+    createPlaylist: handleCreatePlaylist,
+    renameButtonClick: handleRenamePlaylistButtonClick,
+    confirmRename: confirmPlaylistRename,
+    deleteActivePlaylist: handleDeletePlaylist,
+    insertTrack: insertTrackIntoActivePlaylist,
+    appendTracks,
+    moveEntry: movePlaylistEntry,
+    removeEntry: removePlaylistEntry,
+  } = usePlaylistStore();
   const [genreEqPresetMap, setGenreEqPresetMap] = useState<Record<string, string>>({});
   const [equalizerPresets, setEqualizerPresets] = useState<EqualizerPreset[]>(EQUALIZER_PRESETS.map((preset) => ({ ...preset, bandGains: [...preset.bandGains] })));
   const [equalizerPresetId, setEqualizerPresetId] = useState(DEFAULT_EQUALIZER_PRESET.id);
@@ -524,25 +535,6 @@ export function App() {
   } as CSSProperties;
 
   useEffect(() => {
-    const savedPlaylists = window.localStorage.getItem(STORAGE_PLAYLISTS_KEY);
-    if (savedPlaylists) {
-      try {
-        const parsed = JSON.parse(savedPlaylists) as Playlist[];
-        if (Array.isArray(parsed) && parsed.length) {
-          const savedActivePlaylistId = window.localStorage.getItem(STORAGE_ACTIVE_PLAYLIST_ID_KEY) || "";
-          const restoredActivePlaylistId = parsed.some((playlist) => playlist.id === savedActivePlaylistId)
-            ? savedActivePlaylistId
-            : parsed[0].id;
-          const restoredActivePlaylist = parsed.find((playlist) => playlist.id === restoredActivePlaylistId) ?? parsed[0];
-          setPlaylists(parsed);
-          setActivePlaylistId(restoredActivePlaylistId);
-          setPlaylistNameDraft(restoredActivePlaylist?.name ?? "");
-        }
-      } catch {
-        // Ignore invalid playlists.
-      }
-    }
-
     const savedNavidromeBookmarks = window.localStorage.getItem(STORAGE_NAVIDROME_BOOKMARKS_KEY);
     if (savedNavidromeBookmarks) {
       try {
@@ -790,18 +782,6 @@ export function App() {
   }, [autoOpenDefaultFolder, defaultFolderPath, folderPath, selectedTrackId, tracks.length]);
 
   useEffect(() => {
-    window.localStorage.setItem(STORAGE_PLAYLISTS_KEY, JSON.stringify(playlists));
-  }, [playlists]);
-
-  useEffect(() => {
-    if (activePlaylistId) {
-      window.localStorage.setItem(STORAGE_ACTIVE_PLAYLIST_ID_KEY, activePlaylistId);
-      return;
-    }
-    window.localStorage.removeItem(STORAGE_ACTIVE_PLAYLIST_ID_KEY);
-  }, [activePlaylistId]);
-
-  useEffect(() => {
     window.localStorage.setItem(STORAGE_NAVIDROME_BOOKMARKS_KEY, JSON.stringify(navidromeBookmarks));
   }, [navidromeBookmarks]);
 
@@ -824,22 +804,6 @@ export function App() {
     setIsNavidromePanelOpen(true);
     handleConnectNavidromeBookmark(startupBookmark);
   }, [navidromeBookmarks]);
-
-  useEffect(() => {
-    if (!playlists.length) {
-      if (activePlaylistId) {
-        setActivePlaylistId("");
-      }
-      setPlaylistNameDraft("");
-      setIsPlaylistRenaming(false);
-      return;
-    }
-    const active = playlists.find((playlist) => playlist.id === activePlaylistId);
-    if (!active) {
-      setActivePlaylistId(playlists[0].id);
-      setPlaylistNameDraft(playlists[0].name);
-    }
-  }, [playlists, activePlaylistId]);
 
   useEffect(() => {
     if (!playbackPlaylistId) {
@@ -2498,83 +2462,12 @@ export function App() {
     setIsEqualizerPresetRenaming(false);
   }
 
-  function handleCreatePlaylist() {
-    const trimmedName = playlistNameDraft.trim();
-    const hasNameConflict = trimmedName
-      ? playlists.some((playlist) => normalizePlaylistName(playlist.name) === normalizePlaylistName(trimmedName))
-      : false;
-    const baseName = !trimmedName || hasNameConflict ? "New Playlist" : trimmedName;
-    const name = buildUniquePlaylistName(playlists, baseName);
-    const nextPlaylist: Playlist = {
-      id: `playlist-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      name,
-      entries: [],
-    };
-    setPlaylists((prev) => [...prev, nextPlaylist]);
-    setActivePlaylistId(nextPlaylist.id);
-    setPlaylistNameDraft(nextPlaylist.name);
-    setIsPlaylistRenaming(false);
-  }
-
-  function handleRenamePlaylist() {
-    if (!activePlaylist) {
-      return;
-    }
-    const nextName = playlistNameDraft.trim();
-    if (!nextName) {
-      return;
-    }
-    const uniqueName = buildUniquePlaylistName(playlists, nextName, activePlaylist.id);
-    setPlaylists((prev) => prev.map((playlist) => (
-      playlist.id === activePlaylist.id ? { ...playlist, name: uniqueName } : playlist
-    )));
-    setPlaylistNameDraft(uniqueName);
-  }
-
-  function handleRenamePlaylistButtonClick() {
-    if (!activePlaylist) {
-      return;
-    }
-    if (!isPlaylistRenaming) {
-      setPlaylistNameDraft(activePlaylist.name);
-      setIsPlaylistRenaming(true);
-      return;
-    }
-    handleRenamePlaylist();
-    setIsPlaylistRenaming(false);
-  }
-
-  function handleDeletePlaylist() {
-    if (!activePlaylist) {
-      return;
-    }
-    setPlaylists((prev) => {
-      const next = prev.filter((playlist) => playlist.id !== activePlaylist.id);
-      setActivePlaylistId(next[0]?.id ?? "");
-      setPlaylistNameDraft(next[0]?.name ?? "");
-      setIsPlaylistRenaming(false);
-      return next;
-    });
-  }
-
-  function handlePlaylistDraftChange(value: string) {
-    setPlaylistNameDraft(value);
-  }
-
-  function handleActivePlaylistChange(playlistId: string) {
-    setIsPlaylistRenaming(false);
-    setActivePlaylistId(playlistId);
-    const matchedPlaylist = playlists.find((playlist) => playlist.id === playlistId);
-    setPlaylistNameDraft(matchedPlaylist?.name ?? "");
-  }
-
   function handlePlaylistRenameInputKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key !== "Enter") {
       return;
     }
     event.preventDefault();
-    handleRenamePlaylist();
-    setIsPlaylistRenaming(false);
+    confirmPlaylistRename();
   }
 
   function handleLibraryTrackPointerDown(event: PointerEvent<HTMLElement>, track: Track) {
@@ -2597,74 +2490,12 @@ export function App() {
     };
   }
 
-  function insertTrackIntoActivePlaylist(trackId: string, beforeEntryId?: string | null) {
-    const nextEntry: PlaylistEntry = {
-      id: `entry-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      trackId,
-    };
-    if (!activePlaylist) {
-      const playlistName = buildUniquePlaylistName(playlists, "New Playlist");
-      const nextPlaylist: Playlist = {
-        id: `playlist-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        name: playlistName,
-        entries: [nextEntry],
-      };
-      setPlaylists((prev) => [...prev, nextPlaylist]);
-      setActivePlaylistId(nextPlaylist.id);
-      setPlaylistNameDraft(nextPlaylist.name);
-      return;
-    }
-    setPlaylists((prev) =>
-      prev.map((playlist) => {
-        if (playlist.id !== activePlaylist.id) {
-          return playlist;
-        }
-        if (!beforeEntryId) {
-          return { ...playlist, entries: [...playlist.entries, nextEntry] };
-        }
-        const atIndex = playlist.entries.findIndex((entry) => entry.id === beforeEntryId);
-        if (atIndex < 0) {
-          return { ...playlist, entries: [...playlist.entries, nextEntry] };
-        }
-        const nextEntries = [...playlist.entries];
-        nextEntries.splice(atIndex, 0, nextEntry);
-        return { ...playlist, entries: nextEntries };
-      })
-    );
-  }
-
   function appendTrackToActivePlaylist(trackId: string) {
     insertTrackIntoActivePlaylist(trackId, null);
   }
 
   function appendTracksToActivePlaylist(trackIds: string[]) {
-    const normalizedTrackIds = trackIds.filter((trackId) => trackId && trackById.has(trackId));
-    if (!normalizedTrackIds.length) {
-      return;
-    }
-    const nextEntries: PlaylistEntry[] = normalizedTrackIds.map((trackId) => ({
-      id: `entry-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      trackId,
-    }));
-    if (!activePlaylist) {
-      const playlistName = buildUniquePlaylistName(playlists, "New Playlist");
-      const nextPlaylist: Playlist = {
-        id: `playlist-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        name: playlistName,
-        entries: nextEntries,
-      };
-      setPlaylists((prev) => [...prev, nextPlaylist]);
-      setActivePlaylistId(nextPlaylist.id);
-      setPlaylistNameDraft(nextPlaylist.name);
-      return;
-    }
-    setPlaylists((prev) =>
-      prev.map((playlist) =>
-        playlist.id === activePlaylist.id
-          ? { ...playlist, entries: [...playlist.entries, ...nextEntries] }
-          : playlist
-      )
-    );
+    appendTracks(trackIds.filter((trackId) => trackId && trackById.has(trackId)));
   }
 
   function handleAddFilteredTracksToActivePlaylist() {
@@ -2712,49 +2543,6 @@ export function App() {
         selectTrack(firstTrack);
       }
     }
-  }
-
-  function movePlaylistEntry(draggedEntryId: string, targetEntryId?: string | null) {
-    if (!activePlaylist) {
-      return;
-    }
-    setPlaylists((prev) => prev.map((playlist) => {
-      if (playlist.id !== activePlaylist.id) {
-        return playlist;
-      }
-      const fromIndex = playlist.entries.findIndex((entry) => entry.id === draggedEntryId);
-      if (fromIndex < 0) {
-        return playlist;
-      }
-      let toIndex = targetEntryId
-        ? playlist.entries.findIndex((entry) => entry.id === targetEntryId)
-        : playlist.entries.length - 1;
-      if (toIndex < 0) {
-        toIndex = playlist.entries.length - 1;
-      }
-      if (fromIndex === toIndex) {
-        return playlist;
-      }
-      const nextEntries = [...playlist.entries];
-      const [moved] = nextEntries.splice(fromIndex, 1);
-      nextEntries.splice(toIndex, 0, moved);
-      return { ...playlist, entries: nextEntries };
-    }));
-  }
-
-  function removePlaylistEntry(entryId: string) {
-    if (!activePlaylist) {
-      return;
-    }
-    setPlaylists((prev) => prev.map((playlist) => {
-      if (playlist.id !== activePlaylist.id) {
-        return playlist;
-      }
-      return {
-        ...playlist,
-        entries: playlist.entries.filter((entry) => entry.id !== entryId),
-      };
-    }));
   }
 
   function applyDashboardPointerDrop(
