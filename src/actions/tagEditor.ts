@@ -4,10 +4,18 @@ import { usePlayerStore } from "../store/playerStore";
 import { getEditableTrack, getSelectedTrack } from "../store/selectors";
 import { useSettingsStore } from "../store/settingsStore";
 import { useTagEditorStore } from "../store/tagEditorStore";
+import { useUiStore } from "../store/uiStore";
 import type { OnlineMatch, Track, TrackUpdate } from "../types";
+import { applyMatchToTrack } from "../domain/matches";
 import { formatError } from "../utils/common";
 
 const editor = () => useTagEditorStore.getState();
+
+/** Records the outcome in the search status line and shows it as a toast. */
+function report(message: string, tone: "success" | "error" = "success"): void {
+  editor().setSearchStatus(message);
+  useUiStore.getState().showToast(message, tone);
+}
 
 function toTrackUpdate(track: Track): TrackUpdate {
   return {
@@ -74,9 +82,9 @@ export async function saveTrackTags(): Promise<void> {
   try {
     const result = await adapter.saveTrack(track.id, track.path, toTrackUpdate(track), track.coverUrl, undefined, shouldRemoveCover(track));
     commitTrackAfterTagSave(track.id, track, result.path);
-    editor().setSearchStatus("Tags saved to track");
+    report("Tags saved to track");
   } catch (error) {
-    editor().setSearchStatus(`Save error: ${formatError(error)}`);
+    report(`Save error: ${formatError(error)}`, "error");
   }
 }
 
@@ -95,9 +103,9 @@ export async function saveTrackTagsAndRename(): Promise<void> {
       shouldRemoveCover(track)
     );
     commitTrackAfterTagSave(track.id, track, result.path);
-    editor().setSearchStatus("Tags saved and file renamed");
+    report("Tags saved and file renamed");
   } catch (error) {
-    editor().setSearchStatus(`Save/rename error: ${formatError(error)}`);
+    report(`Save/rename error: ${formatError(error)}`, "error");
   }
 }
 
@@ -109,9 +117,9 @@ export async function renameTrackFileOnly(): Promise<void> {
   try {
     const result = await adapter.renameTrack(track.path, toTrackUpdate(track), renameConfig());
     commitPathAfterRename(track.id, result.path);
-    editor().setSearchStatus("File renamed");
+    report("File renamed");
   } catch (error) {
-    editor().setSearchStatus(`Rename error: ${formatError(error)}`);
+    report(`Rename error: ${formatError(error)}`, "error");
   }
 }
 
@@ -120,16 +128,7 @@ function applyOnlineResultToDraft(result: OnlineMatch): Track | null {
   if (!base) {
     return null;
   }
-  const next: Track = {
-    ...base,
-    title: result.title,
-    artist: result.artist,
-    album: result.album,
-    tracknumber: result.tracknumber ?? base.tracknumber,
-    year: result.date.slice(0, 4),
-    coverUrl: result.coverUrl,
-    hasCover: Boolean(result.coverUrl),
-  };
+  const next = applyMatchToTrack(base, result);
   editor().setTrackDraft(next);
   return next;
 }
@@ -166,9 +165,9 @@ export async function applyAndSaveOnlineResult(result: OnlineMatch): Promise<voi
   try {
     const saved = await adapter.saveTrack(next.id, next.path, toTrackUpdate(next), next.coverUrl, undefined, shouldRemoveCover(next));
     commitTrackAfterTagSave(current.id, next, saved.path);
-    editor().setSearchStatus("Result applied and tags saved to track");
+    report("Result applied and tags saved to track");
   } catch (error) {
-    editor().setSearchStatus(`Apply and save error: ${formatError(error)}`);
+    report(`Apply and save error: ${formatError(error)}`, "error");
   }
 }
 
@@ -200,4 +199,11 @@ export function removeDraftCover(): void {
   }
   editor().setTrackDraft((prev) => (prev ? { ...prev, coverUrl: undefined, hasCover: false } : prev));
   editor().setSearchStatus("Cover removed from draft. Save the track to persist changes.");
+}
+
+/** Drops the unsaved edits and shows the saved tags again. */
+export function revertDraft(): void {
+  const selected = getSelectedTrack();
+  editor().setTrackDraft(selected ? { ...selected } : null);
+  editor().setSearchStatus("Changes discarded");
 }

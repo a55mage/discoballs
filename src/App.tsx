@@ -1,27 +1,11 @@
-import { type ChangeEvent, type CSSProperties, type KeyboardEvent, type MouseEvent, useMemo, useRef } from "react";
-import {
-  cancelOnlineSearch,
-  searchOnlineForCurrentQuery,
-} from "./actions/onlineSearch";
+import { type CSSProperties, type KeyboardEvent, type MouseEvent, useMemo, } from "react";
 import {
   chooseDefaultFolder as handleChooseDefaultFolder,
   openLibraryFolder as handleOpenLibraryFolder,
-  openTrackInFileManager,
   scanLibraryWithPicker as handleScan,
   searchOnlineForTrack as handleQuickSearchTrack,
   selectTrack,
 } from "./actions/library";
-import {
-  applyAndSaveOnlineResult as handleApplyAndSaveOnlineResult,
-  applyOnlineCoverOnly as handleApplyOnlineCoverOnly,
-  applyOnlineResult as handleApplyOnlineResult,
-  changeDraftField as handleTrackFieldChange,
-  loadDraftCoverFromFile,
-  removeDraftCover as handleRemoveCover,
-  renameTrackFileOnly as handleRenameOnlyTrack,
-  saveTrackTags as handleSaveTrack,
-  saveTrackTagsAndRename as handleSaveAndRenameTrack,
-} from "./actions/tagEditor";
 import {
   connectNavidromeBookmark as handleConnectNavidromeBookmark,
   connectNavidromeFromForm as handleConnectNavidrome,
@@ -29,14 +13,14 @@ import {
   saveNavidromeBookmark as handleSaveNavidromeBookmark,
   setNavidromeBookmarkConnectOnOpen as handleToggleNavidromeBookmarkConnectOnOpen,
 } from "./actions/navidrome";
-import { orderOnlineResults } from "./domain/onlineResults";
+import { } from "./domain/onlineResults";
 import {
   summarizeGenres,
 } from "./domain/library";
 import { useDashboardDrag } from "./hooks/useDashboardDrag";
 import { useLibrarySession } from "./hooks/useLibrarySession";
 import { useLyrics } from "./hooks/useLyrics";
-import { useTrackTechnicalInfo } from "./hooks/useTrackTechnicalInfo";
+import { } from "./hooks/useTrackTechnicalInfo";
 import {
   clearPlayerQueue,
   enqueueTrack,
@@ -56,7 +40,6 @@ import {
   IconArrowUp,
   IconCheck,
   IconClose,
-  IconCover,
   IconExternalLink,
   IconFolder,
   IconGlobe,
@@ -68,9 +51,7 @@ import {
   IconPlus,
   IconRename,
   IconSave,
-  IconSaveRename,
   IconSearch,
-  IconSettings,
   IconSortAdded,
   IconSortArtist,
   IconSortRelease,
@@ -80,12 +61,11 @@ import {
 import { DashboardSection } from "./sections/DashboardSection";
 import { LibraryInspector } from "./screens/library/LibraryInspector";
 import { LibraryScreen } from "./screens/library/LibraryScreen";
-import { LibrarySection } from "./sections/LibrarySection";
-import { OnlineSearchSection } from "./sections/OnlineSearchSection";
+import { TagEditorScreen } from "./screens/tagEditor/TagEditorScreen";
+import { } from "./sections/LibrarySection";
 import { PlayerSection } from "./sections/PlayerSection";
 import { RenameSettingsModal } from "./sections/RenameSettingsModal";
 import { SettingsSection } from "./sections/SettingsSection";
-import { TrackDetailsSection } from "./sections/TrackDetailsSection";
 import type { Track } from "./types";
 import { useEqualizerStore } from "./store/equalizerStore";
 import { useLibraryStore } from "./store/libraryStore";
@@ -105,21 +85,14 @@ import { BUILTIN_EQ_PRESET_IDS } from "./domain/equalizer";
 import { RENAME_FIELD_OPTIONS, renameFieldLabel } from "./domain/rename";
 import { ACCENT_THEMES } from "./domain/theme";
 import { useLibraryView } from "./hooks/useLibraryView";
-import { getFileName, getUserLocale } from "./utils/common";
 import {
-  areTracksEqual,
-  buildRenamePreview,
   countFoldersAndSubfolders,
-  formatOnlineMatchDate,
-  formatTrackTechnicalBadge,
-  formatTrackTechnicalSummary,
 } from "./utils/appHelpers";
 import { getActiveLyricIndex, } from "./utils/lyrics";
 
 
 export function App() {
   useApplyTheme();
-  const coverInputRef = useRef<HTMLInputElement | null>(null);
   const { activeScreen, showRenameSettings, setShowRenameSettings } = useUiStore();
   const {
     playlists,
@@ -189,18 +162,6 @@ export function App() {
   const { tracks, folderPath, selectedTrackId, isLoadingScan, } =
     useLibraryStore();
   const {
-    trackDraft,
-    onlineResults,
-    selectedResultId,
-    isLoadingSearch,
-    searchStatus,
-    searchTitle,
-    searchArtist,
-    searchAlbum,
-    setSelectedResultId,
-    setSearchTitle,
-    setSearchArtist,
-    setSearchAlbum,
   } = useTagEditorStore();
   const {
     isNavidromePanelOpen,
@@ -260,7 +221,6 @@ export function App() {
   } = usePlaybackQueueView();
   useLibrarySession(virtualTrackWindow.visibleTracks);
   const dashboardDrag = useDashboardDrag(activeScreen);
-  const userLocale = useMemo(() => getUserLocale(), []);
   const activePlaylist = useMemo(
     () => playlists.find((playlist) => playlist.id === activePlaylistId) ?? null,
     [playlists, activePlaylistId]
@@ -281,21 +241,7 @@ export function App() {
     () => getActiveLyricIndex(lyricsLines, currentTime),
     [lyricsLines, currentTime]
   );
-  const editableTrack = trackDraft ?? selectedTrack;
 
-  const trackTechnicalInfo = useTrackTechnicalInfo(editableTrack);
-  const trackTechnicalBadge = useMemo(
-    () => formatTrackTechnicalBadge(trackTechnicalInfo, editableTrack?.path),
-    [trackTechnicalInfo, editableTrack?.path]
-  );
-  const trackTechnicalSummary = useMemo(
-    () => formatTrackTechnicalSummary(trackTechnicalInfo),
-    [trackTechnicalInfo]
-  );
-  const { sorted: sortedOnlineResults, bestMatchId: bestMatchResultId } = useMemo(
-    () => orderOnlineResults(onlineResults, { title: searchTitle, artist: searchArtist, album: searchAlbum }),
-    [onlineResults, searchTitle, searchArtist, searchAlbum]
-  );
   const accentTheme = accentThemes[Math.max(0, accentIndex % Math.max(1, accentThemes.length))] ?? ACCENT_THEMES[0];
   const appStyle: CSSProperties = {
     "--accent": accentTheme.accent,
@@ -303,56 +249,7 @@ export function App() {
     "--accent-strong": accentTheme.strong,
   } as CSSProperties;
 
-  const selectedFileName = editableTrack ? getFileName(editableTrack.path) : "No file selected";
-  const hasUnsavedChanges = useMemo(() => {
-    if (!selectedTrack || !editableTrack || selectedTrack.id !== editableTrack.id) {
-      return false;
-    }
-    return !areTracksEqual(selectedTrack, editableTrack);
-  }, [selectedTrack, editableTrack]);
   const folderCount = useMemo(() => countFoldersAndSubfolders(tracks, folderPath), [tracks, folderPath]);
-  const renamePreview = useMemo(() => {
-    if (!editableTrack) {
-      return "";
-    }
-    return buildRenamePreview(editableTrack, renameFields, renameSeparator);
-  }, [editableTrack, renameFields, renameSeparator]);
-
-  function handleSearchButtonClick() {
-    if (isLoadingSearch) {
-      cancelOnlineSearch();
-      return;
-    }
-    if (!selectedTrack) {
-      return;
-    }
-    void searchOnlineForCurrentQuery();
-  }
-
-  async function handleOpenTrackFolder() {
-    if (!editableTrack?.path) {
-      return;
-    }
-    await openTrackInFileManager(editableTrack.path);
-  }
-
-  function handleSelectCoverClick() {
-    if (!editableTrack) {
-      return;
-    }
-    if (coverInputRef.current) {
-      coverInputRef.current.value = "";
-      coverInputRef.current.click();
-    }
-  }
-
-  function handleCoverFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (file) {
-      loadDraftCoverFromFile(file);
-    }
-  }
 
   const getVisibleTrackIds = () => (activeScreen === "library" ? getVisibleLibraryTracks() : filteredTracks).map((track) => track.id);
   const handleTogglePlayPause = () => togglePlayPause(getVisibleTrackIds());
@@ -429,113 +326,7 @@ export function App() {
       onPlayActivePlaylist={() => void handlePlayActivePlaylist()}
     >
     <div className={colorMode === "dark" ? "app-shell theme-dark" : "app-shell"} style={appStyle}>
-      {activeScreen === "tagging" && (
-        <main className="two-col">
-          <div className="col col-left">
-            <LibrarySection
-              folderPath={folderPath}
-              onOpenFolderPathClick={() => {
-                void handleOpenLibraryFolder();
-              }}
-              isLoadingScan={isLoadingScan}
-              onScan={handleScan}
-              {...libraryNavidromeProps}
-              query={query}
-              onQueryChange={setQuery}
-              libraryViewMode={libraryViewMode}
-              onLibraryViewModeChange={setLibraryViewMode}
-              isFileSystemView={isFileSystemView}
-              onFileSystemViewChange={setIsFileSystemView}
-              fileSystemEntries={fileSystemEntries}
-              fileSystemCurrentPath={fileSystemCurrentPath}
-              canGoUpFileSystemFolder={canGoUpFileSystemFolder}
-              onOpenFileSystemFolder={openFileSystemFolder}
-              onGoUpFileSystemFolder={goUpFileSystemFolder}
-              librarySortMode={librarySortMode}
-              librarySortDirection={librarySortDirection}
-              onLibrarySortClick={handleLibrarySortClick}
-              trackCount={tracks.length}
-              folderCount={folderCount}
-              trackListRef={trackListRef}
-              onTrackListScroll={handleTrackListScroll}
-              virtualTrackWindow={virtualTrackWindow}
-              selectedTrackId={selectedTrackId}
-              onSelectTrack={selectTrack}
-              onSearchTrack={handleQuickSearchTrack}
-              onPlayFromLibraryCover={handlePlayFromLibraryCover}
-              IconFolder={IconFolder}
-              IconArrowUp={IconArrowUp}
-              IconMusicNote={IconMusicNote}
-              IconSortTitle={IconSortTitle}
-              IconSortArtist={IconSortArtist}
-              IconSortAdded={IconSortAdded}
-              IconSortRelease={IconSortRelease}
-              IconGrid={IconGrid}
-              IconListCompact={IconListCompact}
-              IconPlay={IconPlay}
-              IconSearch={IconSearch}
-            />
-          </div>
-
-          <div className="col col-right">
-            <TrackDetailsSection
-              selectedFileName={selectedFileName}
-              selectedFilePath={editableTrack?.path ?? ""}
-              hasUnsavedChanges={hasUnsavedChanges}
-              technicalBadge={trackTechnicalBadge}
-              technicalSummary={trackTechnicalSummary}
-              coverInputRef={coverInputRef}
-              onCoverFileChange={handleCoverFileChange}
-              editableTrack={editableTrack}
-              onSelectCoverClick={handleSelectCoverClick}
-              onRemoveCover={handleRemoveCover}
-              onTrackFieldChange={handleTrackFieldChange}
-              onSaveTrack={handleSaveTrack}
-              onSaveAndRenameTrack={handleSaveAndRenameTrack}
-              renamePreview={renamePreview}
-              onRenameOnlyTrack={handleRenameOnlyTrack}
-              onOpenTrackPathClick={() => {
-                void handleOpenTrackFolder();
-              }}
-              onOpenRenameSettings={() => setShowRenameSettings(true)}
-              IconPlus={IconPlus}
-              IconTrash={IconTrash}
-              IconSave={IconSave}
-              IconSaveRename={IconSaveRename}
-              IconRename={IconRename}
-              IconSettings={IconSettings}
-            />
-
-            <OnlineSearchSection
-              searchStatus={searchStatus}
-              searchTitle={searchTitle}
-              onSearchTitleChange={setSearchTitle}
-              searchArtist={searchArtist}
-              onSearchArtistChange={setSearchArtist}
-              searchAlbum={searchAlbum}
-              onSearchAlbumChange={setSearchAlbum}
-              onSearchButtonClick={handleSearchButtonClick}
-              canSearch={Boolean(selectedTrack)}
-              isLoadingSearch={isLoadingSearch}
-              sortedOnlineResults={sortedOnlineResults}
-              selectedResultId={selectedResultId}
-              onSelectResult={setSelectedResultId}
-              bestMatchResultId={bestMatchResultId}
-              formatResultDate={(date) => formatOnlineMatchDate(date, userLocale)}
-              onApplyOnlineResult={handleApplyOnlineResult}
-              onApplyOnlineCoverOnly={handleApplyOnlineCoverOnly}
-              onApplyAndSaveOnlineResult={(result) => {
-                void handleApplyAndSaveOnlineResult(result);
-              }}
-              IconSearch={IconSearch}
-              IconClose={IconClose}
-              IconCheck={IconCheck}
-              IconCover={IconCover}
-              IconSave={IconSave}
-            />
-          </div>
-        </main>
-      )}
+      {activeScreen === "tagging" && <TagEditorScreen />}
 
       {activeScreen === "dashboard" && (
         <DashboardSection
