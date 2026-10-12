@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Track } from "../types";
 
-const openInFileManager = vi.fn(async () => undefined);
+const openInFileManager = vi.fn(async (_path: string) => undefined);
 vi.mock("../api", () => ({
   adapter: { openTrackInFileManager: (path: string) => openInFileManager(path), getTrackTechnicalInfo: async () => null },
 }));
