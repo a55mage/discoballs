@@ -1,4 +1,4 @@
-import { type ChangeEvent, type CSSProperties, type KeyboardEvent, type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type ChangeEvent, type CSSProperties, type KeyboardEvent, type MouseEvent, useMemo, useRef } from "react";
 import {
   cancelOnlineSearch,
   searchOnlineForCurrentQuery,
@@ -110,7 +110,7 @@ import { RenameSettingsModal } from "./sections/RenameSettingsModal";
 import { SettingsSection } from "./sections/SettingsSection";
 import { TopBarSection } from "./sections/TopBarSection";
 import { TrackDetailsSection } from "./sections/TrackDetailsSection";
-import type { AppScreen, Track } from "./types";
+import type { Track } from "./types";
 import { useEqualizerStore } from "./store/equalizerStore";
 import { useLibraryStore } from "./store/libraryStore";
 import { useNavidromeStore } from "./store/navidromeStore";
@@ -118,6 +118,10 @@ import { usePlayerStore } from "./store/playerStore";
 import { useTagEditorStore } from "./store/tagEditorStore";
 import { usePlaylistStore } from "./store/playlistStore";
 import { useSettingsStore } from "./store/settingsStore";
+import { useUiStore } from "./store/uiStore";
+import { useAutoEqualizer } from "./hooks/useAutoEqualizer";
+import { usePlaybackQueueView } from "./hooks/usePlaybackQueueView";
+import { useTagDraftSync } from "./hooks/useTagDraftSync";
 import { BUILTIN_EQ_PRESET_IDS } from "./domain/equalizer";
 import { RENAME_FIELD_OPTIONS, renameFieldLabel } from "./domain/rename";
 import { ACCENT_THEMES } from "./domain/theme";
@@ -130,17 +134,13 @@ import {
   formatOnlineMatchDate,
   formatTrackTechnicalBadge,
   formatTrackTechnicalSummary,
-  inferGenrePresetId,
-  NO_GENRE_EQ_KEY,
-  normalizeGenreKey,
 } from "./utils/appHelpers";
 import { getActiveLyricIndex, } from "./utils/lyrics";
 
 
 export function App() {
   const coverInputRef = useRef<HTMLInputElement | null>(null);
-  const [activeScreen, setActiveScreen] = useState<AppScreen>(() => useSettingsStore.getState().startupScreen);
-  const [showRenameSettings, setShowRenameSettings] = useState(false);
+  const { activeScreen, setActiveScreen, showRenameSettings, setShowRenameSettings } = useUiStore();
   const {
     playlists,
     activePlaylistId,
@@ -210,9 +210,7 @@ export function App() {
     setEqualizerWetMixPercent,
     setEqualizerBandGain: handleEqualizerBandGainChange,
     changePreset: handleEqualizerPresetChange,
-    applyPreset: applyEqualizerPreset,
     setGenreEqPreset: handleGenreEqPresetChange,
-    syncGenreEqMap,
     createPreset: handleCreateEqualizerPreset,
     savePreset: handleSaveEqualizerPreset,
     renameButtonClick: handleRenameEqualizerPresetButtonClick,
@@ -230,7 +228,6 @@ export function App() {
     searchTitle,
     searchArtist,
     searchAlbum,
-    setTrackDraft,
     setSelectedResultId,
     setSearchTitle,
     setSearchArtist,
@@ -257,8 +254,6 @@ export function App() {
   const {
     playbackTrackId,
     playbackQueueTrackIds,
-    playbackHistoryTrackIds,
-    playerQueueVisibleCount,
     isPlaying,
     isShuffleEnabled,
     isRepeatTrackEnabled,
@@ -294,6 +289,16 @@ export function App() {
     virtualTrackWindow,
   } = useLibraryView(tracks, activeScreen, folderPath);
   usePlaybackEngine();
+  useAutoEqualizer();
+  useTagDraftSync();
+  const {
+    trackById,
+    playbackQueueTracks,
+    playbackTrackIndex,
+    upcomingTracks: playerQueueUpcomingTracks,
+    historyTracks: playerQueueHistoryTracks,
+    hasMoreUpcomingTracks: hasMorePlayerQueueTracks,
+  } = usePlaybackQueueView();
   useLibrarySession(virtualTrackWindow.visibleTracks);
   const dashboardDrag = useDashboardDrag(activeScreen);
   const userLocale = useMemo(() => getUserLocale(), []);
@@ -341,55 +346,6 @@ export function App() {
     "--accent-strong": accentTheme.strong,
   } as CSSProperties;
 
-  useEffect(() => {
-    syncGenreEqMap(libraryGenres);
-  }, [equalizerPresets, libraryGenres]);
-
-  useEffect(() => {
-    if (!audioAutoEq) {
-      return;
-    }
-    const currentTrack = playbackTrack ?? selectedTrack;
-    if (!currentTrack) {
-      return;
-    }
-    const currentGenre = String(currentTrack.genre || "");
-    const genreKey = normalizeGenreKey(currentGenre);
-    const mapKey = genreKey || NO_GENRE_EQ_KEY;
-    const presetId = genreEqPresetMap[mapKey] || inferGenrePresetId(currentGenre);
-    if (!presetId) {
-      return;
-    }
-    const preset = equalizerPresets.find((item) => item.id === presetId);
-    if (!preset) {
-      return;
-    }
-    const hasSameBandGains =
-      equalizerBandGains.length === preset.bandGains.length &&
-      equalizerBandGains.every((value, index) => value === preset.bandGains[index]);
-    if (
-      equalizerPresetId === preset.id &&
-      equalizerPresetName === preset.name &&
-      hasSameBandGains &&
-      equalizerPreampDb === preset.preampDb &&
-      equalizerWetMixPercent === preset.wetMixPercent
-    ) {
-      return;
-    }
-    applyEqualizerPreset(preset.id, preset.name, preset.bandGains, preset.preampDb, preset.wetMixPercent);
-  }, [
-    audioAutoEq,
-    playbackTrack,
-    selectedTrack,
-    genreEqPresetMap,
-    equalizerPresets,
-    equalizerPresetId,
-    equalizerPresetName,
-    equalizerBandGains,
-    equalizerPreampDb,
-    equalizerWetMixPercent,
-  ]);
-
   const selectedFileName = editableTrack ? getFileName(editableTrack.path) : "No file selected";
   const hasUnsavedChanges = useMemo(() => {
     if (!selectedTrack || !editableTrack || selectedTrack.id !== editableTrack.id) {
@@ -404,36 +360,6 @@ export function App() {
     }
     return buildRenamePreview(editableTrack, renameFields, renameSeparator);
   }, [editableTrack, renameFields, renameSeparator]);
-
-  useEffect(() => {
-    setTrackDraft(selectedTrack ? { ...selectedTrack } : null);
-  }, [selectedTrackId, tracks]);
-
-  const trackById = useMemo(() => new Map(tracks.map((track) => [track.id, track])), [tracks]);
-  const playbackQueueTracks = useMemo(
-    () =>
-      playbackQueueTrackIds
-        .map((trackId) => trackById.get(trackId) ?? null)
-        .filter((track): track is Track => Boolean(track)),
-    [playbackQueueTrackIds, trackById]
-  );
-  const playbackTrackIndex = useMemo(
-    () => playbackQueueTracks.findIndex((t) => t.id === playbackTrackId),
-    [playbackQueueTracks, playbackTrackId]
-  );
-  const playerQueueStartIndex = playbackTrackIndex >= 0 ? playbackTrackIndex : 0;
-  const playerQueueUpcomingTracks = useMemo(
-    () => playbackQueueTracks.slice(playerQueueStartIndex, playerQueueStartIndex + playerQueueVisibleCount),
-    [playbackQueueTracks, playerQueueStartIndex, playerQueueVisibleCount]
-  );
-  const hasMorePlayerQueueTracks = playerQueueStartIndex + playerQueueVisibleCount < playbackQueueTracks.length;
-  const playerQueueHistoryTracks = useMemo(
-    () =>
-      playbackHistoryTrackIds
-        .map((trackId) => trackById.get(trackId) ?? null)
-        .filter((track): track is Track => Boolean(track)),
-    [playbackHistoryTrackIds, trackById]
-  );
 
   function handleSearchButtonClick() {
     if (isLoadingSearch) {
