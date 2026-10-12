@@ -3,11 +3,11 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Track } from "../types";
 
-const saveTrack = vi.fn(async (_id: string, path: string) => ({ path }));
+const saveTrack = vi.fn(async (_id: string, path: string, _update?: unknown) => ({ path }));
 const renameFile = vi.fn(async (path: string, fileName: string) => ({ path: path.slice(0, path.lastIndexOf("/") + 1) + fileName }));
 vi.mock("../api", () => ({
   adapter: {
-    saveTrack: (...args: [string, string]) => saveTrack(...args),
+    saveTrack: (...args: [string, string, unknown]) => saveTrack(...args),
     renameTrack: async (path: string) => ({ path: path.replace("old", "renamed") }),
     renameFile: (...args: [string, string]) => renameFile(...args),
     getTrackTechnicalInfo: async () => null,
