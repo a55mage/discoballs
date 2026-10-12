@@ -8,6 +8,9 @@ const REPEAT_KEY = "musicmanager-player-repeat-track";
 export const PLAYER_QUEUE_PAGE_SIZE = 50;
 export const PLAYER_QUEUE_HISTORY_SIZE = 1;
 
+/** Non-reactive playback bookkeeping shared by playback actions and effects. */
+export const playbackRuntime = { previousTrackId: "", previousShuffleEnabled: false };
+
 export type PlayerState = {
   playbackTrackId: string;
   playbackPlaylistId: string;
@@ -42,6 +45,8 @@ export type PlayerState = {
   setAudioTrackId: Setter<string>;
   setAudioError: Setter<string>;
   setShouldAutoplay: Setter<boolean>;
+  clearQueueState: () => void;
+  resetSession: () => void;
 };
 
 export const usePlayerStore = create<PlayerState>()((set) => ({
@@ -78,6 +83,22 @@ export const usePlayerStore = create<PlayerState>()((set) => ({
   setAudioTrackId: fieldSetter(set, "audioTrackId"),
   setAudioError: fieldSetter(set, "audioError"),
   setShouldAutoplay: fieldSetter(set, "shouldAutoplay"),
+
+  clearQueueState: () => {
+    playbackRuntime.previousTrackId = "";
+    set({ playbackQueueTrackIds: [], playbackHistoryTrackIds: [], playerQueueVisibleCount: PLAYER_QUEUE_PAGE_SIZE });
+  },
+  resetSession: () => {
+    playbackRuntime.previousTrackId = "";
+    set({
+      playbackPlaylistId: "",
+      playbackTrackId: "",
+      playbackQueueTrackIds: [],
+      playbackHistoryTrackIds: [],
+      playerQueueVisibleCount: PLAYER_QUEUE_PAGE_SIZE,
+      shouldAutoplay: false,
+    });
+  },
 }));
 
 writeString(SHUFFLE_KEY, String(usePlayerStore.getState().isShuffleEnabled));

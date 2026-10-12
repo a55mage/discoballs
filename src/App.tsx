@@ -1,6 +1,37 @@
 import { type ChangeEvent, type CSSProperties, type KeyboardEvent, type MouseEvent, type PointerEvent, useEffect, useMemo, useRef, useState } from "react";
-import { createAdapter } from "./api/tauriAdapter";
-import { mockAdapter } from "./api/mockAdapter";
+import { adapter } from "./api";
+import {
+  cancelOnlineSearch,
+  searchOnlineForCurrentQuery,
+} from "./actions/onlineSearch";
+import {
+  applyLoadedLibrary,
+  chooseDefaultFolder as handleChooseDefaultFolder,
+  openLibraryFolder as handleOpenLibraryFolder,
+  openTrackInFileManager,
+  scanLibraryWithPicker as handleScan,
+  searchOnlineForTrack as handleQuickSearchTrack,
+  selectTrack,
+} from "./actions/library";
+import { openExternalLink } from "./utils/external";
+import {
+  changeVolume,
+  clearPlayerQueue,
+  enqueueTrack,
+  enqueueTracks,
+  loadMoreQueueTracks,
+  playFromLibraryCover,
+  playNextTrack,
+  playPlaylist,
+  playPreviousTrack,
+  playTrackFromPlaylist,
+  playTrackFromQueue,
+  removeTrackFromPlayerQueue,
+  seekTo,
+  togglePlayPause,
+} from "./actions/playback";
+import { audioRef } from "./audio/audioRef";
+import { usePlaybackEngine } from "./hooks/usePlaybackEngine";
 import appIcon from "./assets/discoballs-icon.png";
 import {
   IconArrowDown,
@@ -99,24 +130,13 @@ import {
 } from "./utils/appHelpers";
 import { fetchLyrics, getActiveLyricIndex, type LyricLine } from "./utils/lyrics";
 
-const adapter = createAdapter(mockAdapter);
 const STORAGE_PLAYER_COLUMNS_KEY = "musicmanager-player-columns";
 const STORAGE_PLAYER_VISUALIZER_PRESET_KEY = "musicmanager-player-visualizer-preset";
 const STORAGE_PLAYER_SHOW_LYRICS_KEY = "musicmanager-player-show-lyrics";
 const STORAGE_STARTUP_SCREEN_KEY = "musicmanager-startup-screen";
 
 export function App() {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   const coverInputRef = useRef<HTMLInputElement | null>(null);
-  const selectTrackRef = useRef<(track: Track) => void>(() => undefined);
-  const playbackQueueTracksRef = useRef<Track[]>([]);
-  const playbackTrackIdRef = useRef("");
-  const playbackTrackIndexRef = useRef(-1);
-  const isRepeatTrackEnabledRef = useRef(false);
-  const previousPlaybackTrackIdRef = useRef("");
-  const previousShuffleEnabledRef = useRef(false);
-  const searchRequestRef = useRef<{ id: number; canceled: boolean } | null>(null);
-  const searchRequestCounterRef = useRef(0);
   const hasAutoOpenedDefaultFolderRef = useRef(false);
   const didAutoConnectNavidromeRef = useRef(false);
   const shouldRunNavidromeStartupConnectionRef = useRef(consumePendingStartupConnection());
@@ -315,6 +335,7 @@ export function App() {
     filteredTracks,
     virtualTrackWindow,
   } = useLibraryView(tracks, activeScreen, folderPath);
+  usePlaybackEngine();
   const userLocale = useMemo(() => getUserLocale(), []);
   const activePlaylist = useMemo(
     () => playlists.find((playlist) => playlist.id === activePlaylistId) ?? null,
@@ -562,10 +583,7 @@ export function App() {
           setFolderPath(snapshot.folderPath);
           setTracks(restoredTracks);
           setSelectedTrackId(restoredTracks[0]?.id ?? "");
-          setPlaybackPlaylistId("");
-          setPlaybackTrackId("");
-          clearPlaybackQueueState();
-          setShouldAutoplay(false);
+          usePlayerStore.getState().resetSession();
           setSearchStatus("Ready");
         }
       } catch {
@@ -607,24 +625,7 @@ export function App() {
           }));
           setFolderPath(result.folderPath);
         } else {
-          setFolderPath(result.folderPath);
-          setTracks(result.tracks);
-          const preferredTrackId = result.tracks.some((track) => track.id === selectedTrackId)
-            ? selectedTrackId
-            : result.tracks[0]?.id ?? "";
-          setSelectedTrackId(preferredTrackId);
-          const preferredTrack = result.tracks.find((track) => track.id === preferredTrackId) ?? result.tracks[0] ?? null;
-          setPlaybackPlaylistId("");
-          setPlaybackTrackId("");
-          clearPlaybackQueueState();
-          setShouldAutoplay(false);
-          if (preferredTrack) {
-            setSearchTitle(preferredTrack.title);
-            setSearchArtist(preferredTrack.artist);
-            setSearchAlbum(preferredTrack.album);
-          }
-          setOnlineResults([]);
-          setSelectedResultId("");
+          applyLoadedLibrary(result.folderPath, result.tracks, selectedTrackId);
         }
         setSearchStatus("Ready");
       } catch (error) {
@@ -661,17 +662,6 @@ export function App() {
     setIsNavidromePanelOpen(true);
     handleConnectNavidromeBookmark(startupBookmark);
   }, [navidromeBookmarks]);
-
-  useEffect(() => {
-    if (!playbackPlaylistId) {
-      return;
-    }
-    const stillExists = playlists.some((playlist) => playlist.id === playbackPlaylistId);
-    if (!stillExists) {
-      setPlaybackPlaylistId("");
-      clearPlaybackQueueState();
-    }
-  }, [playbackPlaylistId, playlists]);
 
   useEffect(() => {
     syncGenreEqMap(libraryGenres);
@@ -810,173 +800,6 @@ export function App() {
   }, [selectedTrackId, tracks]);
 
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) {
-      return;
-    }
-
-    const onTimeUpdate = () => setCurrentTime(audio.currentTime || 0);
-    const onLoadedMetadata = () => setDuration(audio.duration || 0);
-    const onEnded = async () => {
-      const queueTracks = playbackQueueTracksRef.current;
-      const currentTrackId = playbackTrackIdRef.current;
-      const currentTrackIndex = playbackTrackIndexRef.current;
-      if (isRepeatTrackEnabledRef.current && currentTrackId) {
-        audio.currentTime = 0;
-        try {
-          await ensureAudioGraphReady();
-          await audio.play();
-          setIsPlaying(true);
-          setAudioError("");
-          return;
-        } catch {
-          setIsPlaying(false);
-          setAudioError("Unable to start playback in this environment.");
-          return;
-        }
-      }
-      if (currentTrackIndex >= 0 && currentTrackIndex < queueTracks.length - 1) {
-        const nextTrack = queueTracks[currentTrackIndex + 1];
-        if (nextTrack) {
-          setPlaybackTrackId(nextTrack.id);
-          setShouldAutoplay(true);
-          selectTrackRef.current(nextTrack);
-          return;
-        }
-      }
-      setIsPlaying(false);
-    };
-    const onError = () => setAudioError("Playback unavailable for this track.");
-
-    audio.addEventListener("timeupdate", onTimeUpdate);
-    audio.addEventListener("loadedmetadata", onLoadedMetadata);
-    audio.addEventListener("ended", onEnded);
-    audio.addEventListener("error", onError);
-    return () => {
-      audio.removeEventListener("timeupdate", onTimeUpdate);
-      audio.removeEventListener("loadedmetadata", onLoadedMetadata);
-      audio.removeEventListener("ended", onEnded);
-      audio.removeEventListener("error", onError);
-    };
-  }, []);
-
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) {
-      return;
-    }
-    const graph = getOrCreateMediaAudioGraph(audio);
-    const targetGain = isMuted ? 0 : volume;
-    if (graph) {
-      const now = graph.context.currentTime;
-      graph.outputGain.gain.cancelScheduledValues(now);
-      graph.outputGain.gain.setTargetAtTime(targetGain, now, 0.015);
-      audio.volume = 1;
-      audio.muted = false;
-      return;
-    }
-    audio.volume = volume;
-    audio.muted = isMuted;
-  }, [volume, isMuted, audioSrc]);
-
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) {
-      return;
-    }
-    const graph = getOrCreateMediaAudioGraph(audio);
-    if (!graph) {
-      return;
-    }
-    applyEqualizerSettings(graph, {
-      bandGains: equalizerBandGains,
-      preampDb: equalizerPreampDb,
-      wetMixPercent: equalizerWetMixPercent,
-    });
-  }, [equalizerBandGains, equalizerPreampDb, equalizerWetMixPercent, audioSrc]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const audio = audioRef.current;
-    if (!audio) {
-      return;
-    }
-    audio.pause();
-    setIsPlaying(false);
-    setCurrentTime(0);
-    setDuration(0);
-
-    if (!playbackTrack?.path) {
-      setAudioSrc("");
-      setAudioTrackId("");
-      setAudioError("");
-      setShouldAutoplay(false);
-      return;
-    }
-
-    (async () => {
-      try {
-        const src = await adapter.getAudioSource(playbackTrack);
-        if (cancelled) {
-          return;
-        }
-        setAudioSrc(src);
-        setAudioTrackId(playbackTrackId);
-        setAudioError("");
-      } catch {
-        if (cancelled) {
-          return;
-        }
-        setAudioSrc("");
-        setAudioTrackId("");
-        setAudioError("Playback unavailable for this track.");
-        setShouldAutoplay(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [playbackTrack?.path, playbackTrackId]);
-
-  useEffect(() => {
-    if (!shouldAutoplay || !audioSrc || !audioTrackId || audioTrackId !== playbackTrackId) {
-      return;
-    }
-    const audio = audioRef.current;
-    if (!audio) {
-      return;
-    }
-
-    let cancelled = false;
-    (async () => {
-      try {
-        await ensureAudioGraphReady();
-        await audio.play();
-        if (cancelled) {
-          return;
-        }
-        setIsPlaying(true);
-        setAudioError("");
-      } catch {
-        if (cancelled) {
-          return;
-        }
-        setAudioError("Unable to start playback in this environment.");
-        setIsPlaying(false);
-      } finally {
-        if (!cancelled) {
-          setShouldAutoplay(false);
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [audioSrc, shouldAutoplay, audioTrackId, playbackTrackId]);
-
-  useEffect(() => {
     let cancelled = false;
     if (!editableTrack?.path || editableTrack.source?.type === "navidrome") {
       setTrackTechnicalInfo(null);
@@ -1074,213 +897,6 @@ export function App() {
     [playbackHistoryTrackIds, trackById]
   );
 
-  useEffect(() => {
-    selectTrackRef.current = selectTrack;
-  });
-
-  useEffect(() => {
-    playbackQueueTracksRef.current = playbackQueueTracks;
-    playbackTrackIdRef.current = playbackTrackId;
-    playbackTrackIndexRef.current = playbackTrackIndex;
-    isRepeatTrackEnabledRef.current = isRepeatTrackEnabled;
-  }, [playbackQueueTracks, playbackTrackId, playbackTrackIndex, isRepeatTrackEnabled]);
-
-  useEffect(() => {
-    setPlaybackQueueTrackIds((prev) => {
-      const next = prev.filter((trackId) => trackById.has(trackId));
-      if (next.length === prev.length && next.every((trackId, index) => trackId === prev[index])) {
-        return prev;
-      }
-      return next;
-    });
-    setPlaybackHistoryTrackIds((prev) => {
-      const next = prev.filter((trackId) => trackById.has(trackId));
-      if (next.length === prev.length && next.every((trackId, index) => trackId === prev[index])) {
-        return prev;
-      }
-      return next.slice(-PLAYER_QUEUE_HISTORY_SIZE);
-    });
-  }, [trackById]);
-
-  useEffect(() => {
-    if (!playbackTrackId) {
-      previousPlaybackTrackIdRef.current = "";
-      return;
-    }
-    const previousTrackId = previousPlaybackTrackIdRef.current;
-    if (previousTrackId && previousTrackId !== playbackTrackId) {
-      setPlaybackHistoryTrackIds((prev) => {
-        const withoutPreviousTrack = prev.filter((trackId) => trackId !== previousTrackId);
-        return [...withoutPreviousTrack, previousTrackId].slice(-PLAYER_QUEUE_HISTORY_SIZE);
-      });
-    }
-    previousPlaybackTrackIdRef.current = playbackTrackId;
-  }, [playbackTrackId]);
-
-  useEffect(() => {
-    const previousShuffleEnabled = previousShuffleEnabledRef.current;
-    if (previousShuffleEnabled === isShuffleEnabled) {
-      return;
-    }
-    previousShuffleEnabledRef.current = isShuffleEnabled;
-    if (!isShuffleEnabled) {
-      return;
-    }
-    if (!playbackQueueTrackIds.length) {
-      return;
-    }
-
-    if (playbackPlaylistId) {
-      const playlist = playlists.find((item) => item.id === playbackPlaylistId);
-      if (playlist) {
-        const playlistTrackIds = playlist.entries
-          .map((entry) => entry.trackId)
-          .filter((trackId) => trackById.has(trackId));
-        const startTrackId = playbackTrackId && playlistTrackIds.includes(playbackTrackId)
-          ? playbackTrackId
-          : playlistTrackIds[0];
-        const nextQueueTrackIds = buildPlaylistQueueOrder(playlistTrackIds, true, startTrackId);
-        if (nextQueueTrackIds.length) {
-          setPlaybackQueueTrackIds(nextQueueTrackIds);
-          setPlaybackHistoryTrackIds([]);
-          setPlayerQueueVisibleCount(PLAYER_QUEUE_PAGE_SIZE);
-          previousPlaybackTrackIdRef.current = playbackTrackId || "";
-        }
-        return;
-      }
-    }
-
-    const startTrackId = playbackTrackId && playbackQueueTrackIds.includes(playbackTrackId)
-      ? playbackTrackId
-      : playbackQueueTrackIds[0];
-    if (!startTrackId) {
-      return;
-    }
-    const remainingTrackIds = playbackQueueTrackIds.filter((trackId) => trackId !== startTrackId);
-    const nextQueueTrackIds = [startTrackId, ...shuffleTrackIds(remainingTrackIds)];
-    setPlaybackQueueTrackIds(nextQueueTrackIds);
-    setPlaybackHistoryTrackIds([]);
-    setPlayerQueueVisibleCount(PLAYER_QUEUE_PAGE_SIZE);
-    previousPlaybackTrackIdRef.current = playbackTrackId || startTrackId;
-  }, [isShuffleEnabled, playbackPlaylistId, playbackTrackId, playbackQueueTrackIds, playlists, trackById]);
-
-  useEffect(() => {
-    if (!playbackPlaylistId) {
-      return;
-    }
-    const playlist = playlists.find((item) => item.id === playbackPlaylistId);
-    if (!playlist) {
-      return;
-    }
-    const playlistTrackIds = playlist.entries
-      .map((entry) => entry.trackId)
-      .filter((trackId) => trackById.has(trackId));
-    if (!playlistTrackIds.length) {
-      setPlaybackQueueTrackIds([]);
-      setPlaybackHistoryTrackIds([]);
-      setPlayerQueueVisibleCount(PLAYER_QUEUE_PAGE_SIZE);
-      return;
-    }
-
-    const playlistTrackIdSet = new Set(playlistTrackIds);
-    const currentTrackId = playbackTrackId && playlistTrackIdSet.has(playbackTrackId) ? playbackTrackId : "";
-
-    let nextQueueTrackIds: string[] = [];
-    if (isShuffleEnabled) {
-      const startTrackId = currentTrackId || playbackQueueTrackIds.find((trackId) => playlistTrackIdSet.has(trackId)) || playlistTrackIds[0];
-      if (!startTrackId) {
-        return;
-      }
-      const preservedTrackIds = playbackQueueTrackIds.filter(
-        (trackId) => trackId !== startTrackId && playlistTrackIdSet.has(trackId)
-      );
-      const newTrackIds = playlistTrackIds.filter(
-        (trackId) => trackId !== startTrackId && !preservedTrackIds.includes(trackId)
-      );
-      nextQueueTrackIds = [startTrackId, ...preservedTrackIds, ...shuffleTrackIds(newTrackIds)];
-    } else {
-      const startTrackId = currentTrackId || playlistTrackIds[0];
-      const startIndex = playlistTrackIds.indexOf(startTrackId);
-      nextQueueTrackIds = playlistTrackIds.slice(Math.max(0, startIndex));
-    }
-
-    if (!areTrackIdListsEqual(nextQueueTrackIds, playbackQueueTrackIds)) {
-      setPlaybackQueueTrackIds(nextQueueTrackIds);
-    }
-
-    if (!currentTrackId) {
-      const fallbackTrackId = nextQueueTrackIds[0];
-      if (!fallbackTrackId || fallbackTrackId === playbackTrackId) {
-        return;
-      }
-      const fallbackTrack = trackById.get(fallbackTrackId);
-      if (fallbackTrack) {
-        selectTrack(fallbackTrack);
-      }
-      setPlaybackTrackId(fallbackTrackId);
-      setShouldAutoplay(true);
-    }
-  }, [playbackPlaylistId, playlists, trackById, playbackTrackId, playbackQueueTrackIds, isShuffleEnabled]);
-
-  function cancelOnlineSearch(reason = "Online search canceled.") {
-    const activeSearch = searchRequestRef.current;
-    if (!activeSearch) {
-      return;
-    }
-    activeSearch.canceled = true;
-    searchRequestRef.current = null;
-    setIsLoadingSearch(false);
-    setSearchStatus(reason);
-  }
-
-  function clearPlaybackQueueState() {
-    previousPlaybackTrackIdRef.current = "";
-    setPlaybackQueueTrackIds([]);
-    setPlaybackHistoryTrackIds([]);
-    setPlayerQueueVisibleCount(PLAYER_QUEUE_PAGE_SIZE);
-  }
-
-  function startPlaybackSession(queueTrackIds: string[], startTrackId: string, playlistId = ""): boolean {
-    const startTrack = trackById.get(startTrackId);
-    if (!startTrack || !queueTrackIds.length) {
-      return false;
-    }
-    previousPlaybackTrackIdRef.current = "";
-    setPlaybackQueueTrackIds(queueTrackIds);
-    setPlaybackHistoryTrackIds([]);
-    setPlayerQueueVisibleCount(PLAYER_QUEUE_PAGE_SIZE);
-    setPlaybackPlaylistId(playlistId);
-    if (startTrack.id !== selectedTrackId) {
-      selectTrack(startTrack);
-    }
-    setPlaybackTrackId(startTrack.id);
-    setShouldAutoplay(true);
-    return true;
-  }
-
-  function startPlaybackFromPlaylist(playlistId: string, startTrackId?: string): boolean {
-    const playlist = playlists.find((item) => item.id === playlistId);
-    if (!playlist) {
-      return false;
-    }
-    const playlistTrackIds = playlist.entries
-      .map((entry) => entry.trackId)
-      .filter((trackId) => trackById.has(trackId));
-    const queueTrackIds = buildPlaylistQueueOrder(playlistTrackIds, isShuffleEnabled, startTrackId);
-    const firstTrackId = queueTrackIds[0];
-    if (!firstTrackId) {
-      return false;
-    }
-    return startPlaybackSession(queueTrackIds, firstTrackId, playlistId);
-  }
-
-  function startPlaybackFromLibrary(track: Track): boolean {
-    const filteredTrackIds = filteredTracks.map((item) => item.id);
-    const queueTrackIds = buildLibraryQueueOrder(filteredTrackIds, track.id);
-    const normalizedQueueTrackIds = queueTrackIds.length ? queueTrackIds : [track.id];
-    return startPlaybackSession(normalizedQueueTrackIds, track.id, "");
-  }
-
   function getNavidromeFormInput(): NavidromeConnectionInput | null {
     const baseUrl = navidromeBaseUrl.trim();
     const username = navidromeUsername.trim();
@@ -1320,21 +936,7 @@ export function App() {
             : bookmark
         )));
       }
-      setFolderPath(library.folderPath);
-      setTracks(library.tracks);
-      const firstTrack = library.tracks[0];
-      setSelectedTrackId(firstTrack?.id ?? "");
-      setPlaybackPlaylistId("");
-      setPlaybackTrackId("");
-      clearPlaybackQueueState();
-      setShouldAutoplay(false);
-      if (firstTrack) {
-        setSearchTitle(firstTrack.title);
-        setSearchArtist(firstTrack.artist);
-        setSearchAlbum(firstTrack.album);
-      }
-      setOnlineResults([]);
-      setSelectedResultId("");
+      applyLoadedLibrary(library.folderPath, library.tracks);
       setIsNavidromePanelOpen(false);
       setNavidromeStatus(
         `Connected to ${input.name || input.baseUrl} · loaded ${library.tracks.length} tracks${result.serverVersion ? ` · server ${result.serverVersion}` : ""}${result.apiVersion ? ` · API ${result.apiVersion}` : ""}`
@@ -1411,99 +1013,15 @@ export function App() {
     })));
   }
 
-  async function handleScan() {
-    cancelOnlineSearch();
-    setIsLoadingScan(true);
-    try {
-      const result = await adapter.selectFolderAndScan();
-      if (!result.folderPath) {
-        return;
-      }
-      setFolderPath(result.folderPath);
-      if (!defaultFolderPath) {
-        setDefaultFolderPath(result.folderPath);
-      }
-      setTracks(result.tracks);
-      setSelectedTrackId(result.tracks[0]?.id ?? "");
-      setPlaybackPlaylistId("");
-      setPlaybackTrackId("");
-      clearPlaybackQueueState();
-      setShouldAutoplay(false);
-      const firstTrack = result.tracks[0];
-      if (firstTrack) {
-        setSearchTitle(firstTrack.title);
-        setSearchArtist(firstTrack.artist);
-        setSearchAlbum(firstTrack.album);
-      }
-      setOnlineResults([]);
-      setSelectedResultId("");
-      setSearchStatus("Ready");
-    } catch (error) {
-      setSearchStatus(`Scan error: ${formatError(error)}`);
-    } finally {
-      setIsLoadingScan(false);
-    }
-  }
-
-  async function runOnlineSearch(query: SearchQuery) {
-    const activeSearch = {
-      id: searchRequestCounterRef.current + 1,
-      canceled: false,
-    };
-    searchRequestCounterRef.current = activeSearch.id;
-    searchRequestRef.current = activeSearch;
-
-    setIsLoadingSearch(true);
-    setSearchStatus("Online search in progress...");
-    try {
-      const result = await adapter.searchOnline(query);
-      if (activeSearch.canceled || searchRequestRef.current?.id !== activeSearch.id) {
-        return;
-      }
-      setOnlineResults(result);
-      setSelectedResultId("");
-      setSearchStatus(
-        `Search: "${query.artist} ${query.title} ${query.album}". Online results: ${result.length}`
-      );
-    } catch (error) {
-      if (activeSearch.canceled || searchRequestRef.current?.id !== activeSearch.id) {
-        return;
-      }
-      setSearchStatus(`Online search error: ${formatError(error)}`);
-    } finally {
-      if (searchRequestRef.current?.id === activeSearch.id) {
-        searchRequestRef.current = null;
-        setIsLoadingSearch(false);
-      }
-    }
-  }
-
-  async function handleSearchOnline() {
-    if (!selectedTrack) {
-      return;
-    }
-    await runOnlineSearch({
-      title: searchTitle,
-      artist: searchArtist,
-      album: searchAlbum,
-    });
-  }
-
   function handleSearchButtonClick() {
     if (isLoadingSearch) {
       cancelOnlineSearch();
       return;
     }
-    void handleSearchOnline();
-  }
-
-  function handleQuickSearchTrack(track: Track) {
-    selectTrack(track);
-    void runOnlineSearch({
-      title: track.title,
-      artist: track.artist,
-      album: track.album,
-    });
+    if (!selectedTrack) {
+      return;
+    }
+    void searchOnlineForCurrentQuery();
   }
 
   function handleTrackFieldChange(field: keyof Track, value: string) {
@@ -1675,195 +1193,16 @@ export function App() {
     }
   }
 
-  async function handleOpenExternalLink(
-    event: { preventDefault: () => void },
-    url: string
-  ) {
+  async function handleOpenExternalLink(event: { preventDefault: () => void }, url: string) {
     event.preventDefault();
-    const invoke = (
-      window as Window & {
-        __TAURI_INTERNALS__?: { invoke?: <T>(command: string, args?: Record<string, unknown>) => Promise<T> };
-      }
-    ).__TAURI_INTERNALS__?.invoke;
-
-    if (invoke) {
-      try {
-        await invoke<void>("open_external_url", { url });
-        return;
-      } catch {
-        // Fall through to browser default opener.
-      }
-    }
-
-    window.open(url, "_blank", "noopener,noreferrer");
+    await openExternalLink(url);
   }
 
   async function handleOpenTrackFolder() {
     if (!editableTrack?.path) {
       return;
     }
-    try {
-      await adapter.openTrackInFileManager(editableTrack.path);
-    } catch (error) {
-      setSearchStatus(`Open folder error: ${formatError(error)}`);
-    }
-  }
-
-  async function handleOpenLibraryFolder() {
-    if (!folderPath) {
-      return;
-    }
-    if (folderPath.startsWith("Navidrome/")) {
-      setSearchStatus("Navidrome libraries are remote, no local folder to open.");
-      return;
-    }
-    try {
-      await adapter.openTrackInFileManager(folderPath);
-    } catch (error) {
-      setSearchStatus(`Open folder error: ${formatError(error)}`);
-    }
-  }
-
-  async function handleChooseDefaultFolder() {
-    try {
-      const picked = await adapter.pickFolder();
-      if (!picked) {
-        return;
-      }
-      setDefaultFolderPath(picked);
-    } catch (error) {
-      setSearchStatus(`Pick folder error: ${formatError(error)}`);
-    }
-  }
-
-  async function ensureAudioGraphReady() {
-    const audio = audioRef.current;
-    if (!audio) {
-      return;
-    }
-    const graph = getOrCreateMediaAudioGraph(audio);
-    if (!graph) {
-      return;
-    }
-    applyEqualizerSettings(graph, {
-      bandGains: equalizerBandGains,
-      preampDb: equalizerPreampDb,
-      wetMixPercent: equalizerWetMixPercent,
-    });
-    if (graph.context.state === "suspended") {
-      await graph.context.resume();
-    }
-  }
-
-  async function handleTogglePlayPause() {
-    const audio = audioRef.current;
-    if (!audio) {
-      return;
-    }
-    if (isPlaying) {
-      audio.pause();
-      setIsPlaying(false);
-      return;
-    }
-    try {
-      await ensureAudioGraphReady();
-    } catch {
-      setAudioError("Unable to start playback in this environment.");
-      setIsPlaying(false);
-      return;
-    }
-
-    const targetTrack = playbackTrack ?? selectedTrack;
-    if (targetTrack && targetTrack.id !== playbackTrackId) {
-      if (selectedTrack && targetTrack.id === selectedTrack.id) {
-        startPlaybackFromLibrary(targetTrack);
-        return;
-      }
-      setPlaybackTrackId(targetTrack.id);
-      setShouldAutoplay(true);
-      return;
-    }
-
-    if (!audioSrc || !audioTrackId || audioTrackId !== playbackTrackId) {
-      if (targetTrack) {
-        setShouldAutoplay(true);
-      }
-      return;
-    }
-
-    try {
-      await ensureAudioGraphReady();
-      await audio.play();
-      setIsPlaying(true);
-      setAudioError("");
-    } catch {
-      setAudioError("Unable to start playback in this environment.");
-      setIsPlaying(false);
-    }
-  }
-
-  async function handlePlayFromLibraryCover(event: MouseEvent<HTMLElement>, track: Track) {
-    event.stopPropagation();
-    try {
-      await ensureAudioGraphReady();
-    } catch {
-      setAudioError("Unable to start playback in this environment.");
-      setIsPlaying(false);
-      return;
-    }
-    if (!startPlaybackFromLibrary(track)) {
-      return;
-    }
-
-    const audio = audioRef.current;
-    if (!audio || !audioSrc || audioTrackId !== track.id) {
-      setShouldAutoplay(true);
-      return;
-    }
-
-    try {
-      await ensureAudioGraphReady();
-      await audio.play();
-      setIsPlaying(true);
-      setAudioError("");
-    } catch {
-      setAudioError("Unable to start playback in this environment.");
-      setIsPlaying(false);
-    }
-  }
-
-  function handleSeek(value: number) {
-    const audio = audioRef.current;
-    if (!audio) {
-      return;
-    }
-    audio.currentTime = value;
-    setCurrentTime(value);
-  }
-
-  function handleVolumeChange(value: number) {
-    const clamped = Math.max(0, Math.min(1, value));
-    setVolume(clamped);
-    if (clamped > 0 && isMuted) {
-      setIsMuted(false);
-    }
-    const audio = audioRef.current;
-    if (!audio) {
-      return;
-    }
-    const graph = getOrCreateMediaAudioGraph(audio);
-    if (graph) {
-      const now = graph.context.currentTime;
-      graph.outputGain.gain.cancelScheduledValues(now);
-      graph.outputGain.gain.setTargetAtTime(clamped, now, 0.015);
-      audio.volume = 1;
-      audio.muted = false;
-      return;
-    }
-    audio.volume = clamped;
-    if (clamped > 0 && audio.muted) {
-      audio.muted = false;
-    }
+    await openTrackInFileManager(editableTrack.path);
   }
 
   function handleSelectCoverClick() {
@@ -1911,23 +1250,6 @@ export function App() {
     setSearchStatus("Cover removed from draft. Save the track to persist changes.");
   }
 
-  function selectTrack(track: Track) {
-    const isNewTrack = track.id !== selectedTrackId;
-    if (isNewTrack) {
-      setTrackDraft({ ...track });
-    }
-    setSelectedTrackId(track.id);
-    setSearchTitle(track.title);
-    setSearchArtist(track.artist);
-    setSearchAlbum(track.album);
-    if (isNewTrack) {
-      cancelOnlineSearch("Online search canceled: track changed.");
-      setOnlineResults([]);
-      setSelectedResultId("");
-      setSearchStatus("Ready");
-    }
-  }
-
   function handleLibraryArtistClick(artist: LibraryArtistSummary) {
     setIsNavidromePanelOpen(false);
     setQuery(artist.name === "Unknown artist" ? "" : artist.name);
@@ -1949,141 +1271,28 @@ export function App() {
     }
   }
 
-  async function handlePrevTrack() {
-    try {
-      await ensureAudioGraphReady();
-    } catch {
-      setAudioError("Unable to start playback in this environment.");
-      setIsPlaying(false);
-      return;
-    }
-    const prev = playbackTrackIndex > 0 ? playbackQueueTracks[playbackTrackIndex - 1] ?? null : null;
-    if (prev) {
-      setPlaybackTrackId(prev.id);
-      setShouldAutoplay(true);
-      selectTrack(prev);
-    }
-  }
+  const getVisibleTrackIds = () => filteredTracks.map((track) => track.id);
+  const handleTogglePlayPause = () => togglePlayPause(getVisibleTrackIds());
+  const handleSeek = seekTo;
+  const handleVolumeChange = changeVolume;
+  const handlePrevTrack = playPreviousTrack;
+  const handleNextTrack = playNextTrack;
+  const handlePlayTrackFromPlaylist = playTrackFromPlaylist;
+  const handlePlayTrackFromPlayerQueue = playTrackFromQueue;
+  const handleLoadMorePlayerQueueTracks = loadMoreQueueTracks;
+  const handleClearPlayerQueue = clearPlayerQueue;
+  const handleRemoveTrackFromPlayerQueue = removeTrackFromPlayerQueue;
+  const handleEnqueueFilteredTracks = () => enqueueTracks(getVisibleTrackIds());
 
-  async function handleNextTrack() {
-    try {
-      await ensureAudioGraphReady();
-    } catch {
-      setAudioError("Unable to start playback in this environment.");
-      setIsPlaying(false);
-      return;
-    }
-    const next =
-      playbackTrackIndex >= 0 && playbackTrackIndex < playbackQueueTracks.length - 1
-        ? playbackQueueTracks[playbackTrackIndex + 1] ?? null
-        : null;
-    if (next) {
-      setPlaybackTrackId(next.id);
-      setShouldAutoplay(true);
-      selectTrack(next);
-    }
-  }
-
-  async function handlePlayTrackFromPlaylist(track: Track, playlistId?: string) {
-    try {
-      await ensureAudioGraphReady();
-    } catch {
-      setAudioError("Unable to start playback in this environment.");
-      setIsPlaying(false);
-      return;
-    }
-    if (!playlistId) {
-      await handlePlayTrackFromPlayerQueue(track);
-      return;
-    }
-    startPlaybackFromPlaylist(playlistId, track.id);
-  }
-
-  async function handlePlayTrackFromPlayerQueue(track: Track) {
-    try {
-      await ensureAudioGraphReady();
-    } catch {
-      setAudioError("Unable to start playback in this environment.");
-      setIsPlaying(false);
-      return;
-    }
-    if (track.id !== selectedTrackId) {
-      selectTrack(track);
-    }
-    if (track.id !== playbackTrackId) {
-      setPlaybackTrackId(track.id);
-      setShouldAutoplay(true);
-      return;
-    }
-    const audio = audioRef.current;
-    if (!audio || !audioSrc || audioTrackId !== track.id) {
-      setShouldAutoplay(true);
-      return;
-    }
-    try {
-      await ensureAudioGraphReady();
-      await audio.play();
-      setIsPlaying(true);
-      setAudioError("");
-    } catch {
-      setAudioError("Unable to start playback in this environment.");
-      setIsPlaying(false);
-    }
+  async function handlePlayFromLibraryCover(event: MouseEvent<HTMLElement>, track: Track) {
+    event.stopPropagation();
+    await playFromLibraryCover(track, getVisibleTrackIds());
   }
 
   async function handlePlayActivePlaylist() {
-    if (!activePlaylist) {
-      return;
+    if (activePlaylist) {
+      await playPlaylist(activePlaylist.id);
     }
-    try {
-      await ensureAudioGraphReady();
-    } catch {
-      setAudioError("Unable to start playback in this environment.");
-      setIsPlaying(false);
-      return;
-    }
-    startPlaybackFromPlaylist(activePlaylist.id);
-  }
-
-  function handleLoadMorePlayerQueueTracks() {
-    setPlayerQueueVisibleCount((prev) => prev + PLAYER_QUEUE_PAGE_SIZE);
-  }
-
-  function handleClearPlayerQueue() {
-    setPlaybackPlaylistId("");
-    if (!playbackTrackId) {
-      setPlaybackQueueTrackIds([]);
-      setPlayerQueueVisibleCount(PLAYER_QUEUE_PAGE_SIZE);
-      return;
-    }
-    setPlaybackQueueTrackIds((prev) => (prev.includes(playbackTrackId) ? [playbackTrackId] : []));
-    setPlayerQueueVisibleCount(PLAYER_QUEUE_PAGE_SIZE);
-  }
-
-  function handleRemoveTrackFromPlayerQueue(trackId: string) {
-    setPlaybackPlaylistId("");
-    setPlaybackHistoryTrackIds((prev) => prev.filter((id) => id !== trackId));
-    const currentIndex = playbackQueueTrackIds.indexOf(trackId);
-    if (currentIndex < 0) {
-      return;
-    }
-    const nextQueueTrackIds = playbackQueueTrackIds.filter((id) => id !== trackId);
-    setPlaybackQueueTrackIds(nextQueueTrackIds);
-    if (trackId !== playbackTrackId) {
-      return;
-    }
-    const fallbackTrackId = nextQueueTrackIds[currentIndex] ?? nextQueueTrackIds[currentIndex - 1] ?? "";
-    if (!fallbackTrackId) {
-      setPlaybackTrackId("");
-      setShouldAutoplay(false);
-      return;
-    }
-    setPlaybackTrackId(fallbackTrackId);
-    const fallbackTrack = trackById.get(fallbackTrackId);
-    if (fallbackTrack) {
-      selectTrack(fallbackTrack);
-    }
-    setShouldAutoplay(isPlaying);
   }
 
   function handleEqualizerPresetNameInputKeyDown(event: KeyboardEvent<HTMLInputElement>) {
@@ -2131,49 +1340,6 @@ export function App() {
 
   function handleAddFilteredTracksToActivePlaylist() {
     appendTracksToActivePlaylist(filteredTracks.map((track) => track.id));
-  }
-
-  function enqueueTrack(trackId: string) {
-    const track = trackById.get(trackId);
-    if (!track) {
-      return;
-    }
-    setPlaybackPlaylistId("");
-    setPlaybackQueueTrackIds((prev) => {
-      if (prev.includes(trackId)) {
-        return prev;
-      }
-      return [...prev, trackId];
-    });
-    setPlayerQueueVisibleCount((prev) => Math.max(prev, PLAYER_QUEUE_PAGE_SIZE));
-    if (!playbackTrackId) {
-      setPlaybackTrackId(trackId);
-      selectTrack(track);
-    }
-  }
-
-  function handleEnqueueFilteredTracks() {
-    const filteredTrackIds = filteredTracks.map((track) => track.id).filter((trackId) => trackById.has(trackId));
-    if (!filteredTrackIds.length) {
-      return;
-    }
-    setPlaybackPlaylistId("");
-    setPlaybackQueueTrackIds((prev) => {
-      const existing = new Set(prev);
-      const nextTrackIds = filteredTrackIds.filter((trackId) => !existing.has(trackId));
-      if (!nextTrackIds.length) {
-        return prev;
-      }
-      return [...prev, ...nextTrackIds];
-    });
-    setPlayerQueueVisibleCount((prev) => Math.max(prev, PLAYER_QUEUE_PAGE_SIZE));
-    if (!playbackTrackId) {
-      const firstTrack = trackById.get(filteredTrackIds[0]);
-      if (firstTrack) {
-        setPlaybackTrackId(firstTrack.id);
-        selectTrack(firstTrack);
-      }
-    }
   }
 
   function applyDashboardPointerDrop(
