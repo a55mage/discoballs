@@ -97,3 +97,35 @@ export type SaveTrackResult = {
 
 export type AppScreen = "tagging" | "library" | "dashboard" | "settings" | "player";
 export type StartupScreen = "tagging" | "library" | "dashboard" | "player";
+
+export type AlbumQuery = { artist: string; album: string };
+
+/** A release found online, before its tracks are loaded. */
+export type AlbumSummary = {
+  id: string;
+  title: string;
+  artist: string;
+  date: string;
+  country?: string;
+  label?: string;
+  disambiguation?: string;
+  trackCount: number;
+};
+
+export type AlbumTrack = {
+  title: string;
+  artist: string;
+  /** Position inside its disc ("1", "A1"…). */
+  number: string;
+  disc: number;
+  lengthMs?: number;
+};
+
+export type AlbumRelease = {
+  id: string;
+  title: string;
+  artist: string;
+  date: string;
+  tracks: AlbumTrack[];
+  coverUrl?: string;
+};

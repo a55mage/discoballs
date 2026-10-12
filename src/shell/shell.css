@@ -936,3 +936,100 @@ body {
   height: 18px;
   fill: currentColor;
 }
+
+/* ---------- Album match dialog ---------- */
+.albm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--db-space-3);
+}
+.albm__search {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  align-items: end;
+  gap: var(--db-space-3);
+}
+.albm__hint {
+  margin: 0;
+  color: var(--db-ink-2);
+  font-size: var(--db-text-sm);
+}
+.albm__candidates {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 340px;
+  overflow: auto;
+}
+.albm__candidates button {
+  display: flex;
+  align-items: center;
+  gap: var(--db-space-3);
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--db-radius-md);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.albm__candidates button:hover {
+  background: var(--db-accent-soft);
+}
+.albm__title {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  font-weight: 700;
+}
+.albm__title small,
+.albm__meta {
+  color: var(--db-ink-2);
+  font-weight: 500;
+}
+.albm__release {
+  display: flex;
+  align-items: center;
+  gap: var(--db-space-3);
+}
+.albm__release > div {
+  flex: 1;
+  min-width: 0;
+}
+.albm__release h3 {
+  margin: 0;
+}
+.albm__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--db-text-sm);
+}
+.albm__table th {
+  padding: 4px 8px;
+  color: var(--db-ink-2);
+  text-align: left;
+}
+.albm__table td {
+  padding: 5px 8px;
+  border-top: 1px solid var(--db-line);
+}
+.albm__table tr.is-unmatched td {
+  color: var(--db-ink-2);
+}
+.albm__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--db-space-4);
+}
+.albm__options label {
+  display: flex;
+  align-items: center;
+  gap: var(--db-space-2);
+}
+.albm__footer {
+  display: flex;
+  justify-content: flex-end;
+}

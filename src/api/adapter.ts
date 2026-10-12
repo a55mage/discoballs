@@ -1,4 +1,7 @@
 import type {
+  AlbumQuery,
+  AlbumRelease,
+  AlbumSummary,
   NavidromeConnectionInput,
   NavidromeConnectionResult,
   OnlineMatch,
@@ -30,6 +33,10 @@ export interface MusicAdapter {
   getTrackTechnicalInfo(path: string): Promise<TrackTechnicalInfo | null>;
   getTrackCoverSource(track: Track): Promise<string | null>;
   searchOnline(query: SearchQuery): Promise<OnlineMatch[]>;
+  /** Releases (albums) matching an artist and album title. */
+  searchAlbums(query: AlbumQuery): Promise<AlbumSummary[]>;
+  /** The track list and front cover of one release. */
+  getAlbumRelease(releaseId: string): Promise<AlbumRelease>;
   connectNavidrome(input: NavidromeConnectionInput): Promise<NavidromeConnectionResult>;
   scanNavidromeLibrary(input: NavidromeConnectionInput): Promise<ScanResult>;
   openTrackInFileManager(path: string): Promise<void>;

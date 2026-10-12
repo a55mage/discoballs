@@ -70,6 +70,46 @@ struct OnlineMatch {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+struct AlbumQuery {
+    artist: String,
+    album: String,
+}
+
+/// A release found on MusicBrainz, without its track list.
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+struct AlbumSummary {
+    id: String,
+    title: String,
+    artist: String,
+    date: String,
+    country: Option<String>,
+    label: Option<String>,
+    disambiguation: Option<String>,
+    track_count: u32,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+struct AlbumTrackInfo {
+    title: String,
+    artist: String,
+    /// Position inside its disc, as text ("1", "A1"…).
+    number: String,
+    disc: u32,
+    length_ms: Option<u64>,
+}
+
+/// A release with its full track list and front cover.
+#[derive(Debug, Serialize, Deserialize)]
+struct AlbumRelease {
+    id: String,
+    title: String,
+    artist: String,
+    date: String,
+    tracks: Vec<AlbumTrackInfo>,
+    cover_data_url: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 struct SaveTrackInput {
     path: String,
     title: String,
@@ -1225,6 +1265,175 @@ fn encode_data_url(bytes: &[u8], mime: &str) -> Option<String> {
     Some(format!("data:{};base64,{}", mime, encoded))
 }
 
+fn artist_credit_name(value: &Value) -> String {
+    value
+        .as_array()
+        .map(|credits| {
+            credits
+                .iter()
+                .map(|credit| {
+                    let name = credit
+                        .get("name")
+                        .and_then(|v| v.as_str())
+                        .or_else(|| credit.get("artist").and_then(|a| a.get("name")).and_then(|v| v.as_str()))
+                        .unwrap_or_default();
+                    let join = credit.get("joinphrase").and_then(|v| v.as_str()).unwrap_or_default();
+                    format!("{name}{join}")
+                })
+                .collect::<String>()
+        })
+        .unwrap_or_default()
+}
+
+/// Turns a MusicBrainz release search response into candidates.
+fn parse_release_search(response: &Value) -> Vec<AlbumSummary> {
+    response
+        .get("releases")
+        .and_then(|v| v.as_array())
+        .map(|releases| {
+            releases
+                .iter()
+                .filter_map(|release| {
+                    let id = release.get("id")?.as_str()?.to_string();
+                    let title = release.get("title")?.as_str()?.to_string();
+                    let track_count = release
+                        .get("media")
+                        .and_then(|v| v.as_array())
+                        .map(|media| {
+                            media
+                                .iter()
+                                .filter_map(|m| m.get("track-count").and_then(|c| c.as_u64()))
+                                .sum::<u64>()
+                        })
+                        .or_else(|| release.get("track-count").and_then(|c| c.as_u64()))
+                        .unwrap_or(0) as u32;
+                    let label = release
+                        .get("label-info")
+                        .and_then(|v| v.as_array())
+                        .and_then(|infos| infos.iter().find_map(|i| i.get("label").and_then(|l| l.get("name")).and_then(|n| n.as_str())))
+                        .map(|s| s.to_string());
+                    Some(AlbumSummary {
+                        id,
+                        title,
+                        artist: artist_credit_name(release.get("artist-credit").unwrap_or(&Value::Null)),
+                        date: release.get("date").and_then(|v| v.as_str()).unwrap_or_default().to_string(),
+                        country: release.get("country").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                        label,
+                        disambiguation: release
+                            .get("disambiguation")
+                            .and_then(|v| v.as_str())
+                            .filter(|s| !s.is_empty())
+                            .map(|s| s.to_string()),
+                        track_count,
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Turns a MusicBrainz release lookup (with recordings) into a track list, discs in order.
+fn parse_release_tracks(response: &Value) -> Option<AlbumRelease> {
+    let id = response.get("id")?.as_str()?.to_string();
+    let title = response.get("title")?.as_str()?.to_string();
+    let release_artist = artist_credit_name(response.get("artist-credit").unwrap_or(&Value::Null));
+    let mut tracks = Vec::new();
+    for (index, medium) in response.get("media").and_then(|v| v.as_array()).cloned().unwrap_or_default().iter().enumerate() {
+        let disc = medium.get("position").and_then(|v| v.as_u64()).unwrap_or(index as u64 + 1) as u32;
+        for track in medium.get("tracks").and_then(|v| v.as_array()).cloned().unwrap_or_default() {
+            let track_title = track
+                .get("title")
+                .and_then(|v| v.as_str())
+                .or_else(|| track.get("recording").and_then(|r| r.get("title")).and_then(|v| v.as_str()))
+                .unwrap_or_default()
+                .to_string();
+            if track_title.is_empty() {
+                continue;
+            }
+            let credited = artist_credit_name(track.get("artist-credit").unwrap_or(&Value::Null));
+            tracks.push(AlbumTrackInfo {
+                title: track_title,
+                artist: if credited.is_empty() { release_artist.clone() } else { credited },
+                number: track
+                    .get("number")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .or_else(|| track.get("position").and_then(|v| v.as_u64()).map(|n| n.to_string()))
+                    .unwrap_or_default(),
+                disc,
+                length_ms: track.get("length").and_then(|v| v.as_u64()),
+            });
+        }
+    }
+    Some(AlbumRelease {
+        id,
+        title,
+        artist: release_artist,
+        date: response.get("date").and_then(|v| v.as_str()).unwrap_or_default().to_string(),
+        tracks,
+        cover_data_url: None,
+    })
+}
+
+fn musicbrainz_client() -> Result<Client, String> {
+    Client::builder()
+        .user_agent("discoballs/1.5.0 (desktop app)")
+        .timeout(Duration::from_secs(20))
+        .build()
+        .map_err(|e| e.to_string())
+}
+
+/// Looks for releases (albums) by artist and album title.
+#[tauri::command]
+async fn search_albums(query: AlbumQuery) -> Result<Vec<AlbumSummary>, String> {
+    let mut clauses = Vec::new();
+    if !query.album.trim().is_empty() {
+        clauses.push(format!("release:\"{}\"", query.album.trim().replace('"', "")));
+    }
+    if !query.artist.trim().is_empty() {
+        clauses.push(format!("artist:\"{}\"", query.artist.trim().replace('"', "")));
+    }
+    if clauses.is_empty() {
+        return Ok(Vec::new());
+    }
+    let client = musicbrainz_client()?;
+    let response: Value = client
+        .get("https://musicbrainz.org/ws/2/release")
+        .query(&[("query", clauses.join(" AND ")), ("fmt", "json".to_string()), ("limit", "10".to_string())])
+        .send()
+        .await
+        .map_err(|e| e.to_string())?
+        .error_for_status()
+        .map_err(|e| e.to_string())?
+        .json()
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(parse_release_search(&response))
+}
+
+/// Fetches the track list and the front cover of one release.
+#[tauri::command]
+async fn get_album_release(release_id: String) -> Result<AlbumRelease, String> {
+    if release_id.is_empty() || !release_id.chars().all(|c| c.is_ascii_hexdigit() || c == '-') {
+        return Err("Invalid release id".to_string());
+    }
+    let client = musicbrainz_client()?;
+    let response: Value = client
+        .get(format!("https://musicbrainz.org/ws/2/release/{release_id}"))
+        .query(&[("inc", "recordings+artist-credits"), ("fmt", "json")])
+        .send()
+        .await
+        .map_err(|e| e.to_string())?
+        .error_for_status()
+        .map_err(|e| e.to_string())?
+        .json()
+        .await
+        .map_err(|e| e.to_string())?;
+    let mut release = parse_release_tracks(&response).ok_or_else(|| "The release has no track list".to_string())?;
+    release.cover_data_url = fetch_cover_data_url(&client, &release.id).await;
+    Ok(release)
+}
+
 async fn search_musicbrainz(client: &Client, query: &OnlineQuery) -> Result<Vec<OnlineMatch>, String> {
     let mut clauses = Vec::new();
     if !query.title.trim().is_empty() {
@@ -1449,6 +1658,8 @@ fn main() {
             save_track,
             rename_track,
             rename_file,
+            search_albums,
+            get_album_release,
             get_audio_data_url,
             get_track_technical_info,
             open_external_url,
@@ -1461,6 +1672,70 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn release_search_results_are_read() {
+        let response: Value = serde_json::from_str(
+            r#"{"releases":[
+              {"id":"a1","title":"Random Access Memories","date":"2013-05-17","country":"XW",
+               "disambiguation":"10th anniversary edition",
+               "artist-credit":[{"name":"Daft Punk","joinphrase":""}],
+               "label-info":[{"label":{"name":"Columbia"}}],
+               "media":[{"track-count":13},{"track-count":2}]},
+              {"id":"a2","title":"Bare"},
+              {"title":"No id"}
+            ]}"#,
+        )
+        .unwrap();
+        let found = parse_release_search(&response);
+        assert_eq!(found.len(), 2);
+        assert_eq!(found[0].artist, "Daft Punk");
+        assert_eq!(found[0].track_count, 15);
+        assert_eq!(found[0].label.as_deref(), Some("Columbia"));
+        assert_eq!(found[0].country.as_deref(), Some("XW"));
+        assert_eq!(found[0].disambiguation.as_deref(), Some("10th anniversary edition"));
+        assert_eq!(found[1].track_count, 0);
+        assert_eq!(found[1].date, "");
+    }
+
+    #[test]
+    fn release_tracks_are_read_in_disc_order_with_credited_artists() {
+        let response: Value = serde_json::from_str(
+            r#"{"id":"r1","title":"Collab","date":"2020",
+               "artist-credit":[{"name":"Main","joinphrase":" feat. "},{"name":"Guest","joinphrase":""}],
+               "media":[
+                 {"position":1,"tracks":[
+                   {"number":"1","title":"One","length":180000},
+                   {"number":"2","title":"Two","artist-credit":[{"name":"Other","joinphrase":""}]}]},
+                 {"position":2,"tracks":[
+                   {"position":1,"recording":{"title":"Disc two opener"}},
+                   {"number":"2","title":""}]}
+               ]}"#,
+        )
+        .unwrap();
+        let release = parse_release_tracks(&response).unwrap();
+        assert_eq!(release.artist, "Main feat. Guest");
+        let summary: Vec<(u32, &str, &str, &str)> = release
+            .tracks
+            .iter()
+            .map(|t| (t.disc, t.number.as_str(), t.title.as_str(), t.artist.as_str()))
+            .collect();
+        assert_eq!(
+            summary,
+            vec![
+                (1, "1", "One", "Main feat. Guest"),
+                (1, "2", "Two", "Other"),
+                (2, "1", "Disc two opener", "Main feat. Guest"),
+            ]
+        );
+        assert_eq!(release.tracks[0].length_ms, Some(180000));
+    }
+
+    #[test]
+    fn malformed_releases_do_not_panic() {
+        assert!(parse_release_tracks(&serde_json::json!({})).is_none());
+        assert!(parse_release_search(&serde_json::json!({"releases": "oops"})).is_empty());
+    }
 
     #[test]
     fn replaygain_values_are_parsed_leniently() {

@@ -1,5 +1,8 @@
 import type { MusicAdapter } from "./adapter";
 import type {
+  AlbumQuery,
+  AlbumRelease,
+  AlbumSummary,
   NavidromeConnectionInput,
   NavidromeConnectionResult,
   OnlineMatch,
@@ -84,6 +87,26 @@ type TauriTrackTechnicalInfo = {
   bit_depth?: number | null;
   replaygain_track_db?: number | null;
   replaygain_album_db?: number | null;
+};
+
+type TauriAlbumSummary = {
+  id: string;
+  title: string;
+  artist: string;
+  date: string;
+  country?: string | null;
+  label?: string | null;
+  disambiguation?: string | null;
+  track_count: number;
+};
+
+type TauriAlbumRelease = {
+  id: string;
+  title: string;
+  artist: string;
+  date: string;
+  tracks: Array<{ title: string; artist: string; number: string; disc: number; length_ms?: number | null }>;
+  cover_data_url?: string | null;
 };
 
 type TauriNavidromeConnectionResult = {
@@ -235,6 +258,40 @@ export const tauriAdapter: MusicAdapter = {
         rename_separator: renameConfig?.separator ?? null,
       },
     });
+  },
+
+  async searchAlbums(query: AlbumQuery): Promise<AlbumSummary[]> {
+    const invoke = getInvoke();
+    const result = await invoke<TauriAlbumSummary[]>("search_albums", { query });
+    return result.map((item) => ({
+      id: item.id,
+      title: item.title,
+      artist: item.artist,
+      date: item.date,
+      country: item.country ?? undefined,
+      label: item.label ?? undefined,
+      disambiguation: item.disambiguation ?? undefined,
+      trackCount: item.track_count,
+    }));
+  },
+
+  async getAlbumRelease(releaseId: string): Promise<AlbumRelease> {
+    const invoke = getInvoke();
+    const result = await invoke<TauriAlbumRelease>("get_album_release", { releaseId });
+    return {
+      id: result.id,
+      title: result.title,
+      artist: result.artist,
+      date: result.date,
+      coverUrl: result.cover_data_url ?? undefined,
+      tracks: result.tracks.map((track) => ({
+        title: track.title,
+        artist: track.artist,
+        number: track.number,
+        disc: track.disc,
+        lengthMs: track.length_ms ?? undefined,
+      })),
+    };
   },
 
   async renameFile(path: string, fileName: string): Promise<SaveTrackResult> {

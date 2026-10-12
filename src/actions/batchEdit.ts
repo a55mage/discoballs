@@ -19,7 +19,7 @@ export type BatchResult = {
   batchId?: string;
 };
 
-export type TrackEdit = { id: string; patch: TagPatch };
+export type TrackEdit = { id: string; patch: TagPatch; /** Cover image (URL or data URL) to embed. */ coverUrl?: string };
 
 /** Which values of the patch are actually set (empty fields mean "leave as is"). */
 export function cleanPatch(patch: BatchPatch): BatchPatch {
@@ -54,20 +54,26 @@ export async function applyTrackEdits(
       result.skippedRemote += 1;
     } else {
       const next: Track = { ...track, ...edit.patch };
-      const changed = (Object.keys(edit.patch) as Array<keyof TagPatch>).some((key) => next[key] !== track[key]);
+      const changed = Boolean(edit.coverUrl) || (Object.keys(edit.patch) as Array<keyof TagPatch>).some((key) => next[key] !== track[key]);
       if (!changed) {
         result.unchanged += 1;
       } else {
         try {
-          await adapter.saveTrack(track.id, track.path, {
-            title: next.title,
-            artist: next.artist,
-            album: next.album,
-            tracknumber: next.tracknumber,
-            year: next.year,
-            genre: next.genre,
-          });
-          setTracks((prev) => prev.map((item) => (item.id === track.id ? { ...item, ...edit.patch } : item)));
+          await adapter.saveTrack(
+            track.id,
+            track.path,
+            {
+              title: next.title,
+              artist: next.artist,
+              album: next.album,
+              tracknumber: next.tracknumber,
+              year: next.year,
+              genre: next.genre,
+            },
+            edit.coverUrl
+          );
+          const coverPatch = edit.coverUrl ? { coverUrl: edit.coverUrl, hasCover: true } : {};
+          setTracks((prev) => prev.map((item) => (item.id === track.id ? { ...item, ...edit.patch, ...coverPatch } : item)));
           recordTagChange(track, next, { label, batchId: result.batchId });
           result.updated += 1;
         } catch (error) {

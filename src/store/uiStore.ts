@@ -7,6 +7,8 @@ export type SettingsTab = "general" | "audio" | "appearance" | "renaming" | "lib
 
 export type FilenameTagsRequest = { ids: string[]; mode: "write" | "draft" };
 
+export type AlbumMatchRequest = { ids: string[] };
+
 export type ToastAction = { label: string; run: () => void };
 export type Toast = { id: number; message: string; tone: "info" | "success" | "error"; action?: ToastAction };
 
@@ -17,6 +19,8 @@ export type UiState = {
   isDuplicatesOpen: boolean;
   /** Set while the "tags from file names" dialog is open. */
   filenameTags: FilenameTagsRequest | null;
+  /** Set while the "match album online" dialog is open. */
+  albumMatch: AlbumMatchRequest | null;
   settingsTab: SettingsTab;
   /** Full-window mode: only the content is shown, without sidebar, header and player bar. */
   isImmersive: boolean;
@@ -26,6 +30,7 @@ export type UiState = {
   setHistoryOpen: Setter<boolean>;
   setDuplicatesOpen: Setter<boolean>;
   setFilenameTags: Setter<FilenameTagsRequest | null>;
+  setAlbumMatch: Setter<AlbumMatchRequest | null>;
   setSettingsTab: Setter<SettingsTab>;
   setImmersive: Setter<boolean>;
   showToast: (message: string, tone?: Toast["tone"], action?: ToastAction) => void;
@@ -41,6 +46,7 @@ export const useUiStore = create<UiState>()((set) => ({
   isHistoryOpen: false,
   isDuplicatesOpen: false,
   filenameTags: null,
+  albumMatch: null,
   settingsTab: "general",
   isImmersive: false,
   toast: null,
@@ -49,6 +55,7 @@ export const useUiStore = create<UiState>()((set) => ({
   setHistoryOpen: fieldSetter(set, "isHistoryOpen"),
   setDuplicatesOpen: fieldSetter(set, "isDuplicatesOpen"),
   setFilenameTags: fieldSetter(set, "filenameTags"),
+  setAlbumMatch: fieldSetter(set, "albumMatch"),
   setSettingsTab: fieldSetter(set, "settingsTab"),
   setImmersive: fieldSetter(set, "isImmersive"),
   showToast: (message, tone = "info", action) => {

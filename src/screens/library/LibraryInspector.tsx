@@ -5,10 +5,12 @@ import { undoLast, undoWithToast } from "../../actions/history";
 import { clearSelection } from "../../actions/librarySelection";
 import { searchOnlineForTrack } from "../../actions/library";
 import { enqueueTrack, enqueueTracks, playFromLibraryCover } from "../../actions/playback";
+import { albumIdsFor } from "../../domain/albumMatch";
 import { getFormat, getTrackIssues } from "../../domain/libraryView";
 import { useFavoritesStore } from "../../store/favoritesStore";
 import { useTrackTechnicalInfo } from "../../hooks/useTrackTechnicalInfo";
 import { useVisibleTracks } from "../../hooks/useVisibleTracks";
+import { useLibraryStore } from "../../store/libraryStore";
 import { useLibraryViewStore } from "../../store/libraryViewStore";
 import { usePlaylistStore } from "../../store/playlistStore";
 import { useUiStore } from "../../store/uiStore";
@@ -49,6 +51,8 @@ function SingleTrack({ track, issues, visibleIds }: { track: Track; issues: stri
   const setActiveScreen = useUiStore((state) => state.setActiveScreen);
   const showToast = useUiStore((state) => state.showToast);
   const setFilenameTags = useUiStore((state) => state.setFilenameTags);
+  const setAlbumMatch = useUiStore((state) => state.setAlbumMatch);
+  const allTracks = useLibraryStore((state) => state.tracks);
   const appendTracks = usePlaylistStore((state) => state.appendTracks);
   const info = useTrackTechnicalInfo(track);
   const isFavorite = useFavoritesStore((state) => state.favorites.includes(track.id));
@@ -98,6 +102,7 @@ function SingleTrack({ track, issues, visibleIds }: { track: Track; issues: stri
             Playlist
           </Button>
           <Button size="sm" onClick={() => setFilenameTags({ ids: [track.id], mode: "write" })}>Tags from file name…</Button>
+          <Button size="sm" onClick={() => setAlbumMatch({ ids: albumIdsFor(allTracks, [track.id]) })}>Match album online…</Button>
         </div>
 
         <div className="lib-rate">
@@ -145,6 +150,7 @@ function SingleTrack({ track, issues, visibleIds }: { track: Track; issues: stri
 function BatchEditor({ tracks }: { tracks: Track[] }) {
   const showToast = useUiStore((state) => state.showToast);
   const setFilenameTags = useUiStore((state) => state.setFilenameTags);
+  const setAlbumMatch = useUiStore((state) => state.setAlbumMatch);
   const appendTracks = usePlaylistStore((state) => state.appendTracks);
   const [patch, setPatch] = useState<BatchPatch>({});
   const [autoNumber, setAutoNumber] = useState(false);
@@ -206,6 +212,9 @@ function BatchEditor({ tracks }: { tracks: Track[] }) {
       </Button>
       <Button block disabled={busy !== null} onClick={() => setFilenameTags({ ids: tracks.map((track) => track.id), mode: "write" })}>
         Tags from file names…
+      </Button>
+      <Button block disabled={busy !== null} onClick={() => setAlbumMatch({ ids: tracks.map((track) => track.id) })}>
+        Match album online…
       </Button>
       <Button
         block

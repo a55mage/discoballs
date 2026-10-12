@@ -3,7 +3,9 @@ import { scanLibraryWithPicker, selectTrack } from "../actions/library";
 import { undoLast, undoWithToast } from "../actions/history";
 import { playNextTrack, playPreviousTrack } from "../actions/playback";
 import { useFavoritesStore } from "../store/favoritesStore";
+import { albumIdsFor } from "../domain/albumMatch";
 import { useLibraryStore } from "../store/libraryStore";
+import { useLibraryViewStore } from "../store/libraryViewStore";
 import { usePlayerStore } from "../store/playerStore";
 import { useSettingsStore } from "../store/settingsStore";
 import { useUiStore } from "../store/uiStore";
@@ -73,6 +75,16 @@ export function CommandPalette({ onTogglePlayPause }: CommandPaletteProps) {
       }),
       command("undo", "Undo last tag change", () => void undoWithToast(undoLast)),
       command("duplicates", "Review duplicates", () => useUiStore.getState().setDuplicatesOpen(true)),
+      command("albummatch", "Match selected tracks to an album online…", () => {
+        const { selectedIds } = useLibraryViewStore.getState();
+        const { selectedTrackId } = useLibraryStore.getState();
+        const ids = selectedIds.length ? selectedIds : selectedTrackId ? [selectedTrackId] : [];
+        if (ids.length) {
+          useUiStore.getState().setAlbumMatch({ ids: albumIdsFor(useLibraryStore.getState().tracks, ids) });
+        } else {
+          useUiStore.getState().showToast("Select the tracks of an album first", "info");
+        }
+      }),
       command("history", "Show change history", () => useUiStore.getState().setHistoryOpen(true)),
       command("fullwindow", "Full window Now Playing", () => {
         setActiveScreen("player");

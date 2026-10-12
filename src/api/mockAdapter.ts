@@ -1,5 +1,8 @@
 import type { MusicAdapter } from "./adapter";
 import type {
+  AlbumQuery,
+  AlbumRelease,
+  AlbumSummary,
   NavidromeConnectionInput,
   NavidromeConnectionResult,
   OnlineMatch,
@@ -67,6 +70,38 @@ let tracks: Track[] = SAMPLE_TRACKS.map(([title, artist, album, year, genre, tra
     coverUrl: cover >= 0 ? COVERS[cover] : undefined,
   };
 });
+
+const MOCK_RELEASES: AlbumRelease[] = [
+  {
+    id: "mock-night-ferry",
+    title: "Night Ferry",
+    artist: "Marlow Vane",
+    date: "2019-03-08",
+    coverUrl: COVERS[0],
+    tracks: [
+      { title: "Harbor Lights", artist: "Marlow Vane", number: "1", disc: 1 },
+      { title: "Salt & Static", artist: "Marlow Vane", number: "2", disc: 1 },
+      { title: "Night Ferry", artist: "Marlow Vane", number: "3", disc: 1 },
+      { title: "Low Tide Radio", artist: "Marlow Vane", number: "4", disc: 1 },
+      { title: "Lantern Season", artist: "Marlow Vane", number: "5", disc: 1 },
+    ],
+  },
+  {
+    id: "mock-night-ferry-deluxe",
+    title: "Night Ferry (Deluxe Edition)",
+    artist: "Marlow Vane",
+    date: "2020-03-06",
+    coverUrl: COVERS[2],
+    tracks: [
+      { title: "Harbor Lights", artist: "Marlow Vane", number: "1", disc: 1 },
+      { title: "Salt & Static", artist: "Marlow Vane", number: "2", disc: 1 },
+      { title: "Night Ferry", artist: "Marlow Vane", number: "3", disc: 1 },
+      { title: "Low Tide Radio", artist: "Marlow Vane", number: "4", disc: 1 },
+      { title: "Lantern Season", artist: "Marlow Vane", number: "5", disc: 1 },
+      { title: "Harbor Lights (Demo)", artist: "Marlow Vane", number: "1", disc: 2 },
+    ],
+  },
+];
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -186,6 +221,25 @@ export const mockAdapter: MusicAdapter = {
       };
     });
     return { path: nextPath };
+  },
+
+  async searchAlbums(query: AlbumQuery): Promise<AlbumSummary[]> {
+    await wait(350);
+    const needle = `${query.artist} ${query.album}`.trim().toLowerCase();
+    if (!needle) {
+      return [];
+    }
+    const known = MOCK_RELEASES.filter((release) => needle.split(/\s+/).some((word) => word.length > 2 && `${release.artist} ${release.title}`.toLowerCase().includes(word)));
+    return known.map(({ tracks, coverUrl: _cover, ...summary }) => ({ ...summary, trackCount: tracks.length, country: "XW", label: "Sample Records" }));
+  },
+
+  async getAlbumRelease(releaseId: string): Promise<AlbumRelease> {
+    await wait(300);
+    const release = MOCK_RELEASES.find((item) => item.id === releaseId);
+    if (!release) {
+      throw new Error("Release not found");
+    }
+    return release;
   },
 
   async renameFile(path: string, fileName: string): Promise<SaveTrackResult> {
