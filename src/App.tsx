@@ -52,7 +52,8 @@ import { RenameSettingsModal } from "./sections/RenameSettingsModal";
 import { SettingsSection } from "./sections/SettingsSection";
 import { TopBarSection } from "./sections/TopBarSection";
 import { TrackDetailsSection } from "./sections/TrackDetailsSection";
-import type { NavidromeBookmark, NavidromeConnectionInput, OnlineMatch, RenameField, SearchQuery, Track, TrackTechnicalInfo } from "./types";
+import type { AppScreen, NavidromeBookmark, NavidromeConnectionInput, OnlineMatch, RenameField, SearchQuery, Track, TrackTechnicalInfo } from "./types";
+import { useSettingsStore } from "./store/settingsStore";
 import { BUILTIN_EQ_PRESET_IDS, buildUniqueEqualizerPresetName } from "./domain/equalizer";
 import {
   areTrackIdListsEqual,
@@ -101,9 +102,6 @@ const STORAGE_STARTUP_SCREEN_KEY = "musicmanager-startup-screen";
 const STORAGE_NAVIDROME_BOOKMARKS_KEY = "musicmanager-navidrome-bookmarks";
 const PLAYER_QUEUE_PAGE_SIZE = 50;
 const PLAYER_QUEUE_HISTORY_SIZE = 1;
-type AppScreen = "tagging" | "library" | "dashboard" | "settings" | "player";
-type StartupScreen = "tagging" | "library" | "dashboard" | "player";
-type PlayerColumnVisibility = { library: boolean; visualizer: boolean; queue: boolean };
 
 function buildNavidromeBookmarkId(): string {
   return `navidrome-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -174,8 +172,7 @@ export function App() {
   const suppressNextPlaylistItemClickRef = useRef(false);
   const [tracks, setTracks] = useState<Track[]>([]);
   const [folderPath, setFolderPath] = useState("");
-  const [activeScreen, setActiveScreen] = useState<AppScreen>("tagging");
-  const [startupScreen, setStartupScreen] = useState<StartupScreen>("tagging");
+  const [activeScreen, setActiveScreen] = useState<AppScreen>(() => useSettingsStore.getState().startupScreen);
   const [selectedTrackId, setSelectedTrackId] = useState<string>("");
   const [playbackTrackId, setPlaybackTrackId] = useState<string>("");
   const [playbackPlaylistId, setPlaybackPlaylistId] = useState<string>("");
@@ -206,13 +203,7 @@ export function App() {
   const [activePlaylistId, setActivePlaylistId] = useState("");
   const [playlistNameDraft, setPlaylistNameDraft] = useState("");
   const [isPlaylistRenaming, setIsPlaylistRenaming] = useState(false);
-  const [autoOpenDefaultFolder, setAutoOpenDefaultFolder] = useState(false);
-  const [defaultFolderPath, setDefaultFolderPath] = useState("");
-  const [accentRotateOnLaunch, setAccentRotateOnLaunch] = useState(false);
-  const [audioAutoEq, setAudioAutoEq] = useState(false);
   const [genreEqPresetMap, setGenreEqPresetMap] = useState<Record<string, string>>({});
-  const [audioNormalizeVolume, setAudioNormalizeVolume] = useState(false);
-  const [audioSmartCrossfade, setAudioSmartCrossfade] = useState(false);
   const [equalizerPresets, setEqualizerPresets] = useState<EqualizerPreset[]>(EQUALIZER_PRESETS.map((preset) => ({ ...preset, bandGains: [...preset.bandGains] })));
   const [equalizerPresetId, setEqualizerPresetId] = useState(DEFAULT_EQUALIZER_PRESET.id);
   const [startupEqualizerPresetId, setStartupEqualizerPresetId] = useState("");
@@ -221,8 +212,6 @@ export function App() {
   const [equalizerPreampDb, setEqualizerPreampDb] = useState(0);
   const [equalizerWetMixPercent, setEqualizerWetMixPercent] = useState(100);
   const [isEqualizerPresetRenaming, setIsEqualizerPresetRenaming] = useState(false);
-  const [renameFields, setRenameFields] = useState<RenameField[]>(["tracknumber", "artist", "title"]);
-  const [renameSeparator, setRenameSeparator] = useState(" - ");
   const [isPlaying, setIsPlaying] = useState(false);
   const [isShuffleEnabled, setIsShuffleEnabled] = useState(false);
   const [isRepeatTrackEnabled, setIsRepeatTrackEnabled] = useState(false);
@@ -238,16 +227,43 @@ export function App() {
   const [lyricsStatus, setLyricsStatus] = useState("Select a track to load lyrics.");
   const [trackTechnicalInfo, setTrackTechnicalInfo] = useState<TrackTechnicalInfo | null>(null);
   const [shouldAutoplay, setShouldAutoplay] = useState(false);
-  const [accentThemes, setAccentThemes] = useState<AccentTheme[]>(ACCENT_THEMES.map((theme) => ({ ...theme })));
-  const [accentIndex, setAccentIndex] = useState(0);
-  const [colorMode, setColorMode] = useState<"light" | "dark">("light");
-  const [playerColumnVisibility, setPlayerColumnVisibility] = useState<PlayerColumnVisibility>({
-    library: true,
-    visualizer: true,
-    queue: true,
-  });
-  const [playerVisualizerPresetId, setPlayerVisualizerPresetId] = useState<VisualizerPresetId>("scope");
-  const [showPlayerLyricsSection, setShowPlayerLyricsSection] = useState(true);
+  const {
+    startupScreen,
+    setStartupScreen,
+    autoOpenDefaultFolder,
+    setAutoOpenDefaultFolder,
+    defaultFolderPath,
+    setDefaultFolderPath,
+    accentRotateOnLaunch,
+    setAccentRotateOnLaunch,
+    audioAutoEq,
+    setAudioAutoEq,
+    audioNormalizeVolume,
+    setAudioNormalizeVolume,
+    audioSmartCrossfade,
+    setAudioSmartCrossfade,
+    renameFields,
+    renameSeparator,
+    setRenameSeparator,
+    toggleRenameField,
+    moveRenameField,
+    accentThemes,
+    accentIndex,
+    setAccentIndex,
+    rotateAccent,
+    addAccentTheme: handleAddAccentTheme,
+    removeAccentTheme: handleRemoveAccentTheme,
+    changeAccentColor: handleAccentColorChange,
+    resetAccentThemes: handleResetAccentThemes,
+    colorMode,
+    setColorMode,
+    playerColumnVisibility,
+    togglePlayerColumn,
+    playerVisualizerPresetId,
+    setPlayerVisualizerPresetId,
+    showPlayerLyricsSection,
+    toggleShowPlayerLyrics: handleTogglePlayerLyricsSection,
+  } = useSettingsStore();
   const [isDashboardDragging, setIsDashboardDragging] = useState(false);
   const [dashboardDropArea, setDashboardDropArea] = useState<"none" | "dropzone" | "playlist">("none");
   const [dashboardDropEntryId, setDashboardDropEntryId] = useState("");
@@ -508,101 +524,6 @@ export function App() {
   } as CSSProperties;
 
   useEffect(() => {
-    const saved = window.localStorage.getItem("musicmanager-color-mode");
-    if (saved === "light" || saved === "dark") {
-      setColorMode(saved);
-    }
-    const savedPlayerColumns = window.localStorage.getItem(STORAGE_PLAYER_COLUMNS_KEY);
-    if (savedPlayerColumns) {
-      try {
-        const parsed = JSON.parse(savedPlayerColumns) as Partial<PlayerColumnVisibility>;
-        const nextVisibility: PlayerColumnVisibility = {
-          library: parsed.library !== false,
-          visualizer: parsed.visualizer !== false,
-          queue: parsed.queue !== false,
-        };
-        if (!nextVisibility.library && !nextVisibility.visualizer && !nextVisibility.queue) {
-          nextVisibility.visualizer = true;
-        }
-        setPlayerColumnVisibility(nextVisibility);
-      } catch {
-        // Ignore invalid player layout settings.
-      }
-    }
-    const savedVisualizerPreset = window.localStorage.getItem(STORAGE_PLAYER_VISUALIZER_PRESET_KEY);
-    if (savedVisualizerPreset === "scope" || savedVisualizerPreset === "alchemy" || savedVisualizerPreset === "xp-bars" || savedVisualizerPreset === "turntable") {
-      setPlayerVisualizerPresetId(savedVisualizerPreset);
-    }
-    const savedShowLyrics = window.localStorage.getItem(STORAGE_PLAYER_SHOW_LYRICS_KEY);
-    if (savedShowLyrics === "false") {
-      setShowPlayerLyricsSection(false);
-    }
-    const savedStartupScreen = window.localStorage.getItem(STORAGE_STARTUP_SCREEN_KEY);
-    if (savedStartupScreen === "tagging" || savedStartupScreen === "library" || savedStartupScreen === "dashboard" || savedStartupScreen === "player") {
-      setStartupScreen(savedStartupScreen);
-      setActiveScreen(savedStartupScreen);
-    }
-
-    const savedAccent = window.localStorage.getItem("musicmanager-accent-index");
-    const savedAccentThemes = window.localStorage.getItem("musicmanager-accent-themes");
-    let restoredAccentThemes = ACCENT_THEMES.map((theme) => ({ ...theme }));
-    if (savedAccentThemes) {
-      try {
-        const parsed = JSON.parse(savedAccentThemes);
-        if (Array.isArray(parsed) && parsed.length) {
-          const normalized = parsed
-            .map((item) => {
-              if (!item || typeof item !== "object") {
-                return null;
-              }
-              const candidate = item as Record<string, unknown>;
-              const accent = typeof candidate.accent === "string" ? candidate.accent : "";
-              const soft = typeof candidate.soft === "string" ? candidate.soft : "";
-              const strong = typeof candidate.strong === "string" ? candidate.strong : "";
-              if (!accent || !soft || !strong) {
-                return null;
-              }
-              return { accent, soft, strong } satisfies AccentTheme;
-            })
-            .filter((item): item is AccentTheme => Boolean(item));
-          if (normalized.length) {
-            restoredAccentThemes = normalized;
-          }
-        }
-      } catch {
-        // Ignore invalid persisted accent themes.
-      }
-    }
-    setAccentThemes(restoredAccentThemes);
-    if (savedAccent) {
-      const parsed = Number(savedAccent);
-      if (Number.isInteger(parsed) && parsed >= 0) {
-        setAccentIndex(parsed % restoredAccentThemes.length);
-      }
-    }
-
-    const savedRenameFields = window.localStorage.getItem("musicmanager-rename-fields");
-    if (savedRenameFields) {
-      try {
-        const parsed = JSON.parse(savedRenameFields);
-        if (Array.isArray(parsed)) {
-          const valid = parsed
-            .map((value) => String(value))
-            .filter((value): value is RenameField => RENAME_FIELD_KEYS.has(value as RenameField));
-          if (valid.length) {
-            setRenameFields(valid);
-          }
-        }
-      } catch {
-        // Ignore invalid persisted value.
-      }
-    }
-
-    const savedRenameSeparator = window.localStorage.getItem("musicmanager-rename-separator");
-    if (savedRenameSeparator !== null) {
-      setRenameSeparator(savedRenameSeparator);
-    }
-
     const savedPlaylists = window.localStorage.getItem(STORAGE_PLAYLISTS_KEY);
     if (savedPlaylists) {
       try {
@@ -646,30 +567,6 @@ export function App() {
       }
     }
 
-    const savedAutoOpen = window.localStorage.getItem("musicmanager-auto-open-default-folder");
-    if (savedAutoOpen === "true") {
-      setAutoOpenDefaultFolder(true);
-    }
-
-    const savedDefaultFolderPath = window.localStorage.getItem("musicmanager-default-folder-path");
-    if (savedDefaultFolderPath) {
-      setDefaultFolderPath(savedDefaultFolderPath);
-    }
-
-    const savedAccentRotate = window.localStorage.getItem("musicmanager-accent-rotate-on-launch");
-    if (savedAccentRotate === "true") {
-      setAccentRotateOnLaunch(true);
-      setAccentIndex((prev) => (prev + 1) % Math.max(1, restoredAccentThemes.length));
-    }
-
-    const savedNormalizeVolume = window.localStorage.getItem("musicmanager-audio-normalize-volume");
-    if (savedNormalizeVolume === "true") {
-      setAudioNormalizeVolume(true);
-    }
-    const savedAutoEq = window.localStorage.getItem("musicmanager-audio-auto-eq");
-    if (savedAutoEq === "true") {
-      setAudioAutoEq(true);
-    }
     const savedGenreEqMap = window.localStorage.getItem("musicmanager-genre-eq-map");
     if (savedGenreEqMap) {
       try {
@@ -685,11 +582,6 @@ export function App() {
       } catch {
         // Ignore invalid stored genre map.
       }
-    }
-
-    const savedSmartCrossfade = window.localStorage.getItem("musicmanager-audio-smart-crossfade");
-    if (savedSmartCrossfade === "true") {
-      setAudioSmartCrossfade(true);
     }
 
     const savedShuffle = window.localStorage.getItem("musicmanager-player-shuffle");
@@ -808,7 +700,7 @@ export function App() {
     }
 
     const savedLibrarySnapshot = window.localStorage.getItem("musicmanager-library-snapshot");
-    if (savedAutoOpen === "true" && savedLibrarySnapshot) {
+    if (useSettingsStore.getState().autoOpenDefaultFolder && savedLibrarySnapshot) {
       try {
         const snapshot = JSON.parse(savedLibrarySnapshot) as { folderPath?: unknown; tracks?: unknown };
         if (typeof snapshot.folderPath === "string" && Array.isArray(snapshot.tracks)) {
@@ -896,38 +788,6 @@ export function App() {
       canceled = true;
     };
   }, [autoOpenDefaultFolder, defaultFolderPath, folderPath, selectedTrackId, tracks.length]);
-
-  useEffect(() => {
-    window.localStorage.setItem("musicmanager-color-mode", colorMode);
-  }, [colorMode]);
-
-  useEffect(() => {
-    window.localStorage.setItem(STORAGE_PLAYER_COLUMNS_KEY, JSON.stringify(playerColumnVisibility));
-  }, [playerColumnVisibility]);
-
-  useEffect(() => {
-    window.localStorage.setItem(STORAGE_PLAYER_VISUALIZER_PRESET_KEY, playerVisualizerPresetId);
-  }, [playerVisualizerPresetId]);
-
-  useEffect(() => {
-    window.localStorage.setItem(STORAGE_PLAYER_SHOW_LYRICS_KEY, String(showPlayerLyricsSection));
-  }, [showPlayerLyricsSection]);
-
-  useEffect(() => {
-    window.localStorage.setItem("musicmanager-accent-index", String(accentIndex));
-  }, [accentIndex]);
-
-  useEffect(() => {
-    window.localStorage.setItem("musicmanager-accent-themes", JSON.stringify(accentThemes));
-  }, [accentThemes]);
-
-  useEffect(() => {
-    window.localStorage.setItem("musicmanager-rename-fields", JSON.stringify(renameFields));
-  }, [renameFields]);
-
-  useEffect(() => {
-    window.localStorage.setItem("musicmanager-rename-separator", renameSeparator);
-  }, [renameSeparator]);
 
   useEffect(() => {
     window.localStorage.setItem(STORAGE_PLAYLISTS_KEY, JSON.stringify(playlists));
@@ -1095,47 +955,8 @@ export function App() {
   ]);
 
   useEffect(() => {
-    if (!accentThemes.length) {
-      setAccentThemes(ACCENT_THEMES.map((theme) => ({ ...theme })));
-      setAccentIndex(0);
-      return;
-    }
-    if (accentIndex >= accentThemes.length) {
-      setAccentIndex(0);
-    }
-  }, [accentThemes, accentIndex]);
-
-  useEffect(() => {
-    window.localStorage.setItem("musicmanager-auto-open-default-folder", String(autoOpenDefaultFolder));
-  }, [autoOpenDefaultFolder]);
-
-  useEffect(() => {
-    window.localStorage.setItem(STORAGE_STARTUP_SCREEN_KEY, startupScreen);
-  }, [startupScreen]);
-
-  useEffect(() => {
-    window.localStorage.setItem("musicmanager-default-folder-path", defaultFolderPath);
-  }, [defaultFolderPath]);
-
-  useEffect(() => {
-    window.localStorage.setItem("musicmanager-accent-rotate-on-launch", String(accentRotateOnLaunch));
-  }, [accentRotateOnLaunch]);
-
-  useEffect(() => {
-    window.localStorage.setItem("musicmanager-audio-normalize-volume", String(audioNormalizeVolume));
-  }, [audioNormalizeVolume]);
-
-  useEffect(() => {
-    window.localStorage.setItem("musicmanager-audio-auto-eq", String(audioAutoEq));
-  }, [audioAutoEq]);
-
-  useEffect(() => {
     window.localStorage.setItem("musicmanager-genre-eq-map", JSON.stringify(genreEqPresetMap));
   }, [genreEqPresetMap]);
-
-  useEffect(() => {
-    window.localStorage.setItem("musicmanager-audio-smart-crossfade", String(audioSmartCrossfade));
-  }, [audioSmartCrossfade]);
 
   useEffect(() => {
     window.localStorage.setItem("musicmanager-player-shuffle", String(isShuffleEnabled));
@@ -2187,61 +2008,6 @@ export function App() {
     }
   }
 
-  function handleAddAccentTheme() {
-    const nextAccent = "#4f8cff";
-    const nextTheme: AccentTheme = {
-      accent: nextAccent,
-      soft: "#dce8ff",
-      strong: "#3b6fd1",
-    };
-    setAccentThemes((prev) => {
-      const next = [...prev, nextTheme];
-      setAccentIndex(next.length - 1);
-      return next;
-    });
-  }
-
-  function handleRemoveAccentTheme(index: number) {
-    setAccentThemes((prev) => {
-      if (prev.length <= 1 || index < 0 || index >= prev.length) {
-        return prev;
-      }
-      const next = prev.filter((_, itemIndex) => itemIndex !== index);
-      setAccentIndex((current) => {
-        if (current === index) {
-          return 0;
-        }
-        if (current > index) {
-          return current - 1;
-        }
-        return current;
-      });
-      return next;
-    });
-  }
-
-  function handleAccentColorChange(index: number, color: string) {
-    const normalized = color.trim();
-    if (!/^#[0-9a-fA-F]{6}$/.test(normalized)) {
-      return;
-    }
-    setAccentThemes((prev) => prev.map((theme, itemIndex) => {
-      if (itemIndex !== index) {
-        return theme;
-      }
-      return {
-        accent: normalized,
-        soft: buildSoftAccent(normalized),
-        strong: buildStrongAccent(normalized),
-      };
-    }));
-  }
-
-  function handleResetAccentThemes() {
-    setAccentThemes(ACCENT_THEMES.map((theme) => ({ ...theme })));
-    setAccentIndex(0);
-  }
-
   async function ensureAudioGraphReady() {
     const audio = audioRef.current;
     if (!audio) {
@@ -2590,26 +2356,6 @@ export function App() {
       selectTrack(fallbackTrack);
     }
     setShouldAutoplay(isPlaying);
-  }
-
-  function togglePlayerColumn(column: keyof PlayerColumnVisibility) {
-    setPlayerColumnVisibility((prev) => {
-      const next = { ...prev, [column]: !prev[column] };
-      if (!next.library && !next.visualizer && !next.queue && !showPlayerLyricsSection) {
-        return prev;
-      }
-      return next;
-    });
-  }
-
-  function handleTogglePlayerLyricsSection() {
-    setShowPlayerLyricsSection((prev) => {
-      const next = !prev;
-      if (!next && !playerColumnVisibility.library && !playerColumnVisibility.visualizer && !playerColumnVisibility.queue) {
-        return prev;
-      }
-      return next;
-    });
   }
 
   function handleEqualizerPresetChange(presetId: string) {
@@ -3077,36 +2823,6 @@ export function App() {
     }
   }
 
-  function toggleRenameField(field: RenameField) {
-    setRenameFields((prev) => {
-      if (prev.includes(field)) {
-        if (prev.length === 1) {
-          return prev;
-        }
-        return prev.filter((f) => f !== field);
-      }
-      return [...prev, field];
-    });
-  }
-
-  function moveRenameField(field: RenameField, direction: -1 | 1) {
-    setRenameFields((prev) => {
-      const index = prev.indexOf(field);
-      if (index < 0) {
-        return prev;
-      }
-      const nextIndex = index + direction;
-      if (nextIndex < 0 || nextIndex >= prev.length) {
-        return prev;
-      }
-      const next = [...prev];
-      const temp = next[index];
-      next[index] = next[nextIndex];
-      next[nextIndex] = temp;
-      return next;
-    });
-  }
-
   const hasAudioLoaded = Boolean(audioSrc && audioTrackId === playbackTrackId);
   const libraryNavidromeProps = {
     isNavidromePanelOpen,
@@ -3159,7 +2875,7 @@ export function App() {
         isRepeatTrackEnabled={isRepeatTrackEnabled}
         canSeek={Boolean(audioSrc && audioTrackId === playbackTrackId && duration > 0)}
         onScreenChange={setActiveScreen}
-        onRotateAccent={() => setAccentIndex((prev) => (prev + 1) % Math.max(1, accentThemes.length))}
+        onRotateAccent={rotateAccent}
         onToggleShuffle={() => setIsShuffleEnabled((prev) => !prev)}
         onPrev={handlePrevTrack}
         onPlayPause={() => {
@@ -3174,7 +2890,7 @@ export function App() {
         equalizerPresetId={equalizerPresetId}
         onEqualizerPresetChange={handleEqualizerPresetChange}
         autoEqEnabled={audioAutoEq}
-        onToggleAutoEq={() => setAudioAutoEq((prev) => !prev)}
+        onToggleAutoEq={() => setAudioAutoEq(!audioAutoEq)}
         showLibraryColumn={playerColumnVisibility.library}
         showVisualizerColumn={playerColumnVisibility.visualizer}
         showQueueColumn={playerColumnVisibility.queue}

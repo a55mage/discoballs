@@ -91,3 +91,7 @@ export type ScanResult = {
 export type SaveTrackResult = {
   path: string;
 };
+
+export type AppScreen = "tagging" | "library" | "dashboard" | "settings" | "player";
+export type StartupScreen = "tagging" | "library" | "dashboard" | "player";
+export type PlayerColumnVisibility = { library: boolean; visualizer: boolean; queue: boolean };
