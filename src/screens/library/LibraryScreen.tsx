@@ -6,6 +6,7 @@ import { playFromLibraryCover } from "../../actions/playback";
 import { summarizeAlbums, summarizeArtists, type LibraryAlbumSummary, type LibraryArtistSummary } from "../../domain/library";
 import type { HealthFilter, LibraryTab } from "../../domain/libraryView";
 import { useVisibleTracks } from "../../hooks/useVisibleTracks";
+import { useFavoritesStore } from "../../store/favoritesStore";
 import { useLibraryStore } from "../../store/libraryStore";
 import { useLibraryViewStore } from "../../store/libraryViewStore";
 import { useNavidromeStore } from "../../store/navidromeStore";
@@ -39,6 +40,8 @@ export function LibraryScreen({ onTogglePlayPause }: LibraryScreenProps) {
   const setNavidromePanelOpen = useNavidromeStore((state) => state.setIsNavidromePanelOpen);
   const setDuplicatesOpen = useUiStore((state) => state.setDuplicatesOpen);
   const { tracks, visibleTracks, unscopedTracks, duplicateIds, health } = useVisibleTracks();
+  const { favorites, ratings, toggleFavorite, setRating } = useFavoritesStore();
+  const favoriteIds = useMemo(() => new Set(favorites), [favorites]);
 
   const albums = useMemo(() => summarizeAlbums(unscopedTracks), [unscopedTracks]);
   const artists = useMemo(() => summarizeArtists(unscopedTracks), [unscopedTracks]);
@@ -90,6 +93,7 @@ export function LibraryScreen({ onTogglePlayPause }: LibraryScreenProps) {
     { value: "cover", label: "Missing cover", count: health.cover },
     { value: "tags", label: "Missing tags", count: health.tags },
     { value: "duplicates", label: "Duplicates", count: health.duplicates },
+    { value: "favorites", label: "Favorites", count: health.favorites },
   ];
   const scopeLabel = view.scope ? (view.scope.kind === "album" ? `${view.scope.album} · ${view.scope.artist}` : view.scope.artist) : "";
 
@@ -148,6 +152,10 @@ export function LibraryScreen({ onTogglePlayPause }: LibraryScreenProps) {
             onPlay={playTrack}
             onKeyNavigate={moveSelection}
             onSelectAll={toggleSelectAll}
+            favoriteIds={favoriteIds}
+            ratings={ratings}
+            onToggleFavorite={(track) => toggleFavorite(track.id)}
+            onRate={(track, rating) => setRating(track.id, rating)}
           />
         ) : null}
         {view.tab === "albums" ? <AlbumGrid albums={albums} onOpen={openAlbum} /> : null}

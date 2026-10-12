@@ -3,8 +3,8 @@ import { getTrackReleaseSortKey } from "../utils/appHelpers";
 import { getExtension } from "../utils/common";
 
 export type LibraryTab = "tracks" | "albums" | "artists" | "folders";
-export type HealthFilter = "all" | "cover" | "tags" | "duplicates";
-export type SortKey = "added" | "title" | "artist" | "album" | "year" | "genre" | "format";
+export type HealthFilter = "all" | "cover" | "tags" | "duplicates" | "favorites";
+export type SortKey = "added" | "title" | "artist" | "album" | "year" | "genre" | "format" | "rating";
 export type SortDirection = "asc" | "desc";
 
 /** Narrows the track list to one album or one artist (set by clicking a card in Albums / Artists). */
@@ -81,20 +81,30 @@ export function getTrackIssues(track: Track, duplicateIds: Set<string>): TrackIs
   return issues;
 }
 
-export type HealthCounts = { all: number; cover: number; tags: number; duplicates: number; withIssues: number };
+export type HealthCounts = { all: number; cover: number; tags: number; duplicates: number; favorites: number; withIssues: number };
 
-export function countHealth(tracks: Track[], duplicateIds: Set<string>): HealthCounts {
+export function countHealth(tracks: Track[], duplicateIds: Set<string>, favoriteIds: ReadonlySet<string> = new Set()): HealthCounts {
   return {
     all: tracks.length,
     cover: tracks.filter((track) => !hasCover(track)).length,
     tags: tracks.filter((track) => !hasAllTags(track)).length,
     duplicates: duplicateIds.size,
+    favorites: tracks.filter((track) => favoriteIds.has(track.id)).length,
     withIssues: tracks.filter((track) => getTrackIssues(track, duplicateIds).length > 0).length,
   };
 }
 
-export function matchesHealthFilter(track: Track, filter: HealthFilter, duplicateIds: Set<string>): boolean {
+/** What the library list needs to know besides the tracks themselves. */
+export type ViewContext = {
+  duplicateIds: ReadonlySet<string>;
+  favoriteIds?: ReadonlySet<string>;
+  ratings?: Readonly<Record<string, number>>;
+};
+
+export function matchesHealthFilter(track: Track, filter: HealthFilter, duplicateIds: ReadonlySet<string>, favoriteIds: ReadonlySet<string> = new Set()): boolean {
   switch (filter) {
+    case "favorites":
+      return favoriteIds.has(track.id);
     case "cover":
       return !hasCover(track);
     case "tags":
@@ -134,7 +144,7 @@ export function getFormat(track: Track): string {
 
 const collator = new Intl.Collator(undefined, { sensitivity: "base", numeric: true });
 
-export function sortTracks(tracks: Track[], key: SortKey, direction: SortDirection): Track[] {
+export function sortTracks(tracks: Track[], key: SortKey, direction: SortDirection, ratings: Readonly<Record<string, number>> = {}): Track[] {
   if (key === "added") {
     return direction === "desc" ? [...tracks].reverse() : [...tracks];
   }
@@ -155,6 +165,10 @@ export function sortTracks(tracks: Track[], key: SortKey, direction: SortDirecti
     }
   };
   const sorted = [...tracks].sort((a, b) => {
+    if (key === "rating") {
+      // Best rated first when ascending is not natural: ascending means 1 star → 5 stars, unrated first.
+      return (ratings[a.id] ?? 0) - (ratings[b.id] ?? 0) || collator.compare(a.title, b.title);
+    }
     if (key === "year") {
       return getTrackReleaseSortKey(a.year) - getTrackReleaseSortKey(b.year) || collator.compare(a.title, b.title);
     }
@@ -177,12 +191,14 @@ export type LibraryViewInput = {
 };
 
 /** The tracks shown in the Tracks tab (and used as the play queue when playing from the library). */
-export function getVisibleTracks(tracks: Track[], view: LibraryViewInput, duplicateIds: Set<string>): Track[] {
+export function getVisibleTracks(tracks: Track[], view: LibraryViewInput, duplicateIds: ReadonlySet<string>, extras: Omit<ViewContext, "duplicateIds"> = {}): Track[] {
   const filtered = tracks.filter(
     (track) =>
-      matchesQuery(track, view.query) && matchesScope(track, view.scope) && matchesHealthFilter(track, view.filter, duplicateIds)
+      matchesQuery(track, view.query) &&
+      matchesScope(track, view.scope) &&
+      matchesHealthFilter(track, view.filter, duplicateIds, extras.favoriteIds)
   );
-  return sortTracks(filtered, view.sortKey, view.sortDirection);
+  return sortTracks(filtered, view.sortKey, view.sortDirection, extras.ratings);
 }
 
 /** Inclusive range of ids between two tracks in a list (shift-click selection). */

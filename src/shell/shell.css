@@ -915,3 +915,24 @@ body {
 .dup__keep {
   width: 48px;
 }
+
+.shell__heart.db-icon-btn--active svg {
+  fill: currentColor;
+}
+
+.shell__fav-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: var(--db-accent-soft);
+  color: var(--db-accent-text);
+}
+.shell__fav-icon svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}

@@ -1,8 +1,8 @@
 import { type KeyboardEvent, type MouseEvent, useRef } from "react";
-import { IconCheck, IconPause, IconPlay } from "../../components/icons";
+import { IconCheck, IconHeart, IconPause, IconPlay } from "../../components/icons";
 import { getFormat, getTrackIssues, type SortKey } from "../../domain/libraryView";
 import { useVirtualList } from "../../hooks/useVirtualList";
-import { Badge, Cover, cx } from "../../ui";
+import { Badge, Cover, Rating, cx } from "../../ui";
 import type { Track } from "../../types";
 
 const ROW_HEIGHT = { comfortable: 60, compact: 40 } as const;
@@ -25,6 +25,10 @@ type TrackTableProps = {
   onPlay: (track: Track) => void;
   onKeyNavigate: (step: number, extend: boolean) => void;
   onSelectAll: () => void;
+  favoriteIds: ReadonlySet<string>;
+  ratings: Readonly<Record<string, number>>;
+  onToggleFavorite: (track: Track) => void;
+  onRate: (track: Track, rating: number) => void;
 };
 
 const COLUMNS: Array<{ key: SortKey; label: string }> = [
@@ -33,6 +37,7 @@ const COLUMNS: Array<{ key: SortKey; label: string }> = [
   { key: "year", label: "Year" },
   { key: "genre", label: "Genre" },
   { key: "format", label: "Format" },
+  { key: "rating", label: "Rating" },
 ];
 
 /** Virtualized, sortable, multi-select track list (ARIA grid). */
@@ -53,6 +58,10 @@ export function TrackTable({
   onPlay,
   onKeyNavigate,
   onSelectAll,
+  favoriteIds,
+  ratings,
+  onToggleFavorite,
+  onRate,
 }: TrackTableProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const rowHeight = ROW_HEIGHT[density];
@@ -122,6 +131,7 @@ export function TrackTable({
             </button>
           </div>
         ))}
+        <div role="columnheader" className="lib-cell lib-cell--fav"><span className="db-sr-only">Favorite</span></div>
         <div role="columnheader" className="lib-cell lib-cell--status"><span className="db-sr-only">Issues</span></div>
       </div>
 
@@ -193,6 +203,24 @@ export function TrackTable({
               <div role="gridcell" className={cx("lib-cell", "lib-cell--year", !track.year && "is-missing")}>{track.year || "—"}</div>
               <div role="gridcell" className={cx("lib-cell", "lib-cell--genre", !track.genre && "is-missing")}>{track.genre || "—"}</div>
               <div role="gridcell" className="lib-cell lib-cell--format"><Badge tone="neutral">{getFormat(track) || "?"}</Badge></div>
+              <div role="gridcell" className="lib-cell lib-cell--rating">
+                <Rating size="sm" value={ratings[track.id] ?? 0} label={`Rating of ${track.title || "track"}`} onChange={(rating) => onRate(track, rating)} />
+              </div>
+              <div role="gridcell" className="lib-cell lib-cell--fav">
+                <button
+                  type="button"
+                  className={cx("lib-heart", favoriteIds.has(track.id) && "is-on")}
+                  aria-label={favoriteIds.has(track.id) ? `Remove ${track.title || "track"} from favorites` : `Add ${track.title || "track"} to favorites`}
+                  aria-pressed={favoriteIds.has(track.id)}
+                  tabIndex={-1}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onToggleFavorite(track);
+                  }}
+                >
+                  <IconHeart aria-hidden="true" />
+                </button>
+              </div>
               <div role="gridcell" className="lib-cell lib-cell--status">
                 {issues.length ? (
                   <span className="lib-issue" title={issues.join(", ")} role="img" aria-label={`Issues: ${issues.join(", ")}`}>!</span>

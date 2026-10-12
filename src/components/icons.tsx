@@ -377,3 +377,9 @@ export const IconCollapse = (props: SVGProps<SVGSVGElement>) => (
     <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" />
   </IconBase>
 );
+
+export const IconStar = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.9L12 16.9 6.8 19.7l1-5.9L3.5 9.7l5.9-.8z" />
+  </IconBase>
+);

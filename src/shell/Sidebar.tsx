@@ -1,4 +1,6 @@
-import { IconPlus } from "../components/icons";
+import { IconHeart, IconPlus } from "../components/icons";
+import { useFavoritesStore } from "../store/favoritesStore";
+import { useLibraryViewStore } from "../store/libraryViewStore";
 import appIcon from "../assets/discoballs-icon.png";
 import { usePlaylistStore } from "../store/playlistStore";
 import { useLibraryStore } from "../store/libraryStore";
@@ -20,6 +22,8 @@ export function Sidebar({ onBrandClick }: SidebarProps) {
   const connectedBookmarkId = useNavidromeStore((state) => state.connectedNavidromeBookmarkId);
   const bookmarks = useNavidromeStore((state) => state.navidromeBookmarks);
   const setNavidromePanelOpen = useNavidromeStore((state) => state.setIsNavidromePanelOpen);
+  const favoritesCount = useFavoritesStore((state) => state.favorites.length);
+  const { filter, setFilter, setScope, setTab } = useLibraryViewStore();
   const connected = bookmarks.find((bookmark) => bookmark.id === connectedBookmarkId);
 
   const coverOf = (trackId: string) => tracks.find((track) => track.id === trackId)?.coverUrl;
@@ -64,6 +68,24 @@ export function Sidebar({ onBrandClick }: SidebarProps) {
         </IconButton>
       </div>
       <ul className="shell__playlists shell__navlabel">
+        <li>
+          <button
+            type="button"
+            className={cx("shell__playlist-btn", activeScreen === "library" && filter === "favorites" && "is-active")}
+            onClick={() => {
+              setScope(null);
+              setTab("tracks");
+              setFilter("favorites");
+              setActiveScreen("library");
+            }}
+          >
+            <span className="shell__fav-icon"><IconHeart aria-hidden="true" /></span>
+            <span className="shell__playlist-text">
+              <span className="shell__playlist-name">Favorites</span>
+              <span className="shell__playlist-meta">{favoritesCount} {favoritesCount === 1 ? "track" : "tracks"}</span>
+            </span>
+          </button>
+        </li>
         {playlists.length === 0 ? <li className="shell__empty">No playlists yet</li> : null}
         {playlists.map((playlist) => (
           <li key={playlist.id}>

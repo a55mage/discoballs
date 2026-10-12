@@ -1,6 +1,7 @@
 import type { Track } from "../types";
 import { findDuplicateIds, getVisibleTracks } from "../domain/libraryView";
 import { useLibraryStore } from "./libraryStore";
+import { useFavoritesStore } from "./favoritesStore";
 import { useLibraryViewStore } from "./libraryViewStore";
 import { usePlayerStore } from "./playerStore";
 import { useTagEditorStore } from "./tagEditorStore";
@@ -68,5 +69,6 @@ export function getDuplicateIds(): Set<string> {
 export function getVisibleLibraryTracks(): Track[] {
   const { tracks } = useLibraryStore.getState();
   const { query, filter, scope, sortKey, sortDirection } = useLibraryViewStore.getState();
-  return getVisibleTracks(tracks, { query, filter, scope, sortKey, sortDirection }, getDuplicateIds());
+  const { favorites, ratings } = useFavoritesStore.getState();
+  return getVisibleTracks(tracks, { query, filter, scope, sortKey, sortDirection }, getDuplicateIds(), { favoriteIds: new Set(favorites), ratings });
 }

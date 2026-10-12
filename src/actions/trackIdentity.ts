@@ -1,3 +1,4 @@
+import { useFavoritesStore } from "../store/favoritesStore";
 import { useHistoryStore } from "../store/historyStore";
 import { useLibraryStore } from "../store/libraryStore";
 import { useLibraryViewStore } from "../store/libraryViewStore";
@@ -31,4 +32,5 @@ export function changeTrackIdentity(oldId: string, newPath: string): void {
 
   usePlaylistStore.getState().retargetTrack(oldId, newPath);
   useHistoryStore.getState().retarget(oldId, newPath);
+  useFavoritesStore.getState().retarget(oldId, newPath);
 }

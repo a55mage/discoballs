@@ -5,6 +5,8 @@ import {
   IconVolume,
 } from "../components/icons";
 import { changeVolume } from "../actions/playback";
+import { IconHeart } from "../components/icons";
+import { useFavoritesStore } from "../store/favoritesStore";
 import { useEqualizerStore } from "../store/equalizerStore";
 import { useLibraryStore } from "../store/libraryStore";
 import { usePlayerStore } from "../store/playerStore";
@@ -30,6 +32,8 @@ export function PlayerBar({ onTogglePlayPause }: PlayerBarProps) {
   const playbackTrack = tracks.find((track) => track.id === player.playbackTrackId) ?? null;
   const selectedTrack = tracks.find((track) => track.id === selectedTrackId) ?? null;
   const infoTrack = playbackTrack ?? selectedTrack;
+  const isFavorite = useFavoritesStore((state) => Boolean(infoTrack) && state.favorites.includes(infoTrack?.id ?? ""));
+  const toggleFavorite = useFavoritesStore((state) => state.toggleFavorite);
 
   const isMutedOrZero = player.isMuted || player.volume === 0;
 
@@ -43,6 +47,11 @@ export function PlayerBar({ onTogglePlayPause }: PlayerBarProps) {
           <strong title={infoTrack?.title}>{infoTrack?.title || "No track selected"}</strong>
           <span title={infoTrack?.artist}>{infoTrack ? infoTrack.artist || "Unknown artist" : "Pick a track from the library"}</span>
         </div>
+        {infoTrack ? (
+          <IconButton label={isFavorite ? "Remove from favorites" : "Add to favorites"} active={isFavorite} className="shell__heart" onClick={() => toggleFavorite(infoTrack.id)}>
+            <IconHeart />
+          </IconButton>
+        ) : null}
       </div>
 
       <div className="shell__player-center">

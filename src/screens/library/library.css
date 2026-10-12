@@ -81,7 +81,7 @@
 
 /* ---------- Track table ---------- */
 .lib-table {
-  --lib-cols: 36px minmax(0, 2.4fr) minmax(0, 1.5fr) 64px minmax(0, 1fr) 88px 28px;
+  --lib-cols: 36px minmax(0, 2.4fr) minmax(0, 1.5fr) 60px minmax(0, 1fr) 80px 104px 30px 28px;
   display: flex;
   flex: 1;
   flex-direction: column;
@@ -577,4 +577,53 @@
   .lib-inspector {
     display: none;
   }
+}
+
+.lib-cell--rating {
+  overflow: visible;
+}
+.lib-cell--fav {
+  display: flex;
+  justify-content: center;
+}
+.lib-heart {
+  display: inline-flex;
+  padding: 4px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--db-ink-2);
+  cursor: pointer;
+  opacity: 0.45;
+}
+.lib-heart svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+}
+.lib-row:hover .lib-heart,
+.lib-heart.is-on {
+  opacity: 1;
+}
+.lib-heart:hover {
+  color: var(--db-accent-text);
+}
+.lib-heart.is-on {
+  color: var(--db-accent-text);
+}
+.lib-heart.is-on svg {
+  fill: currentColor;
+}
+.lib-heart:focus-visible {
+  outline: none;
+  box-shadow: var(--db-focus);
+}
+
+.lib-rate {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.lib-rate .db-icon-btn--active svg {
+  fill: currentColor;
 }

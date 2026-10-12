@@ -10,6 +10,7 @@ export { CoverMosaic, type CoverMosaicProps } from "./components/CoverMosaic";
 export { Dialog, type DialogProps } from "./components/Dialog";
 export { Field, Select, TextInput, type SelectProps, type TextInputProps } from "./components/Field";
 export { IconButton, type IconButtonProps } from "./components/IconButton";
+export { Rating, type RatingProps } from "./components/Rating";
 export { Segmented, ToggleGroup, type SegmentedOption } from "./components/Segmented";
 export { SettingRow, type SettingRowProps } from "./components/SettingRow";
 export { Slider, type SliderProps } from "./components/Slider";

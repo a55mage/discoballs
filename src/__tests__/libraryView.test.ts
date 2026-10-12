@@ -61,7 +61,7 @@ describe("duplicates and issues", () => {
 
   it("counts health per filter", () => {
     const tracks = [track("1"), track("2", { hasCover: false }), track("3", { genre: "" })];
-    expect(countHealth(tracks, new Set())).toEqual({ all: 3, cover: 1, tags: 1, duplicates: 0, withIssues: 2 });
+    expect(countHealth(tracks, new Set())).toEqual({ all: 3, cover: 1, tags: 1, duplicates: 0, favorites: 0, withIssues: 2 });
   });
 });
 

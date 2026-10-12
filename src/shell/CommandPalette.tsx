@@ -2,6 +2,7 @@ import { type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from 
 import { scanLibraryWithPicker, selectTrack } from "../actions/library";
 import { undoLast, undoWithToast } from "../actions/history";
 import { playNextTrack, playPreviousTrack } from "../actions/playback";
+import { useFavoritesStore } from "../store/favoritesStore";
 import { useLibraryStore } from "../store/libraryStore";
 import { usePlayerStore } from "../store/playerStore";
 import { useSettingsStore } from "../store/settingsStore";
@@ -62,6 +63,14 @@ export function CommandPalette({ onTogglePlayPause }: CommandPaletteProps) {
       command("play", isPlaying ? "Pause" : "Play", onTogglePlayPause),
       command("next", "Next track", () => void playNextTrack()),
       command("prev", "Previous track", () => void playPreviousTrack()),
+      command("favorite", "Add or remove the current track from favorites", () => {
+        const { playbackTrackId } = usePlayerStore.getState();
+        const { selectedTrackId } = useLibraryStore.getState();
+        const id = playbackTrackId || selectedTrackId;
+        if (id) {
+          useFavoritesStore.getState().toggleFavorite(id);
+        }
+      }),
       command("undo", "Undo last tag change", () => void undoWithToast(undoLast)),
       command("duplicates", "Review duplicates", () => useUiStore.getState().setDuplicatesOpen(true)),
       command("history", "Show change history", () => useUiStore.getState().setHistoryOpen(true)),

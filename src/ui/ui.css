@@ -514,3 +514,44 @@ select.db-input {
   justify-content: flex-end;
   gap: var(--db-space-2);
 }
+
+/* ---------- Rating ---------- */
+.db-rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  color: var(--db-ink-2);
+}
+.db-rating__btn {
+  display: inline-flex;
+  padding: 2px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+.db-rating__btn:hover {
+  color: var(--db-accent-text);
+}
+.db-rating__btn:focus-visible {
+  outline: none;
+  box-shadow: var(--db-focus);
+}
+.db-rating__star {
+  width: 16px;
+  height: 16px;
+  fill: none;
+}
+.db-rating--md .db-rating__star {
+  width: 20px;
+  height: 20px;
+}
+.db-rating .is-on,
+.db-rating .is-on .db-rating__star {
+  color: var(--db-accent-text);
+  fill: currentColor;
+}
+.db-rating:not(:hover) .db-rating__btn:not(.is-on) .db-rating__star {
+  opacity: 0.55;
+}

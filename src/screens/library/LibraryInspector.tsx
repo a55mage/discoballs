@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { IconClose, IconPlay, IconPlus, IconQueue, IconTag } from "../../components/icons";
+import { IconClose, IconHeart, IconPlay, IconPlus, IconQueue, IconTag } from "../../components/icons";
 import { applyBatchEdit, describeBatchResult, type BatchPatch } from "../../actions/batchEdit";
 import { undoLast, undoWithToast } from "../../actions/history";
 import { clearSelection } from "../../actions/librarySelection";
 import { searchOnlineForTrack } from "../../actions/library";
 import { enqueueTrack, enqueueTracks, playFromLibraryCover } from "../../actions/playback";
 import { getFormat, getTrackIssues } from "../../domain/libraryView";
+import { useFavoritesStore } from "../../store/favoritesStore";
 import { useTrackTechnicalInfo } from "../../hooks/useTrackTechnicalInfo";
 import { useVisibleTracks } from "../../hooks/useVisibleTracks";
 import { useLibraryViewStore } from "../../store/libraryViewStore";
@@ -13,7 +14,7 @@ import { usePlaylistStore } from "../../store/playlistStore";
 import { useUiStore } from "../../store/uiStore";
 import type { Track } from "../../types";
 import { formatTrackTechnicalSummary } from "../../utils/appHelpers";
-import { Badge, Button, Cover, Field, IconButton, Switch, TextInput } from "../../ui";
+import { Badge, Button, Cover, Field, IconButton, Rating, Switch, TextInput } from "../../ui";
 
 const BATCH_FIELDS: Array<{ key: keyof BatchPatch; label: string }> = [
   { key: "artist", label: "Artist" },
@@ -50,6 +51,9 @@ function SingleTrack({ track, issues, visibleIds }: { track: Track; issues: stri
   const setFilenameTags = useUiStore((state) => state.setFilenameTags);
   const appendTracks = usePlaylistStore((state) => state.appendTracks);
   const info = useTrackTechnicalInfo(track);
+  const isFavorite = useFavoritesStore((state) => state.favorites.includes(track.id));
+  const rating = useFavoritesStore((state) => state.ratings[track.id] ?? 0);
+  const { toggleFavorite, setRating } = useFavoritesStore();
   const title = track.title || track.path.replace(/\\/g, "/").split("/").pop() || "Untitled";
 
   const facts: Array<[string, string]> = [
@@ -94,6 +98,13 @@ function SingleTrack({ track, issues, visibleIds }: { track: Track; issues: stri
             Playlist
           </Button>
           <Button size="sm" onClick={() => setFilenameTags({ ids: [track.id], mode: "write" })}>Tags from file name…</Button>
+        </div>
+
+        <div className="lib-rate">
+          <Rating value={rating} label={`Rating of ${title}`} onChange={(value) => setRating(track.id, value)} />
+          <IconButton label={isFavorite ? "Remove from favorites" : "Add to favorites"} active={isFavorite} onClick={() => toggleFavorite(track.id)} className="lib-rate__heart">
+            <IconHeart />
+          </IconButton>
         </div>
 
         {issues.length ? (
