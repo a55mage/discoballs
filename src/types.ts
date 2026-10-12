@@ -31,6 +31,9 @@ export type TrackTechnicalInfo = {
   fileSizeBytes?: number;
   channels?: number;
   bitDepth?: number;
+  /** ReplayGain gains stored in the file tags, in dB. */
+  replayGainTrackDb?: number;
+  replayGainAlbumDb?: number;
 };
 
 export type OnlineMatch = {

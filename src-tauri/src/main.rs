@@ -5,7 +5,7 @@ use lofty::file::{AudioFile, FileType, TaggedFileExt};
 use lofty::picture::{MimeType, Picture, PictureType};
 use lofty::prelude::Accessor;
 use lofty::probe::Probe;
-use lofty::tag::{Tag, TagExt, TagType};
+use lofty::tag::{ItemKey, Tag, TagExt, TagType};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -99,6 +99,24 @@ struct TrackTechnicalInfo {
     file_size_bytes: Option<u64>,
     channels: Option<u8>,
     bit_depth: Option<u8>,
+    /// ReplayGain track gain in dB, when the file carries the tag.
+    replaygain_track_db: Option<f64>,
+    /// ReplayGain album gain in dB, when the file carries the tag.
+    replaygain_album_db: Option<f64>,
+}
+
+/// Reads a ReplayGain value such as "-6.50 dB", "+3.2dB" or "-4,1 dB". Anything else gives None.
+fn parse_replaygain(value: &str) -> Option<f64> {
+    let cleaned = value
+        .trim()
+        .trim_end_matches(|c: char| c.is_alphabetic() || c.is_whitespace())
+        .replace(',', ".");
+    let parsed = cleaned.trim().parse::<f64>().ok()?;
+    if parsed.is_finite() && parsed.abs() <= 60.0 {
+        Some(parsed)
+    } else {
+        None
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -524,8 +542,18 @@ fn get_track_technical_info(path: String) -> Result<TrackTechnicalInfo, String> 
     let mut sample_rate_hz = None;
     let mut channels = None;
     let mut bit_depth = None;
+    let mut replaygain_track_db = None;
+    let mut replaygain_album_db = None;
 
     if let Ok(tagged_file) = Probe::open(&audio_path).and_then(|p| p.read()) {
+        if let Some(tag) = tagged_file.primary_tag().or_else(|| tagged_file.first_tag()) {
+            replaygain_track_db = tag
+                .get_string(&ItemKey::ReplayGainTrackGain)
+                .and_then(parse_replaygain);
+            replaygain_album_db = tag
+                .get_string(&ItemKey::ReplayGainAlbumGain)
+                .and_then(parse_replaygain);
+        }
         let properties = tagged_file.properties();
         bitrate_kbps = properties.audio_bitrate().or(properties.overall_bitrate());
         let seconds = properties.duration().as_secs_f64();
@@ -545,6 +573,8 @@ fn get_track_technical_info(path: String) -> Result<TrackTechnicalInfo, String> 
         file_size_bytes,
         channels,
         bit_depth,
+        replaygain_track_db,
+        replaygain_album_db,
     })
 }
 
@@ -1431,6 +1461,17 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn replaygain_values_are_parsed_leniently() {
+        assert_eq!(parse_replaygain("-6.50 dB"), Some(-6.5));
+        assert_eq!(parse_replaygain("+3.2dB"), Some(3.2));
+        assert_eq!(parse_replaygain(" -4,1 db "), Some(-4.1));
+        assert_eq!(parse_replaygain("0.00"), Some(0.0));
+        assert_eq!(parse_replaygain("loud"), None);
+        assert_eq!(parse_replaygain("999 dB"), None);
+        assert_eq!(parse_replaygain(""), None);
+    }
 
     #[test]
     fn file_names_cannot_leave_their_folder() {

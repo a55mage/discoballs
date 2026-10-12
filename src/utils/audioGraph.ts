@@ -31,6 +31,8 @@ export const DEFAULT_EQUALIZER_PRESET = EQUALIZER_PRESETS[0];
 export type MediaAudioGraph = {
   context: AudioContext;
   source: MediaElementAudioSourceNode;
+  /** Per-track loudness correction (ReplayGain), before everything else. */
+  normalizeGain: GainNode;
   preamp: GainNode;
   dryGain: GainNode;
   wetGain: GainNode;
@@ -74,6 +76,7 @@ export function getOrCreateMediaAudioGraph(audio: HTMLAudioElement): MediaAudioG
 
   const context = new ContextCtor();
   const source = context.createMediaElementSource(audio);
+  const normalizeGain = context.createGain();
   const preamp = context.createGain();
   const dryGain = context.createGain();
   const wetGain = context.createGain();
@@ -91,15 +94,17 @@ export function getOrCreateMediaAudioGraph(audio: HTMLAudioElement): MediaAudioG
 
   analyser.fftSize = 512;
   analyser.smoothingTimeConstant = 0.82;
+  normalizeGain.gain.value = 1;
   preamp.gain.value = 1;
   dryGain.gain.value = 0;
   wetGain.gain.value = 1;
   outputGain.gain.value = 1;
 
-  source.connect(dryGain);
+  source.connect(normalizeGain);
+  normalizeGain.connect(dryGain);
   dryGain.connect(outputGain);
 
-  source.connect(preamp);
+  normalizeGain.connect(preamp);
   if (filters.length) {
     preamp.connect(filters[0]);
     for (let index = 0; index < filters.length - 1; index += 1) {
@@ -117,6 +122,7 @@ export function getOrCreateMediaAudioGraph(audio: HTMLAudioElement): MediaAudioG
   const graph: MediaAudioGraph = {
     context,
     source,
+    normalizeGain,
     preamp,
     dryGain,
     wetGain,
@@ -128,6 +134,20 @@ export function getOrCreateMediaAudioGraph(audio: HTMLAudioElement): MediaAudioG
   };
   GRAPH_BY_AUDIO.set(audio, graph);
   return graph;
+}
+
+/** Linear gain for a ReplayGain value in dB. Boosts are capped (there is no limiter) and `null` means no correction. */
+export function replayGainToLinear(db: number | null | undefined, maxBoostDb = 6): number {
+  if (db === null || db === undefined || !Number.isFinite(db)) {
+    return 1;
+  }
+  return dbToGain(Math.min(db, maxBoostDb));
+}
+
+export function applyNormalization(graph: MediaAudioGraph, db: number | null | undefined) {
+  const now = graph.context.currentTime;
+  graph.normalizeGain.gain.cancelScheduledValues(now);
+  graph.normalizeGain.gain.setTargetAtTime(replayGainToLinear(db), now, 0.03);
 }
 
 export function applyEqualizerSettings(graph: MediaAudioGraph, settings: EqualizerRuntimeSettings) {

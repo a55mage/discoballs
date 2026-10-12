@@ -218,6 +218,8 @@ export const mockAdapter: MusicAdapter = {
       fileSizeBytes: extension === "FLAC" ? 34500000 : 9500000,
       channels: 2,
       bitDepth: extension === "FLAC" ? 24 : 16,
+      // FLAC files of the sample library carry a ReplayGain tag, MP3 ones do not.
+      replayGainTrackDb: extension === "FLAC" ? -6.5 : undefined,
     };
   },
 

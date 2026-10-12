@@ -82,6 +82,8 @@ type TauriTrackTechnicalInfo = {
   file_size_bytes?: number | null;
   channels?: number | null;
   bit_depth?: number | null;
+  replaygain_track_db?: number | null;
+  replaygain_album_db?: number | null;
 };
 
 type TauriNavidromeConnectionResult = {
@@ -166,6 +168,8 @@ function mapTrackTechnicalInfo(info: TauriTrackTechnicalInfo): TrackTechnicalInf
     fileSizeBytes: info.file_size_bytes ?? undefined,
     channels: info.channels ?? undefined,
     bitDepth: info.bit_depth ?? undefined,
+    replayGainTrackDb: info.replaygain_track_db ?? undefined,
+    replayGainAlbumDb: info.replaygain_album_db ?? undefined,
   };
 }
 

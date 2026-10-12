@@ -198,12 +198,14 @@ describe("Audio & EQ", () => {
     expect((screen.getByRole("button", { name: "Delete preset" }) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it("toggles Auto EQ and marks unfinished features as coming soon", () => {
+  it("toggles Auto EQ and volume normalization, and marks crossfade as coming soon", () => {
     render(<SettingsScreen />);
     fireEvent.click(screen.getByRole("switch", { name: "Auto EQ by genre" }));
     expect(useSettingsStore.getState().audioAutoEq).toBe(true);
-    expect((screen.getByRole("switch", { name: "Normalize volume" }) as HTMLButtonElement).disabled).toBe(true);
-    expect(screen.getAllByText("Coming soon")).toHaveLength(2);
+    fireEvent.click(screen.getByRole("switch", { name: "Normalize volume" }));
+    expect(useSettingsStore.getState().audioNormalizeVolume).toBe(true);
+    expect((screen.getByRole("switch", { name: "Smart crossfade" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getAllByText("Coming soon")).toHaveLength(1);
   });
 
   it("maps the genres of the library to presets", () => {

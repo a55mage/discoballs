@@ -15,7 +15,8 @@ import {
 import { usePlaylistStore } from "../store/playlistStore";
 import { getPlaybackQueueTracks, getPlaybackTrackIndex } from "../store/selectors";
 import type { Track } from "../types";
-import { applyEqualizerSettings, getOrCreateMediaAudioGraph } from "../utils/audioGraph";
+import { applyEqualizerSettings, applyNormalization, getOrCreateMediaAudioGraph } from "../utils/audioGraph";
+import { useSettingsStore } from "../store/settingsStore";
 
 const player = () => usePlayerStore.getState();
 
@@ -136,6 +137,41 @@ export function usePlaybackEngine(): void {
       wetMixPercent: equalizerWetMixPercent,
     });
   }, [equalizerBandGains, equalizerPreampDb, equalizerWetMixPercent, audioSrc]);
+
+  // Loudness normalization: read the ReplayGain tag of the playing file and apply it to the audio graph.
+  const normalizeVolume = useSettingsStore((state) => state.audioNormalizeVolume);
+  const replayGainDb = usePlayerStore((state) => state.replayGainDb);
+  useEffect(() => {
+    let cancelled = false;
+    const path = playbackTrack?.path;
+    if (!normalizeVolume || !path || playbackTrack?.source?.type === "navidrome") {
+      player().setReplayGainDb(null);
+      return;
+    }
+    (async () => {
+      try {
+        const info = await adapter.getTrackTechnicalInfo(path);
+        if (!cancelled) {
+          player().setReplayGainDb(info?.replayGainTrackDb ?? null);
+        }
+      } catch {
+        if (!cancelled) {
+          player().setReplayGainDb(null);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [normalizeVolume, playbackTrack?.path, playbackTrackId]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    const graph = audio ? getOrCreateMediaAudioGraph(audio) : null;
+    if (graph) {
+      applyNormalization(graph, normalizeVolume ? replayGainDb : null);
+    }
+  }, [normalizeVolume, replayGainDb, audioSrc]);
 
   // Load the audio source of the playback track.
   useEffect(() => {

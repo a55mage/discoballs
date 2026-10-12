@@ -31,8 +31,12 @@ export function AudioTab() {
             ))}
           </Select>
         </SettingRow>
-        <SettingRow title="Normalize volume" description="Loudness matching between tracks." badge={<Badge tone="neutral">Coming soon</Badge>}>
-          <Switch label="Normalize volume" checked={settings.audioNormalizeVolume} onChange={settings.setAudioNormalizeVolume} disabled />
+        <SettingRow
+          title="Normalize volume"
+          description="Evens out loudness with the ReplayGain tags in your files. Files without tags play as they are."
+          badge={<Badge>New</Badge>}
+        >
+          <Switch label="Normalize volume" checked={settings.audioNormalizeVolume} onChange={settings.setAudioNormalizeVolume} />
         </SettingRow>
         <SettingRow title="Smart crossfade" description="Blend the end of a track into the next one." badge={<Badge tone="neutral">Coming soon</Badge>}>
           <Switch label="Smart crossfade" checked={settings.audioSmartCrossfade} onChange={settings.setAudioSmartCrossfade} disabled />

@@ -28,6 +28,8 @@ export type PlayerState = {
   audioTrackId: string;
   audioError: string;
   shouldAutoplay: boolean;
+  /** ReplayGain of the playing track, when the file has it. */
+  replayGainDb: number | null;
 
   setPlaybackTrackId: Setter<string>;
   setPlaybackPlaylistId: Setter<string>;
@@ -45,6 +47,7 @@ export type PlayerState = {
   setAudioTrackId: Setter<string>;
   setAudioError: Setter<string>;
   setShouldAutoplay: Setter<boolean>;
+  setReplayGainDb: Setter<number | null>;
   clearQueueState: () => void;
   resetSession: () => void;
 };
@@ -66,6 +69,7 @@ export const usePlayerStore = create<PlayerState>()((set) => ({
   audioTrackId: "",
   audioError: "",
   shouldAutoplay: false,
+  replayGainDb: null,
 
   setPlaybackTrackId: fieldSetter(set, "playbackTrackId"),
   setPlaybackPlaylistId: fieldSetter(set, "playbackPlaylistId"),
@@ -83,6 +87,7 @@ export const usePlayerStore = create<PlayerState>()((set) => ({
   setAudioTrackId: fieldSetter(set, "audioTrackId"),
   setAudioError: fieldSetter(set, "audioError"),
   setShouldAutoplay: fieldSetter(set, "shouldAutoplay"),
+  setReplayGainDb: fieldSetter(set, "replayGainDb"),
 
   clearQueueState: () => {
     playbackRuntime.previousTrackId = "";
