@@ -12,31 +12,61 @@ import type {
   TrackUpdate,
 } from "../types";
 
-let tracks: Track[] = [
-  {
-    id: "1",
-    path: "/Music/Daft Punk/Random Access Memories/01 Give Life Back to Music.flac",
-    title: "Give Life Back to Music",
-    artist: "Daft Punk",
-    album: "Random Access Memories",
-    tracknumber: "1",
-    year: "2013",
-    genre: "Electronic",
-    hasCover: true,
-    coverUrl: "https://picsum.photos/seed/ram/500/500",
-  },
-  {
-    id: "2",
-    path: "/Music/Radiohead/In Rainbows/01 15 Step.mp3",
-    title: "15 Step",
-    artist: "Radiohead",
-    album: "In Rainbows",
-    tracknumber: "1",
-    year: "2007",
-    genre: "Alternative",
-    hasCover: false,
-  },
+/** Offline placeholder artwork: a gradient with a sun, as an SVG data URI. */
+function svgCover(from: string, to: string, accent: string): string {
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="500" height="500" viewBox="0 0 500 500">` +
+    `<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${from}"/><stop offset="1" stop-color="${to}"/></linearGradient></defs>` +
+    `<rect width="500" height="500" fill="url(#g)"/><circle cx="350" cy="150" r="78" fill="${accent}"/></svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
+const COVERS = [
+  svgCover("#1f3a5f", "#4f8fb8", "#f2c14e"),
+  svgCover("#6b4a2b", "#d9a066", "#f3e3c3"),
+  svgCover("#2b1450", "#e0359b", "#35e0d2"),
+  svgCover("#27403b", "#8cb8a4", "#f0e6d2"),
+  svgCover("#3d2a4a", "#c27ba0", "#ffd9a8"),
 ];
+
+// [title, artist, album, year, genre, track, ext, cover index (-1: none)]
+const SAMPLE_TRACKS: Array<[string, string, string, string, string, string, string, number]> = [
+  ["Harbor Lights", "Marlow Vane", "Night Ferry", "2019", "Indie Rock", "1", "flac", 0],
+  ["Salt and Static", "Marlow Vane", "Night Ferry", "2019", "Indie Rock", "2", "flac", 0],
+  ["Night Ferry", "Marlow Vane", "Night Ferry", "2019", "Indie Rock", "3", "flac", 0],
+  ["Low Tide Radio", "Marlow Vane", "Night Ferry", "2019", "Indie Rock", "4", "flac", 0],
+  ["Cedar Road", "Hollow Pines", "Cedar Sessions", "2021", "Folk", "1", "mp3", 1],
+  ["Ember Hands", "Hollow Pines", "Cedar Sessions", "2021", "Folk", "2", "mp3", 1],
+  ["Slow Thaw", "Hollow Pines", "Cedar Sessions", "2021", "Folk", "3", "mp3", 1],
+  ["Paper Lanterns", "Hollow Pines", "Cedar Sessions", "2021", "Folk", "4", "mp3", 1],
+  ["Afterimage", "Velvet Circuit", "Neon Tides", "2017", "Electronic", "1", "mp3", 2],
+  ["Neon Tides", "Velvet Circuit", "Neon Tides", "2017", "Electronic", "2", "mp3", 2],
+  ["Glass Highway", "Velvet Circuit", "Neon Tides", "2017", "Electronic", "3", "mp3", 2],
+  ["Quiet Rooms", "Nora Aldous", "Quiet Rooms", "2022", "", "1", "flac", 3],
+  ["Morning Hours", "Nora Aldous", "Quiet Rooms", "2022", "", "2", "flac", 3],
+  ["Blue Curtain", "Nora Aldous", "Quiet Rooms", "2022", "", "3", "flac", 3],
+  ["Greenhouse", "The Glass Orchard", "Greenhouse", "", "Dream Pop", "1", "m4a", -1],
+  ["Pale Orchard", "The Glass Orchard", "Greenhouse", "", "Dream Pop", "2", "m4a", -1],
+  ["", "", "", "", "", "", "mp3", -1],
+  ["Afterimage", "Velvet Circuit", "Neon Tides (copy)", "2017", "Electronic", "1", "mp3", 2],
+];
+
+let tracks: Track[] = SAMPLE_TRACKS.map(([title, artist, album, year, genre, tracknumber, ext, cover], index) => {
+  const folder = album ? album.replace(" (copy)", "") : "_unsorted";
+  const fileName = title ? `${tracknumber.padStart(2, "0")} ${title}.${ext}` : `track_07_final.${ext}`;
+  return {
+    id: String(index + 1),
+    path: `/Music/${artist || "_unsorted"}/${folder}/${fileName}`,
+    title,
+    artist,
+    album,
+    tracknumber,
+    year,
+    genre,
+    hasCover: cover >= 0,
+    coverUrl: cover >= 0 ? COVERS[cover] : undefined,
+  };
+});
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -199,7 +229,7 @@ export const mockAdapter: MusicAdapter = {
         date: "2013-05-17",
         source: "MusicBrainz",
         tracknumber: "1",
-        coverUrl: "https://picsum.photos/seed/match-a/500/500",
+        coverUrl: COVERS[0],
         releaseId: "release-a",
       },
       {
@@ -210,7 +240,7 @@ export const mockAdapter: MusicAdapter = {
         date: "2014-11-01",
         source: "MusicBrainz",
         tracknumber: "1",
-        coverUrl: "https://picsum.photos/seed/match-b/500/500",
+        coverUrl: COVERS[1],
         releaseId: "release-b",
       },
       {
@@ -221,7 +251,7 @@ export const mockAdapter: MusicAdapter = {
         date: "2012-09-20",
         source: "iTunes",
         tracknumber: "2",
-        coverUrl: "https://picsum.photos/seed/itunes-a/500/500",
+        coverUrl: COVERS[2],
       },
     ];
   },

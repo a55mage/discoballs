@@ -244,6 +244,23 @@ body,
   color: var(--db-ink-2);
   font-weight: 600;
 }
+.shell__source-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.shell__source-btn:hover {
+  color: var(--db-ink);
+}
+.shell__source-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--db-focus);
+  border-radius: 6px;
+}
 .shell__dot {
   width: 8px;
   height: 8px;
@@ -559,4 +576,151 @@ body,
   .shell__backdrop-img {
     animation: none;
   }
+}
+
+/* ---------- Dialog (Navidrome) ---------- */
+.shell__dialog-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.shell__dialog {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(560px, 100%);
+  max-height: 100%;
+  padding: 20px;
+  overflow: auto;
+  border: 1px solid var(--db-line);
+  border-radius: 20px;
+  background: var(--db-solid);
+  color: var(--db-ink);
+  box-shadow: var(--db-shadow);
+}
+.shell__dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.shell__dialog-head h2 {
+  margin: 0;
+  font-size: var(--db-text-2xl);
+  font-weight: 800;
+}
+.shell__dialog-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.shell__dialog-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.shell__dialog-switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 700;
+}
+.shell__dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--db-space-2);
+}
+.shell__dialog-status {
+  margin: 0;
+  color: var(--db-ink-2);
+  font-size: var(--db-text-sm);
+}
+.shell__bookmarks h3 {
+  margin: 8px 0;
+  font-size: var(--db-text-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--db-ink-2);
+}
+.shell__bookmarks ul {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.shell__bookmarks li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--db-line);
+  border-radius: 14px;
+  background: var(--db-surface-2);
+}
+.shell__bookmark-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.shell__bookmark-text span {
+  overflow: hidden;
+  color: var(--db-ink-2);
+  font-size: var(--db-text-xs);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.shell__bookmark-open {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--db-ink-2);
+  font-size: var(--db-text-xs);
+}
+
+/* ---------- Toast ---------- */
+.shell__toast-region {
+  position: fixed;
+  right: 0;
+  bottom: calc(var(--shell-player-h) + 16px);
+  left: 0;
+  z-index: 110;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+.shell--immersive .shell__toast-region {
+  bottom: 24px;
+}
+.shell__toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(560px, 92vw);
+  padding: 10px 10px 10px 16px;
+  border-radius: 14px;
+  background: var(--db-ink);
+  color: var(--db-bg);
+  font-weight: 700;
+  box-shadow: var(--db-shadow);
+  pointer-events: auto;
+  animation: shell-fade-in 160ms var(--db-ease) both;
+}
+.shell__toast svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+.shell__toast--error {
+  background: var(--db-warn);
+  color: #fff;
+}
+.shell__toast .db-icon-btn {
+  color: inherit;
 }

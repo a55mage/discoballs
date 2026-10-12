@@ -1,5 +1,7 @@
 import type { Track } from "../types";
+import { findDuplicateIds, getVisibleTracks } from "../domain/libraryView";
 import { useLibraryStore } from "./libraryStore";
+import { useLibraryViewStore } from "./libraryViewStore";
 import { usePlayerStore } from "./playerStore";
 import { useTagEditorStore } from "./tagEditorStore";
 
@@ -44,4 +46,24 @@ export function getPlaybackTrackIndex(): number {
 /** The track shown in the tag editor: the unsaved draft when present, else the selected track. */
 export function getEditableTrack(): Track | null {
   return useTagEditorStore.getState().trackDraft ?? getSelectedTrack();
+}
+
+let cachedDuplicateTracks: Track[] | null = null;
+let cachedDuplicateIds = new Set<string>();
+
+/** Ids of tracks that look duplicated; recomputed only when the track list changes. */
+export function getDuplicateIds(): Set<string> {
+  const { tracks } = useLibraryStore.getState();
+  if (tracks !== cachedDuplicateTracks) {
+    cachedDuplicateTracks = tracks;
+    cachedDuplicateIds = findDuplicateIds(tracks);
+  }
+  return cachedDuplicateIds;
+}
+
+/** The Tracks tab list as currently filtered and sorted: also the queue used when playing from the library. */
+export function getVisibleLibraryTracks(): Track[] {
+  const { tracks } = useLibraryStore.getState();
+  const { query, filter, scope, sortKey, sortDirection } = useLibraryViewStore.getState();
+  return getVisibleTracks(tracks, { query, filter, scope, sortKey, sortDirection }, getDuplicateIds());
 }

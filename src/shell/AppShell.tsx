@@ -8,6 +8,8 @@ import { Backdrop } from "./Backdrop";
 import { CommandPalette } from "./CommandPalette";
 import { Header } from "./Header";
 import { LegacyToolbar } from "./LegacyToolbar";
+import { NavidromeDialog } from "./NavidromeDialog";
+import { Toast } from "./Toast";
 import { PlayerBar } from "./PlayerBar";
 import { Sidebar } from "./Sidebar";
 import { usesOverlayTitleBar } from "./platform";
@@ -56,6 +58,8 @@ export function AppShell({ children, inspector, onBrandClick, onTogglePlayPause,
 
       {!isImmersive ? <PlayerBar onTogglePlayPause={onTogglePlayPause} /> : null}
       <CommandPalette onTogglePlayPause={onTogglePlayPause} />
+      <NavidromeDialog />
+      <Toast />
       {/* Always mounted so playback survives immersive mode and screen changes. */}
       <audio ref={audioRef as RefObject<HTMLAudioElement>} src={audioSrc || undefined} preload="metadata" />
     </div>

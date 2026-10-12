@@ -1,0 +1,143 @@
+import { describe, expect, it } from "vitest";
+import {
+  buildFolderEntries,
+  countHealth,
+  findDuplicateIds,
+  getIdRange,
+  getTrackIssues,
+  getVisibleTracks,
+  matchesScope,
+  sortTracks,
+  type LibraryViewInput,
+} from "../domain/libraryView";
+import type { Track } from "../types";
+
+const track = (id: string, patch: Partial<Track> = {}): Track => ({
+  id,
+  path: `/Music/${id}.mp3`,
+  title: `Title ${id}`,
+  artist: "Artist",
+  album: "Album",
+  tracknumber: "1",
+  year: "2020",
+  genre: "Rock",
+  hasCover: true,
+  ...patch,
+});
+
+const view = (patch: Partial<LibraryViewInput> = {}): LibraryViewInput => ({
+  query: "",
+  filter: "all",
+  scope: null,
+  sortKey: "added",
+  sortDirection: "asc",
+  ...patch,
+});
+
+describe("duplicates and issues", () => {
+  it("flags tracks sharing title and artist, ignoring case and untitled files", () => {
+    const tracks = [
+      track("1", { title: "Afterimage", artist: "Velvet" }),
+      track("2", { title: "afterimage", artist: "VELVET" }),
+      track("3", { title: "", artist: "" }),
+      track("4", { title: "", artist: "" }),
+      track("5", { title: "Other", artist: "Velvet" }),
+    ];
+    expect([...findDuplicateIds(tracks)].sort()).toEqual(["1", "2"]);
+  });
+
+  it("lists every issue of a track", () => {
+    const issues = getTrackIssues(track("1", { hasCover: false, genre: "", year: "", artist: "" }), new Set(["1"]));
+    expect(issues).toEqual(["No cover", "Missing tags", "No genre", "No year", "Possible duplicate"]);
+    expect(getTrackIssues(track("2"), new Set())).toEqual([]);
+  });
+
+  it("treats a downloaded cover url as a cover", () => {
+    expect(getTrackIssues(track("1", { hasCover: false, coverUrl: "x.jpg" }), new Set())).toEqual([]);
+  });
+
+  it("counts health per filter", () => {
+    const tracks = [track("1"), track("2", { hasCover: false }), track("3", { genre: "" })];
+    expect(countHealth(tracks, new Set())).toEqual({ all: 3, cover: 1, tags: 1, duplicates: 0, withIssues: 2 });
+  });
+});
+
+describe("getVisibleTracks", () => {
+  const tracks = [
+    track("1", { title: "Bravo", artist: "Zed", album: "One" }),
+    track("2", { title: "alpha", artist: "Amy", album: "Two", hasCover: false }),
+    track("3", { title: "Charlie", artist: "Amy", album: "Two", year: "" }),
+  ];
+
+  it("filters by query across tags and path", () => {
+    expect(getVisibleTracks(tracks, view({ query: "amy" }), new Set()).map((t) => t.id)).toEqual(["2", "3"]);
+    expect(getVisibleTracks(tracks, view({ query: "/music/1" }), new Set()).map((t) => t.id)).toEqual(["1"]);
+  });
+
+  it("filters by health and scope", () => {
+    expect(getVisibleTracks(tracks, view({ filter: "cover" }), new Set()).map((t) => t.id)).toEqual(["2"]);
+    const scope = { kind: "album" as const, artist: "Amy", album: "Two" };
+    expect(getVisibleTracks(tracks, view({ scope }), new Set()).map((t) => t.id)).toEqual(["2", "3"]);
+    expect(matchesScope(tracks[0], { kind: "artist", artist: "zed" })).toBe(true);
+  });
+
+  it("sorts case-insensitively in both directions", () => {
+    expect(getVisibleTracks(tracks, view({ sortKey: "title" }), new Set()).map((t) => t.id)).toEqual(["2", "1", "3"]);
+    expect(getVisibleTracks(tracks, view({ sortKey: "title", sortDirection: "desc" }), new Set()).map((t) => t.id)).toEqual(["3", "1", "2"]);
+    expect(getVisibleTracks(tracks, view({ sortDirection: "desc" }), new Set()).map((t) => t.id)).toEqual(["3", "2", "1"]);
+  });
+});
+
+describe("sortTracks", () => {
+  it("puts empty values last when ascending and first when reversed", () => {
+    const tracks = [track("1", { genre: "" }), track("2", { genre: "Folk" }), track("3", { genre: "Blues" })];
+    expect(sortTracks(tracks, "genre", "asc").map((t) => t.id)).toEqual(["3", "2", "1"]);
+    expect(sortTracks(tracks, "genre", "desc").map((t) => t.id)).toEqual(["1", "2", "3"]);
+  });
+
+  it("sorts by year, unknown years last", () => {
+    const tracks = [track("1", { year: "" }), track("2", { year: "2001" }), track("3", { year: "1999" })];
+    expect(sortTracks(tracks, "year", "asc").map((t) => t.id)).toEqual(["3", "2", "1"]);
+  });
+
+  it("sorts by file format", () => {
+    const tracks = [track("1", { path: "/a.mp3" }), track("2", { path: "/b.flac" })];
+    expect(sortTracks(tracks, "format", "asc").map((t) => t.id)).toEqual(["2", "1"]);
+  });
+});
+
+describe("getIdRange", () => {
+  const ids = ["a", "b", "c", "d"];
+  it("returns an inclusive range in either direction", () => {
+    expect(getIdRange(ids, "b", "d")).toEqual(["b", "c", "d"]);
+    expect(getIdRange(ids, "d", "b")).toEqual(["b", "c", "d"]);
+  });
+  it("falls back to the target when the anchor is unknown", () => {
+    expect(getIdRange(ids, "x", "c")).toEqual(["c"]);
+  });
+});
+
+describe("buildFolderEntries", () => {
+  const tracks = [
+    track("1", { path: "/Music/A/one.mp3" }),
+    track("2", { path: "/Music/A/Deep/two.mp3" }),
+    track("3", { path: "/Music/B/three.mp3" }),
+    track("4", { path: "/Music/root.mp3" }),
+  ];
+
+  it("lists sub-folders with counts, then files, at the root", () => {
+    const entries = buildFolderEntries(tracks, "/Music", [], "");
+    expect(entries.map((entry) => `${entry.type}:${entry.name}`)).toEqual(["folder:A", "folder:B", "track:root.mp3"]);
+    expect(entries[0]).toMatchObject({ trackCount: 2 });
+  });
+
+  it("descends into a folder", () => {
+    const entries = buildFolderEntries(tracks, "/Music", ["A"], "");
+    expect(entries.map((entry) => `${entry.type}:${entry.name}`)).toEqual(["folder:Deep", "track:one.mp3"]);
+  });
+
+  it("filters entries by query", () => {
+    expect(buildFolderEntries(tracks, "/Music", [], "three")).toEqual([]);
+    expect(buildFolderEntries(tracks, "/Music", ["B"], "three")).toHaveLength(1);
+  });
+});

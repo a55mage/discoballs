@@ -6,6 +6,7 @@ import type { PlayerColumnVisibility, RenameField, StartupScreen } from "../type
 import { readJson, readString, writeJson, writeString } from "./storage";
 
 export type ColorMode = "light" | "dark";
+export type ListDensity = "comfortable" | "compact";
 
 const KEYS = {
   colorMode: "musicmanager-color-mode",
@@ -25,6 +26,7 @@ const KEYS = {
   smartCrossfade: "musicmanager-audio-smart-crossfade",
   dynamicBackground: "musicmanager-dynamic-background",
   backgroundIntensity: "musicmanager-background-intensity",
+  listDensity: "musicmanager-list-density",
 } as const;
 
 const VISUALIZER_IDS: VisualizerPresetId[] = ["scope", "alchemy", "xp-bars", "turntable"];
@@ -105,6 +107,7 @@ export type SettingsState = {
   dynamicBackground: boolean;
   /** 0-100: how strongly the cover tints the interface. */
   backgroundIntensity: number;
+  listDensity: ListDensity;
 
   setColorMode: (mode: ColorMode) => void;
   setStartupScreen: (screen: StartupScreen) => void;
@@ -128,6 +131,7 @@ export type SettingsState = {
   setAudioSmartCrossfade: (value: boolean) => void;
   setDynamicBackground: (value: boolean) => void;
   setBackgroundIntensity: (value: number) => void;
+  setListDensity: (value: ListDensity) => void;
 };
 
 export const DEFAULT_BACKGROUND_INTENSITY = 70;
@@ -159,6 +163,7 @@ function loadInitialState(): Pick<
   | "audioSmartCrossfade"
   | "dynamicBackground"
   | "backgroundIntensity"
+  | "listDensity"
 > {
   const savedColorMode = readString(KEYS.colorMode);
   const savedStartup = readString(KEYS.startupScreen);
@@ -177,7 +182,7 @@ function loadInitialState(): Pick<
 
   return {
     colorMode: savedColorMode === "dark" ? "dark" : "light",
-    startupScreen: STARTUP_SCREENS.includes(savedStartup as StartupScreen) ? (savedStartup as StartupScreen) : "tagging",
+    startupScreen: STARTUP_SCREENS.includes(savedStartup as StartupScreen) ? (savedStartup as StartupScreen) : "library",
     autoOpenDefaultFolder: readString(KEYS.autoOpen) === "true",
     defaultFolderPath: readString(KEYS.defaultFolder) ?? "",
     accentThemes,
@@ -199,6 +204,7 @@ function loadInitialState(): Pick<
     audioSmartCrossfade: readString(KEYS.smartCrossfade) === "true",
     dynamicBackground: readString(KEYS.dynamicBackground) !== "false",
     backgroundIntensity: readIntensity(readString(KEYS.backgroundIntensity)),
+    listDensity: readString(KEYS.listDensity) === "compact" ? "compact" : "comfortable",
   };
 }
 
@@ -296,6 +302,7 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   setAudioSmartCrossfade: (audioSmartCrossfade) => set({ audioSmartCrossfade }),
   setDynamicBackground: (dynamicBackground) => set({ dynamicBackground }),
   setBackgroundIntensity: (value) => set({ backgroundIntensity: readIntensity(String(value)) }),
+  setListDensity: (listDensity) => set({ listDensity }),
 }));
 
 function persistAll(state: SettingsState): void {
@@ -316,6 +323,7 @@ function persistAll(state: SettingsState): void {
   writeString(KEYS.smartCrossfade, String(state.audioSmartCrossfade));
   writeString(KEYS.dynamicBackground, String(state.dynamicBackground));
   writeString(KEYS.backgroundIntensity, String(state.backgroundIntensity));
+  writeString(KEYS.listDensity, state.listDensity);
 }
 
 // Persist the initial snapshot (it may include the rotated accent), then every change.
@@ -341,4 +349,5 @@ useSettingsStore.subscribe((state, previous) => {
   if (state.audioSmartCrossfade !== previous.audioSmartCrossfade) writeString(KEYS.smartCrossfade, String(state.audioSmartCrossfade));
   if (state.dynamicBackground !== previous.dynamicBackground) writeString(KEYS.dynamicBackground, String(state.dynamicBackground));
   if (state.backgroundIntensity !== previous.backgroundIntensity) writeString(KEYS.backgroundIntensity, String(state.backgroundIntensity));
+  if (state.listDensity !== previous.listDensity) writeString(KEYS.listDensity, state.listDensity);
 });

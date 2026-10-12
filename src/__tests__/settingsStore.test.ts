@@ -25,7 +25,7 @@ describe("settingsStore", () => {
     installStorage();
     const state = (await loadStore()).getState();
     expect(state.colorMode).toBe("light");
-    expect(state.startupScreen).toBe("tagging");
+    expect(state.startupScreen).toBe("library");
     expect(state.renameFields).toEqual(["tracknumber", "artist", "title"]);
     expect(state.renameSeparator).toBe(" - ");
     expect(state.playerColumnVisibility).toEqual({ library: true, visualizer: true, queue: true });

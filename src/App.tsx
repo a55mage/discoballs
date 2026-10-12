@@ -31,11 +31,7 @@ import {
 } from "./actions/navidrome";
 import { orderOnlineResults } from "./domain/onlineResults";
 import {
-  summarizeAlbums,
-  summarizeArtists,
   summarizeGenres,
-  type LibraryAlbumSummary,
-  type LibraryArtistSummary,
 } from "./domain/library";
 import { useDashboardDrag } from "./hooks/useDashboardDrag";
 import { useLibrarySession } from "./hooks/useLibrarySession";
@@ -82,7 +78,8 @@ import {
   IconTrash,
 } from "./components/icons";
 import { DashboardSection } from "./sections/DashboardSection";
-import { LibraryBrowserSection } from "./sections/LibraryBrowserSection";
+import { LibraryInspector } from "./screens/library/LibraryInspector";
+import { LibraryScreen } from "./screens/library/LibraryScreen";
 import { LibrarySection } from "./sections/LibrarySection";
 import { OnlineSearchSection } from "./sections/OnlineSearchSection";
 import { PlayerSection } from "./sections/PlayerSection";
@@ -98,6 +95,7 @@ import { useTagEditorStore } from "./store/tagEditorStore";
 import { usePlaylistStore } from "./store/playlistStore";
 import { useSettingsStore } from "./store/settingsStore";
 import { useUiStore } from "./store/uiStore";
+import { getVisibleLibraryTracks } from "./store/selectors";
 import { AppShell } from "./shell/AppShell";
 import { useApplyTheme } from "./ui/useApplyTheme";
 import { useAutoEqualizer } from "./hooks/useAutoEqualizer";
@@ -273,8 +271,6 @@ export function App() {
   );
   const canRenameDeleteEqualizerPreset = Boolean(activeEqualizerPreset && !BUILTIN_EQ_PRESET_IDS.has(activeEqualizerPreset.id));
   const libraryGenres = useMemo(() => summarizeGenres(tracks), [tracks]);
-  const libraryArtists = useMemo(() => summarizeArtists(tracks), [tracks]);
-  const libraryAlbums = useMemo(() => summarizeAlbums(tracks), [tracks]);
 
   const selectedTrack = tracks.find((t) => t.id === selectedTrackId) ?? null;
   const playbackTrack = tracks.find((t) => t.id === playbackTrackId) ?? null;
@@ -358,28 +354,7 @@ export function App() {
     }
   }
 
-  function handleLibraryArtistClick(artist: LibraryArtistSummary) {
-    setIsNavidromePanelOpen(false);
-    setQuery(artist.name === "Unknown artist" ? "" : artist.name);
-    const firstTrack = tracks.find((track) => (track.artist.trim() || "Unknown artist") === artist.name);
-    if (firstTrack) {
-      selectTrack(firstTrack);
-    }
-  }
-
-  function handleLibraryAlbumClick(album: LibraryAlbumSummary) {
-    setIsNavidromePanelOpen(false);
-    setQuery(album.title === "Unknown album" ? "" : album.title);
-    const firstTrack = tracks.find((track) => (
-      (track.album.trim() || "Unknown album") === album.title &&
-      (track.artist.trim() || "Unknown artist") === album.artist
-    ));
-    if (firstTrack) {
-      selectTrack(firstTrack);
-    }
-  }
-
-  const getVisibleTrackIds = () => filteredTracks.map((track) => track.id);
+  const getVisibleTrackIds = () => (activeScreen === "library" ? getVisibleLibraryTracks() : filteredTracks).map((track) => track.id);
   const handleTogglePlayPause = () => togglePlayPause(getVisibleTrackIds());
   const handlePlayTrackFromPlaylist = playTrackFromPlaylist;
   const handlePlayTrackFromPlayerQueue = playTrackFromQueue;
@@ -448,6 +423,7 @@ export function App() {
 
   return (
     <AppShell
+      inspector={activeScreen === "library" && tracks.length > 0 ? <LibraryInspector /> : undefined}
       onBrandClick={rotateAccent}
       onTogglePlayPause={handleTogglePlayPause}
       onPlayActivePlaylist={() => void handlePlayActivePlaylist()}
@@ -637,61 +613,7 @@ export function App() {
         />
       )}
 
-      {activeScreen === "library" && (
-        <LibraryBrowserSection
-          libraryProps={{
-            folderPath,
-            onOpenFolderPathClick: () => {
-              void handleOpenLibraryFolder();
-            },
-            isLoadingScan,
-            onScan: handleScan,
-            ...libraryNavidromeProps,
-            query,
-            onQueryChange: setQuery,
-            libraryViewMode,
-            onLibraryViewModeChange: setLibraryViewMode,
-            isFileSystemView,
-            onFileSystemViewChange: setIsFileSystemView,
-            fileSystemEntries,
-            fileSystemCurrentPath,
-            canGoUpFileSystemFolder,
-            onOpenFileSystemFolder: openFileSystemFolder,
-            onGoUpFileSystemFolder: goUpFileSystemFolder,
-            librarySortMode,
-            librarySortDirection,
-            onLibrarySortClick: handleLibrarySortClick,
-            trackCount: tracks.length,
-            folderCount,
-            trackListRef,
-            onTrackListScroll: handleTrackListScroll,
-            virtualTrackWindow,
-            selectedTrackId,
-            onSelectTrack: selectTrack,
-            onSearchTrack: handleQuickSearchTrack,
-            onPlayFromLibraryCover: handlePlayFromLibraryCover,
-            IconFolder,
-            IconArrowUp,
-            IconMusicNote,
-            IconSortTitle,
-            IconSortArtist,
-            IconSortAdded,
-            IconSortRelease,
-            IconGrid,
-            IconListCompact,
-            IconPlay,
-            IconSearch,
-          }}
-          artists={libraryArtists}
-          albums={libraryAlbums}
-          tracks={tracks}
-          onArtistClick={handleLibraryArtistClick}
-          onAlbumClick={handleLibraryAlbumClick}
-          IconArtist={IconSortArtist}
-          IconAlbum={IconCover}
-          IconMusicNote={IconMusicNote}
-        />
-      )}
+      {activeScreen === "library" && <LibraryScreen onTogglePlayPause={handleTogglePlayPause} />}
 
       {activeScreen === "player" && (
         <PlayerSection

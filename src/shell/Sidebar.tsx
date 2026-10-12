@@ -19,6 +19,7 @@ export function Sidebar({ onBrandClick }: SidebarProps) {
   const folderPath = useLibraryStore((state) => state.folderPath);
   const connectedBookmarkId = useNavidromeStore((state) => state.connectedNavidromeBookmarkId);
   const bookmarks = useNavidromeStore((state) => state.navidromeBookmarks);
+  const setNavidromePanelOpen = useNavidromeStore((state) => state.setIsNavidromePanelOpen);
   const connected = bookmarks.find((bookmark) => bookmark.id === connectedBookmarkId);
 
   const coverOf = (trackId: string) => tracks.find((track) => track.id === trackId)?.coverUrl;
@@ -88,10 +89,10 @@ export function Sidebar({ onBrandClick }: SidebarProps) {
         <div className="shell__source-line" title={folderPath || "No folder open"}>
           <span>{folderPath || "No folder open"}</span>
         </div>
-        <div className="shell__source-line shell__source-line--muted">
+        <button type="button" className="shell__source-line shell__source-line--muted shell__source-btn" onClick={() => setNavidromePanelOpen(true)}>
           <span className={cx("shell__dot", connected && "is-on")} aria-hidden="true" />
-          <span>{connected ? `Navidrome · ${connected.name}` : "Navidrome not connected"}</span>
-        </div>
+          <span>{connected ? `Navidrome · ${connected.name}` : "Connect Navidrome…"}</span>
+        </button>
       </div>
 
       {settings ? (
