@@ -23,7 +23,7 @@ const track = (id: string, title: string, artist = "Artist"): Track => ({
 });
 
 beforeEach(() => {
-  useUiStore.setState({ activeScreen: "library", isPaletteOpen: false, isImmersive: false });
+  useUiStore.setState({ activeScreen: "library", isPaletteOpen: false, isImmersive: false, toast: null });
   useSettingsStore.setState({ dynamicBackground: true, backgroundIntensity: 70, colorMode: "light" });
   useLibraryStore.setState({ tracks: [track("1", "Solid Gold", "Battle Tapes"), track("2", "Harbor Lights", "Marlow Vane")], selectedTrackId: "" });
 });
@@ -162,8 +162,15 @@ describe("AppShell", () => {
     expect(screen.getByRole("dialog")).toBeTruthy();
   });
 
+  it("ignores full-window mode outside Now Playing", () => {
+    renderShell();
+    act(() => useUiStore.getState().setImmersive(true));
+    expect(screen.getByRole("navigation")).toBeTruthy();
+  });
+
   it("keeps only the content, and the audio element, in immersive mode", () => {
     const { container } = renderShell();
+    act(() => useUiStore.getState().setActiveScreen("player"));
     act(() => useUiStore.getState().setImmersive(true));
     expect(screen.queryByRole("navigation")).toBeNull();
     expect(screen.queryByRole("contentinfo")).toBeNull();

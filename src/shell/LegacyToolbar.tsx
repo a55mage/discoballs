@@ -1,9 +1,7 @@
-import { IconGlobe, IconHeart, IconListCompact, IconMic, IconFolder, IconPlay, IconPlus, IconRename, IconTrash, IconUser, IconVisualizerBars } from "../components/icons";
-import { VISUALIZER_PRESETS, type VisualizerPresetId } from "../sections/MusicVisualizerSection";
+import { IconGlobe, IconHeart, IconPlay, IconPlus, IconRename, IconTrash, IconUser } from "../components/icons";
 import { usePlaylistStore } from "../store/playlistStore";
-import { useSettingsStore } from "../store/settingsStore";
 import { useUiStore } from "../store/uiStore";
-import { IconButton, Segmented, TextInput } from "../ui";
+import { IconButton, TextInput } from "../ui";
 import { openExternalLink } from "../utils/external";
 import { APP_VERSION } from "../version";
 
@@ -17,27 +15,8 @@ type LegacyToolbarProps = {
  */
 export function LegacyToolbar({ onPlayActivePlaylist }: LegacyToolbarProps) {
   const activeScreen = useUiStore((state) => state.activeScreen);
-  const settings = useSettingsStore();
   const playlists = usePlaylistStore();
   const activePlaylist = playlists.playlists.find((playlist) => playlist.id === playlists.activePlaylistId);
-
-  if (activeScreen === "player") {
-    const { playerColumnVisibility: cols, showPlayerLyricsSection } = settings;
-    return (
-      <div className="shell__toolbar" role="toolbar" aria-label="Player layout">
-        <IconButton label={cols.library ? "Hide library" : "Show library"} active={cols.library} onClick={() => settings.togglePlayerColumn("library")}><IconFolder /></IconButton>
-        <IconButton label={showPlayerLyricsSection ? "Hide lyrics" : "Show lyrics"} active={showPlayerLyricsSection} onClick={settings.toggleShowPlayerLyrics}><IconMic /></IconButton>
-        <IconButton label={cols.visualizer ? "Hide visualizer" : "Show visualizer"} active={cols.visualizer} onClick={() => settings.togglePlayerColumn("visualizer")}><IconVisualizerBars /></IconButton>
-        <IconButton label={cols.queue ? "Hide queue" : "Show queue"} active={cols.queue} onClick={() => settings.togglePlayerColumn("queue")}><IconListCompact /></IconButton>
-        <Segmented
-          label="Visualizer type"
-          value={settings.playerVisualizerPresetId}
-          onChange={(value) => settings.setPlayerVisualizerPresetId(value as VisualizerPresetId)}
-          options={VISUALIZER_PRESETS.map((preset) => ({ value: preset.id, label: preset.label }))}
-        />
-      </div>
-    );
-  }
 
   if (activeScreen === "dashboard") {
     return (

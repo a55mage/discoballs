@@ -28,7 +28,8 @@ describe("settingsStore", () => {
     expect(state.startupScreen).toBe("library");
     expect(state.renameFields).toEqual(["tracknumber", "artist", "title"]);
     expect(state.renameSeparator).toBe(" - ");
-    expect(state.playerColumnVisibility).toEqual({ library: true, visualizer: true, queue: true });
+    expect(state.nowPlayingShow).toEqual(["cover", "lyrics"]);
+    expect(state.nowPlayingQueue).toBe(true);
     expect(state.accentIndex).toBe(0);
   });
 
@@ -38,7 +39,6 @@ describe("settingsStore", () => {
       "musicmanager-startup-screen": "player",
       "musicmanager-rename-fields": JSON.stringify(["artist", "bogus", "title"]),
       "musicmanager-rename-separator": "_",
-      "musicmanager-player-columns": JSON.stringify({ library: false, visualizer: false, queue: false }),
       "musicmanager-player-visualizer-preset": "turntable",
       "musicmanager-audio-auto-eq": "true",
     });
@@ -47,7 +47,6 @@ describe("settingsStore", () => {
     expect(state.startupScreen).toBe("player");
     expect(state.renameFields).toEqual(["artist", "title"]);
     expect(state.renameSeparator).toBe("_");
-    expect(state.playerColumnVisibility.visualizer).toBe(true);
     expect(state.playerVisualizerPresetId).toBe("turntable");
     expect(state.audioAutoEq).toBe(true);
   });
@@ -84,21 +83,41 @@ describe("settingsStore", () => {
     expect(store.getState().renameFields[0]).toBe("album");
   });
 
-  it("refuses to hide every player section", async () => {
+  it("always keeps at least one Now Playing part, in display order", async () => {
     installStorage();
     const store = await loadStore();
-    const s = store.getState();
-    s.togglePlayerColumn("library");
-    s.togglePlayerColumn("visualizer");
-    s.togglePlayerColumn("queue");
-    s.toggleShowPlayerLyrics();
-    // Lyrics stay visible because every column is already hidden.
-    expect(store.getState().showPlayerLyricsSection).toBe(true);
-    expect(store.getState().playerColumnVisibility).toEqual({ library: false, visualizer: false, queue: false });
-    store.getState().togglePlayerColumn("queue");
-    expect(store.getState().playerColumnVisibility.queue).toBe(true);
-    store.getState().toggleShowPlayerLyrics();
-    expect(store.getState().showPlayerLyricsSection).toBe(false);
+    store.getState().setNowPlayingShow(["viz", "cover"]);
+    expect(store.getState().nowPlayingShow).toEqual(["cover", "viz"]);
+    store.getState().setNowPlayingShow([]);
+    expect(store.getState().nowPlayingShow).toEqual(["cover", "lyrics"]);
+    store.getState().setNowPlayingShow(["bogus" as never]);
+    expect(store.getState().nowPlayingShow).toEqual(["cover", "lyrics"]);
+  });
+
+  it("restores the Now Playing layout", async () => {
+    installStorage({ "musicmanager-now-playing-show": JSON.stringify(["lyrics"]), "musicmanager-now-playing-queue": "false" });
+    const state = (await loadStore()).getState();
+    expect(state.nowPlayingShow).toEqual(["lyrics"]);
+    expect(state.nowPlayingQueue).toBe(false);
+  });
+
+  it("migrates the column toggles of version 1.x to Now Playing parts", async () => {
+    installStorage({
+      "musicmanager-player-columns": JSON.stringify({ library: true, visualizer: true, queue: false }),
+      "musicmanager-player-show-lyrics": "false",
+    });
+    const state = (await loadStore()).getState();
+    expect(state.nowPlayingShow).toEqual(["cover", "viz"]);
+    expect(state.nowPlayingQueue).toBe(false);
+  });
+
+  it("migrates a hidden-everything legacy layout to something visible", async () => {
+    installStorage({
+      "musicmanager-player-columns": JSON.stringify({ library: false, visualizer: false, queue: false }),
+      "musicmanager-player-show-lyrics": "false",
+    });
+    const state = (await loadStore()).getState();
+    expect(state.nowPlayingShow.length).toBeGreaterThan(0);
   });
 
   it("manages accent themes", async () => {

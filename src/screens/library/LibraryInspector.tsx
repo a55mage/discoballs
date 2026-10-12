@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { IconClose, IconPlay, IconPlus, IconTag } from "../../components/icons";
+import { IconClose, IconPlay, IconPlus, IconQueue, IconTag } from "../../components/icons";
 import { applyBatchEdit, type BatchPatch } from "../../actions/batchEdit";
 import { clearSelection } from "../../actions/librarySelection";
 import { searchOnlineForTrack } from "../../actions/library";
-import { playFromLibraryCover } from "../../actions/playback";
+import { enqueueTrack, enqueueTracks, playFromLibraryCover } from "../../actions/playback";
 import { getFormat, getTrackIssues } from "../../domain/libraryView";
 import { useTrackTechnicalInfo } from "../../hooks/useTrackTechnicalInfo";
 import { useVisibleTracks } from "../../hooks/useVisibleTracks";
@@ -71,6 +71,16 @@ function SingleTrack({ track, issues, visibleIds }: { track: Track; issues: stri
         <div className="lib-actions">
           <Button variant="primary" size="sm" icon={<IconPlay />} onClick={() => void playFromLibraryCover(track, visibleIds)}>Play</Button>
           <Button size="sm" icon={<IconTag />} onClick={() => setActiveScreen("tagging")}>Edit tags</Button>
+          <Button
+            size="sm"
+            icon={<IconQueue />}
+            onClick={() => {
+              enqueueTrack(track.id);
+              showToast("Added to the queue", "success");
+            }}
+          >
+            Queue
+          </Button>
           <Button
             size="sm"
             icon={<IconPlus />}
@@ -182,6 +192,16 @@ function BatchEditor({ tracks }: { tracks: Track[] }) {
       </label>
       <Button variant="primary" block disabled={!hasChanges || busy !== null} onClick={() => void apply()}>
         {busy ? `Saving ${busy.done}/${busy.total}…` : `Apply to ${tracks.length} tracks`}
+      </Button>
+      <Button
+        block
+        disabled={busy !== null}
+        onClick={() => {
+          enqueueTracks(tracks.map((track) => track.id));
+          showToast(`${tracks.length} tracks added to the queue`, "success");
+        }}
+      >
+        Add to queue
       </Button>
       <Button
         block

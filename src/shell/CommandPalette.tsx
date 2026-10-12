@@ -61,6 +61,10 @@ export function CommandPalette({ onTogglePlayPause }: CommandPaletteProps) {
       command("play", isPlaying ? "Pause" : "Play", onTogglePlayPause),
       command("next", "Next track", () => void playNextTrack()),
       command("prev", "Previous track", () => void playPreviousTrack()),
+      command("fullwindow", "Full window Now Playing", () => {
+        setActiveScreen("player");
+        useUiStore.getState().setImmersive(true);
+      }),
       command("theme", settings.colorMode === "dark" ? "Switch to light mode" : "Switch to dark mode", () =>
         settings.setColorMode(settings.colorMode === "dark" ? "light" : "dark")
       ),

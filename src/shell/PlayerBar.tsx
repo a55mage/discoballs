@@ -1,24 +1,17 @@
 import {
   IconAutoEq,
   IconMute,
-  IconNext,
-  IconPause,
-  IconPlay,
-  IconPrev,
   IconQueue,
-  IconRepeatOne,
-  IconShuffle,
   IconVolume,
 } from "../components/icons";
-import { changeVolume, playNextTrack, playPreviousTrack, seekTo } from "../actions/playback";
-import { usePlaybackQueueView } from "../hooks/usePlaybackQueueView";
+import { changeVolume } from "../actions/playback";
 import { useEqualizerStore } from "../store/equalizerStore";
 import { useLibraryStore } from "../store/libraryStore";
 import { usePlayerStore } from "../store/playerStore";
 import { useSettingsStore } from "../store/settingsStore";
 import { useUiStore } from "../store/uiStore";
 import { Cover, IconButton, Select, Slider } from "../ui";
-import { formatTime } from "../utils/common";
+import { SeekBar, TransportControls } from "./Transport";
 
 type PlayerBarProps = {
   /** Starts or pauses playback; needs the library list as filtered on screen, which only the screen knows. */
@@ -33,14 +26,11 @@ export function PlayerBar({ onTogglePlayPause }: PlayerBarProps) {
   const setActiveScreen = useUiStore((state) => state.setActiveScreen);
   const { audioAutoEq, setAudioAutoEq } = useSettingsStore();
   const { equalizerPresets, equalizerPresetId, changePreset } = useEqualizerStore();
-  const { playbackQueueTracks, playbackTrackIndex } = usePlaybackQueueView();
 
   const playbackTrack = tracks.find((track) => track.id === player.playbackTrackId) ?? null;
   const selectedTrack = tracks.find((track) => track.id === selectedTrackId) ?? null;
   const infoTrack = playbackTrack ?? selectedTrack;
 
-  const hasAudio = Boolean(player.audioSrc && player.audioTrackId === player.playbackTrackId);
-  const canSeek = hasAudio && player.duration > 0;
   const isMutedOrZero = player.isMuted || player.volume === 0;
 
   return (
@@ -56,36 +46,8 @@ export function PlayerBar({ onTogglePlayPause }: PlayerBarProps) {
       </div>
 
       <div className="shell__player-center">
-        <div className="shell__transport">
-          <IconButton label={player.isShuffleEnabled ? "Disable shuffle" : "Enable shuffle"} active={player.isShuffleEnabled} onClick={() => player.setIsShuffleEnabled(!player.isShuffleEnabled)}>
-            <IconShuffle />
-          </IconButton>
-          <IconButton label="Previous track" disabled={playbackTrackIndex <= 0} onClick={() => void playPreviousTrack()}>
-            <IconPrev />
-          </IconButton>
-          <IconButton label={player.isPlaying ? "Pause" : "Play"} solid disabled={!infoTrack && !player.audioSrc} onClick={onTogglePlayPause}>
-            {player.isPlaying ? <IconPause /> : <IconPlay />}
-          </IconButton>
-          <IconButton label="Next track" disabled={playbackTrackIndex < 0 || playbackTrackIndex >= playbackQueueTracks.length - 1} onClick={() => void playNextTrack()}>
-            <IconNext />
-          </IconButton>
-          <IconButton label={player.isRepeatTrackEnabled ? "Disable repeat track" : "Enable repeat track"} active={player.isRepeatTrackEnabled} onClick={() => player.setIsRepeatTrackEnabled(!player.isRepeatTrackEnabled)}>
-            <IconRepeatOne />
-          </IconButton>
-        </div>
-        <div className="shell__seek">
-          <span className="shell__time">{formatTime(player.currentTime)}</span>
-          <Slider
-            label="Seek"
-            min={0}
-            max={Math.max(player.duration, 0)}
-            step={0.1}
-            value={Math.min(player.currentTime, player.duration || 0)}
-            disabled={!canSeek}
-            onValueChange={seekTo}
-          />
-          <span className="shell__time">{formatTime(player.duration)}</span>
-        </div>
+        <TransportControls onTogglePlayPause={onTogglePlayPause} />
+        <SeekBar />
         {player.audioError && infoTrack ? (
           <span className="shell__player-error" role="status">{player.audioError}</span>
         ) : null}

@@ -1,40 +1,26 @@
-import { type RefObject, useEffect, useRef } from "react";
-import { Card } from "../components/Card";
-import { getOrCreateMediaAudioGraph, type MediaAudioGraph } from "../utils/audioGraph";
+import { useEffect, useRef } from "react";
+import { audioRef } from "../../audio/audioRef";
+import { usePlayerStore } from "../../store/playerStore";
+import { useSettingsStore } from "../../store/settingsStore";
+import { getOrCreateMediaAudioGraph, type MediaAudioGraph } from "../../utils/audioGraph";
 
-export type VisualizerPresetId = "xp-bars" | "alchemy" | "scope" | "turntable";
-export const VISUALIZER_PRESETS: Array<{ id: VisualizerPresetId; label: string }> = [
-  { id: "scope", label: "Scope Line" },
-  { id: "alchemy", label: "Alchemy" },
-  { id: "xp-bars", label: "XP Bars" },
-  { id: "turntable", label: "Turntable" },
-];
+import type { VisualizerPresetId } from "../../domain/visualizer";
 
-type MusicVisualizerSectionProps = {
-  audioRef: RefObject<HTMLAudioElement | null>;
-  isActive: boolean;
-  hasAudio: boolean;
-  isPlaying: boolean;
-  coverUrl?: string;
-  currentTime: number;
-  duration: number;
-  accentColor: string;
-  isDarkMode: boolean;
+type VisualizerProps = {
   preset: VisualizerPresetId;
+  /** Cover of the track in use (drawn by the turntable preset). */
+  coverUrl?: string;
 };
 
-export function MusicVisualizerSection({
-  audioRef,
-  isActive,
-  hasAudio,
-  isPlaying,
-  coverUrl,
-  currentTime,
-  duration,
-  accentColor,
-  isDarkMode,
-  preset,
-}: MusicVisualizerSectionProps) {
+/** Live audio visualizer drawn on a canvas that fills its container. */
+export function Visualizer({ preset, coverUrl }: VisualizerProps) {
+  const player = usePlayerStore();
+  const colorMode = useSettingsStore((state) => state.colorMode);
+  const accentColor = useSettingsStore((state) => state.accentThemes[state.accentIndex]?.accent ?? "#ee703e");
+  const isDarkMode = colorMode === "dark";
+  const { isPlaying, currentTime, duration } = player;
+  const hasAudio = Boolean(player.audioSrc && player.audioTrackId === player.playbackTrackId);
+  const isActive = true;
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const graphRef = useRef<MediaAudioGraph | null>(null);
@@ -58,7 +44,7 @@ export function MusicVisualizerSection({
     }
     graphRef.current = graph;
     void graph.context.resume();
-  }, [audioRef, isActive]);
+  }, [isActive]);
 
   useEffect(() => {
     currentTimeRef.current = currentTime;
@@ -121,7 +107,7 @@ export function MusicVisualizerSection({
     const drawFrame = () => {
       const width = canvas.width / Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
       const height = canvas.height / Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
-      drawBackground(ctx, width, height, isDarkMode, accentColor);
+      drawBackground(ctx, width, height);
 
       if (!hasAudio) {
         frameRef.current = requestAnimationFrame(drawFrame);
@@ -181,39 +167,21 @@ export function MusicVisualizerSection({
   }, [accentColor, hasAudio, isActive, isDarkMode, isPlaying, preset]);
 
   return (
-    <Card title="Music Visualizer" className="visualizer-card" hideHeader>
-      <div className="visualizer-layout">
-        <div ref={containerRef} className="visualizer-stage">
-          <canvas ref={canvasRef} className="visualizer-canvas" />
-          {!hasAudio && (
-            <div className="visualizer-overlay">
-              <p>No audio loaded</p>
-              <small>Press play to start.</small>
-            </div>
-          )}
+    <div ref={containerRef} className="np-viz">
+      <canvas ref={canvasRef} className="np-viz__canvas" aria-label="Audio visualizer" role="img" />
+      {!hasAudio && (
+        <div className="np-viz__overlay">
+          <p>No audio loaded</p>
+          <small>Press play to start.</small>
         </div>
-      </div>
-    </Card>
+      )}
+    </div>
   );
 }
 
-function drawBackground(
-  ctx: CanvasRenderingContext2D,
-  width: number,
-  height: number,
-  isDarkMode: boolean,
-  accentColor: string
-) {
-  const gradient = ctx.createLinearGradient(0, 0, 0, height);
-  if (isDarkMode) {
-    gradient.addColorStop(0, blendHexColors(accentColor, "#0a1018", 0.28));
-    gradient.addColorStop(1, blendHexColors(accentColor, "#060c13", 0.2));
-  } else {
-    gradient.addColorStop(0, blendHexColors(accentColor, "#eef3fa", 0.22));
-    gradient.addColorStop(1, blendHexColors(accentColor, "#e2ebf7", 0.16));
-  }
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, width, height);
+function drawBackground(ctx: CanvasRenderingContext2D, width: number, height: number) {
+  // Transparent: the frosted pane behind the canvas provides the surface.
+  ctx.clearRect(0, 0, width, height);
 }
 
 function drawAlchemy(
@@ -517,41 +485,4 @@ function withAlpha(color: string, alpha: number): string {
   return color;
 }
 
-function blendHexColors(accentColor: string, baseColor: string, accentWeight: number): string {
-  const accent = parseHexColor(accentColor);
-  const base = parseHexColor(baseColor);
-  if (!accent || !base) {
-    return baseColor;
-  }
-  const weight = Math.max(0, Math.min(1, accentWeight));
-  const r = Math.round(base.r * (1 - weight) + accent.r * weight);
-  const g = Math.round(base.g * (1 - weight) + accent.g * weight);
-  const b = Math.round(base.b * (1 - weight) + accent.b * weight);
-  return `rgb(${r}, ${g}, ${b})`;
-}
 
-function parseHexColor(value: string): { r: number; g: number; b: number } | null {
-  if (!value.startsWith("#")) {
-    return null;
-  }
-  const hex = value.slice(1);
-  if (hex.length === 3) {
-    const r = parseInt(hex[0] + hex[0], 16);
-    const g = parseInt(hex[1] + hex[1], 16);
-    const b = parseInt(hex[2] + hex[2], 16);
-    if ([r, g, b].some((channel) => Number.isNaN(channel))) {
-      return null;
-    }
-    return { r, g, b };
-  }
-  if (hex.length === 6) {
-    const r = parseInt(hex.slice(0, 2), 16);
-    const g = parseInt(hex.slice(2, 4), 16);
-    const b = parseInt(hex.slice(4, 6), 16);
-    if ([r, g, b].some((channel) => Number.isNaN(channel))) {
-      return null;
-    }
-    return { r, g, b };
-  }
-  return null;
-}

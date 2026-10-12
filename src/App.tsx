@@ -19,18 +19,12 @@ import {
 } from "./domain/library";
 import { useDashboardDrag } from "./hooks/useDashboardDrag";
 import { useLibrarySession } from "./hooks/useLibrarySession";
-import { useLyrics } from "./hooks/useLyrics";
+import { } from "./hooks/useLyrics";
 import { } from "./hooks/useTrackTechnicalInfo";
 import {
-  clearPlayerQueue,
-  enqueueTrack,
-  enqueueTracks,
-  loadMoreQueueTracks,
   playFromLibraryCover,
   playPlaylist,
   playTrackFromPlaylist,
-  playTrackFromQueue,
-  removeTrackFromPlayerQueue,
   togglePlayPause,
 } from "./actions/playback";
 import { audioRef } from "./audio/audioRef";
@@ -61,16 +55,16 @@ import {
 import { DashboardSection } from "./sections/DashboardSection";
 import { LibraryInspector } from "./screens/library/LibraryInspector";
 import { LibraryScreen } from "./screens/library/LibraryScreen";
+import { NowPlayingScreen } from "./screens/nowPlaying/NowPlayingScreen";
 import { TagEditorScreen } from "./screens/tagEditor/TagEditorScreen";
 import { } from "./sections/LibrarySection";
-import { PlayerSection } from "./sections/PlayerSection";
 import { RenameSettingsModal } from "./sections/RenameSettingsModal";
 import { SettingsSection } from "./sections/SettingsSection";
 import type { Track } from "./types";
 import { useEqualizerStore } from "./store/equalizerStore";
 import { useLibraryStore } from "./store/libraryStore";
 import { useNavidromeStore } from "./store/navidromeStore";
-import { usePlayerStore } from "./store/playerStore";
+import { } from "./store/playerStore";
 import { useTagEditorStore } from "./store/tagEditorStore";
 import { usePlaylistStore } from "./store/playlistStore";
 import { useSettingsStore } from "./store/settingsStore";
@@ -88,7 +82,7 @@ import { useLibraryView } from "./hooks/useLibraryView";
 import {
   countFoldersAndSubfolders,
 } from "./utils/appHelpers";
-import { getActiveLyricIndex, } from "./utils/lyrics";
+import { } from "./utils/lyrics";
 
 
 export function App() {
@@ -131,9 +125,6 @@ export function App() {
     resetAccentThemes: handleResetAccentThemes,
     colorMode,
     setColorMode,
-    playerColumnVisibility,
-    playerVisualizerPresetId,
-    showPlayerLyricsSection,
   } = useSettingsStore();
   const {
     equalizerPresets,
@@ -182,15 +173,6 @@ export function App() {
     setNavidromeConnectOnOpen,
   } = useNavidromeStore();
   const {
-    playbackTrackId,
-    playbackQueueTrackIds,
-    isPlaying,
-    currentTime,
-    duration,
-    audioSrc,
-    audioTrackId,
-  } = usePlayerStore();
-  const {
     query,
     setQuery,
     librarySortMode,
@@ -215,9 +197,6 @@ export function App() {
   useTagDraftSync();
   const {
     trackById,
-    upcomingTracks: playerQueueUpcomingTracks,
-    historyTracks: playerQueueHistoryTracks,
-    hasMoreUpcomingTracks: hasMorePlayerQueueTracks,
   } = usePlaybackQueueView();
   useLibrarySession(virtualTrackWindow.visibleTracks);
   const dashboardDrag = useDashboardDrag(activeScreen);
@@ -232,15 +211,6 @@ export function App() {
   const canRenameDeleteEqualizerPreset = Boolean(activeEqualizerPreset && !BUILTIN_EQ_PRESET_IDS.has(activeEqualizerPreset.id));
   const libraryGenres = useMemo(() => summarizeGenres(tracks), [tracks]);
 
-  const selectedTrack = tracks.find((t) => t.id === selectedTrackId) ?? null;
-  const playbackTrack = tracks.find((t) => t.id === playbackTrackId) ?? null;
-  const lyricsTrack = playbackTrack ?? selectedTrack;
-  const playerInfoTrack = playbackTrack ?? selectedTrack;
-  const { lines: lyricsLines, isSynced: lyricsIsSynced, status: lyricsStatus } = useLyrics(lyricsTrack);
-  const lyricsActiveIndex = useMemo(
-    () => getActiveLyricIndex(lyricsLines, currentTime),
-    [lyricsLines, currentTime]
-  );
 
   const accentTheme = accentThemes[Math.max(0, accentIndex % Math.max(1, accentThemes.length))] ?? ACCENT_THEMES[0];
   const appStyle: CSSProperties = {
@@ -254,11 +224,6 @@ export function App() {
   const getVisibleTrackIds = () => (activeScreen === "library" ? getVisibleLibraryTracks() : filteredTracks).map((track) => track.id);
   const handleTogglePlayPause = () => togglePlayPause(getVisibleTrackIds());
   const handlePlayTrackFromPlaylist = playTrackFromPlaylist;
-  const handlePlayTrackFromPlayerQueue = playTrackFromQueue;
-  const handleLoadMorePlayerQueueTracks = loadMoreQueueTracks;
-  const handleClearPlayerQueue = clearPlayerQueue;
-  const handleRemoveTrackFromPlayerQueue = removeTrackFromPlayerQueue;
-  const handleEnqueueFilteredTracks = () => enqueueTracks(getVisibleTrackIds());
 
   async function handlePlayFromLibraryCover(event: MouseEvent<HTMLElement>, track: Track) {
     event.stopPropagation();
@@ -290,7 +255,6 @@ export function App() {
     appendTracksToActivePlaylist(filteredTracks.map((track) => track.id));
   }
 
-  const hasAudioLoaded = Boolean(audioSrc && audioTrackId === playbackTrackId);
   const libraryNavidromeProps = {
     isNavidromePanelOpen,
     onToggleNavidromePanel: () => setIsNavidromePanelOpen((prev) => !prev),
@@ -406,90 +370,7 @@ export function App() {
 
       {activeScreen === "library" && <LibraryScreen onTogglePlayPause={handleTogglePlayPause} />}
 
-      {activeScreen === "player" && (
-        <PlayerSection
-          libraryProps={{
-            folderPath,
-            onOpenFolderPathClick: () => {
-              void handleOpenLibraryFolder();
-            },
-            isLoadingScan,
-            onScan: handleScan,
-            ...libraryNavidromeProps,
-            query,
-            onQueryChange: setQuery,
-            libraryViewMode,
-            onLibraryViewModeChange: setLibraryViewMode,
-            isFileSystemView,
-            onFileSystemViewChange: setIsFileSystemView,
-            fileSystemEntries,
-            fileSystemCurrentPath,
-            canGoUpFileSystemFolder,
-            onOpenFileSystemFolder: openFileSystemFolder,
-            onGoUpFileSystemFolder: goUpFileSystemFolder,
-            librarySortMode,
-            librarySortDirection,
-            onLibrarySortClick: handleLibrarySortClick,
-            trackCount: tracks.length,
-            folderCount,
-            trackListRef,
-            onTrackListScroll: handleTrackListScroll,
-            virtualTrackWindow,
-            selectedTrackId,
-            onSelectTrack: selectTrack,
-            onSearchTrack: handleQuickSearchTrack,
-            onTrackAction: (track) => enqueueTrack(track.id),
-            trackActionTitle: "Add track to queue",
-            trackActionAriaLabel: "Add track to queue",
-            onBulkTrackAction: handleEnqueueFilteredTracks,
-            bulkTrackActionTitle: "Add all visible tracks to queue",
-            bulkTrackActionAriaLabel: "Add all visible tracks to queue",
-            onPlayFromLibraryCover: handlePlayFromLibraryCover,
-            IconFolder,
-            IconArrowUp,
-            IconMusicNote,
-            IconSortTitle,
-            IconSortArtist,
-            IconSortAdded,
-            IconSortRelease,
-            IconGrid,
-            IconListCompact,
-            IconPlay,
-            IconSearch,
-            IconTrackAction: IconPlus,
-            IconBulkTrackAction: IconMusicArrowRight,
-          }}
-          audioRef={audioRef}
-          isActive={activeScreen === "player"}
-          hasAudio={hasAudioLoaded}
-          isPlaying={isPlaying}
-          coverUrl={playerInfoTrack?.coverUrl}
-          currentTime={currentTime}
-          duration={duration}
-          accentColor={accentTheme.accent}
-          isDarkMode={colorMode === "dark"}
-          showLibraryColumn={playerColumnVisibility.library}
-          showVisualizerColumn={playerColumnVisibility.visualizer}
-          showQueueColumn={playerColumnVisibility.queue}
-          showLyricsSection={showPlayerLyricsSection}
-          visualizerPresetId={playerVisualizerPresetId}
-          queueHistoryTracks={playerQueueHistoryTracks}
-          queueTracks={playerQueueUpcomingTracks}
-          hasMoreQueueTracks={hasMorePlayerQueueTracks}
-          playbackTrackId={playbackTrackId}
-          onQueueTrackClick={handlePlayTrackFromPlayerQueue}
-          onLoadMoreQueueTracks={handleLoadMorePlayerQueueTracks}
-          onQueueRemoveTrack={handleRemoveTrackFromPlayerQueue}
-          onQueueClear={handleClearPlayerQueue}
-          canClearQueue={playbackQueueTrackIds.length > 0}
-          IconPlay={IconPlay}
-          IconTrash={IconTrash}
-          lyricsStatus={lyricsStatus}
-          lyricsIsSynced={lyricsIsSynced}
-          lyricsLines={lyricsLines}
-          lyricsActiveIndex={lyricsActiveIndex}
-        />
-      )}
+      {activeScreen === "player" && <NowPlayingScreen onTogglePlayPause={handleTogglePlayPause} />}
 
       {activeScreen === "settings" && (
         <SettingsSection

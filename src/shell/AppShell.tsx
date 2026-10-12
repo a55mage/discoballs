@@ -32,7 +32,8 @@ type AppShellProps = {
  */
 export function AppShell({ children, inspector, onBrandClick, onTogglePlayPause, onPlayActivePlaylist }: AppShellProps) {
   useShellShortcuts();
-  const isImmersive = useUiStore((state) => state.isImmersive);
+  // Full-window mode only applies to Now Playing; any other screen shows the whole frame again.
+  const isImmersive = useUiStore((state) => state.isImmersive && state.activeScreen === "player");
   const playbackTrackId = usePlayerStore((state) => state.playbackTrackId);
   const audioSrc = usePlayerStore((state) => state.audioSrc);
   const tracks = useLibraryStore((state) => state.tracks);

@@ -1,0 +1,326 @@
+/* Now Playing: cover / lyrics / visualizer in any combination, queue pane, full-window mode. */
+
+.np {
+  --np-cover: min(420px, 38vw, 52vh);
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+.np--parts-1 {
+  --np-cover: min(560px, 60vw, 64vh);
+}
+.np--parts-3 {
+  --np-cover: min(300px, 24vw, 40vh);
+}
+.np--immersive {
+  --np-cover: min(640px, 44vw, 66vh);
+}
+.np--immersive.np--parts-1 {
+  --np-cover: min(780px, 70vw, 74vh);
+}
+.np--immersive.np--parts-3 {
+  --np-cover: min(420px, 26vw, 48vh);
+}
+.np--empty {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+}
+.np--empty h2 {
+  margin: 0 0 8px;
+  font-size: var(--db-text-3xl);
+  font-weight: 800;
+}
+.np--empty p {
+  max-width: 420px;
+  margin: 0;
+  color: var(--db-ink-2);
+}
+.np__main {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  padding: 16px 28px 20px;
+}
+.np__toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--db-space-3);
+  flex-wrap: wrap;
+}
+.np__toolbar-end {
+  display: flex;
+  align-items: center;
+  gap: var(--db-space-2);
+  margin-left: auto;
+}
+.np__stage {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 36px;
+  min-height: 0;
+  padding-top: 8px;
+}
+.np__cover {
+  flex: 0 1 var(--np-cover);
+  min-width: 140px;
+  width: var(--np-cover);
+}
+.np__cover .db-cover {
+  width: 100%;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.3);
+}
+.np__lyrics {
+  flex: 1 1 0;
+  align-self: stretch;
+  min-width: 180px;
+  min-height: 0;
+}
+.np__viz {
+  flex: 1 1 0;
+  align-self: stretch;
+  min-width: 180px;
+  min-height: 240px;
+  max-height: 100%;
+}
+.np--parts-1 .np__lyrics,
+.np--parts-1 .np__viz {
+  max-width: 900px;
+}
+
+/* ---------- Lyrics ---------- */
+.np-lyrics {
+  position: relative;
+  height: 100%;
+  overflow: auto;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(transparent, #000 14%, #000 86%, transparent);
+  mask-image: linear-gradient(transparent, #000 14%, #000 86%, transparent);
+}
+.np-lyrics::-webkit-scrollbar {
+  display: none;
+}
+.np-lyrics ol {
+  margin: 0;
+  padding: 35% 8px;
+  list-style: none;
+}
+.np-lyrics li {
+  margin: 0 0 14px;
+  color: var(--db-ink-2);
+  font: 700 22px / 1.25 var(--db-font-display);
+  letter-spacing: -0.01em;
+  opacity: 0.85;
+  transition: opacity var(--db-dur) var(--db-ease), color var(--db-dur) var(--db-ease), transform var(--db-dur) var(--db-ease);
+  transform-origin: left center;
+}
+.np-lyrics--synced li {
+  opacity: 0.4;
+}
+.np-lyrics li.is-near {
+  opacity: 0.6;
+}
+.np-lyrics li.is-active {
+  color: var(--db-ink);
+  font-size: 1.5em;
+  opacity: 1;
+}
+.np-lyrics li button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.np-lyrics li button:hover {
+  color: var(--db-ink);
+}
+.np-lyrics li button:focus-visible {
+  outline: none;
+  box-shadow: var(--db-focus);
+  border-radius: 6px;
+}
+.np-lyrics--large li {
+  font-size: 30px;
+}
+.np--parts-1 .np-lyrics li {
+  text-align: center;
+  transform-origin: center;
+}
+.np--parts-1 .np-lyrics li button {
+  text-align: center;
+}
+.np-lyrics--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  color: var(--db-ink-2);
+  text-align: center;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+/* ---------- Visualizer ---------- */
+.np-viz {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 240px;
+  overflow: hidden;
+  border: 1px solid var(--db-line);
+  border-radius: var(--db-radius-xl);
+  background: var(--db-surface-2);
+}
+.np-viz__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.np-viz__overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: 4px;
+  background: color-mix(in srgb, var(--db-solid) 55%, transparent);
+  color: var(--db-ink-2);
+  text-align: center;
+}
+.np-viz__overlay p {
+  margin: 0;
+  font-weight: 700;
+}
+
+/* ---------- Full-window dock ---------- */
+.np__dock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding-top: 8px;
+}
+.np__dock-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  text-align: center;
+}
+.np__dock-info strong {
+  font-size: 26px;
+  font-weight: 800;
+}
+.np__dock-info span {
+  color: var(--db-ink-2);
+}
+.np__dock .shell__seek {
+  max-width: 760px;
+}
+
+/* ---------- Queue ---------- */
+.np-queue {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  width: 340px;
+  min-height: 0;
+}
+.np-queue__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 16px 8px 18px;
+}
+.np-queue__head h2 {
+  margin: 0;
+  font-size: var(--db-text-lg);
+  font-weight: 800;
+}
+.np-queue__scroll {
+  flex: 1;
+  min-height: 0;
+  padding: 4px 10px 14px;
+  overflow: auto;
+}
+.np-queue__scroll ul {
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+.np-queue__row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-right: 4px;
+  border-radius: var(--db-radius-md);
+}
+.np-queue__row:hover {
+  background: var(--db-hover);
+}
+.np-queue__row.is-current {
+  background: var(--db-accent-soft);
+}
+.np-queue__row.is-history {
+  opacity: 0.6;
+}
+.np-queue__play {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  gap: 10px;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--db-radius-md);
+  background: none;
+  color: var(--db-ink);
+  text-align: left;
+  cursor: pointer;
+}
+.np-queue__play:focus-visible {
+  outline: none;
+  box-shadow: var(--db-focus);
+}
+.np-queue__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.np-queue__title,
+.np-queue__artist {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.np-queue__title {
+  font-size: 13.5px;
+  font-weight: 700;
+}
+.np-queue__artist {
+  color: var(--db-ink-2);
+  font-size: var(--db-text-xs);
+}
+.np-queue__empty {
+  padding: 24px 12px;
+  color: var(--db-ink-2);
+  text-align: center;
+}
+
+@media (max-width: 1100px) {
+  .np-queue {
+    display: none;
+  }
+}

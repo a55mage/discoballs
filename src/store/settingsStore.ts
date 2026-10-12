@@ -1,8 +1,10 @@
 import { create } from "zustand";
-import type { VisualizerPresetId } from "../sections/MusicVisualizerSection";
+import { normalizeNowPlayingParts, type NowPlayingPart, type VisualizerPresetId } from "../domain/visualizer";
 import { ACCENT_THEMES, buildSoftAccent, buildStrongAccent, type AccentTheme } from "../domain/theme";
 import { RENAME_FIELD_KEYS } from "../domain/rename";
-import type { PlayerColumnVisibility, RenameField, StartupScreen } from "../types";
+import type { RenameField, StartupScreen } from "../types";
+
+type PlayerColumnVisibility = { library: boolean; visualizer: boolean; queue: boolean };
 import { readJson, readString, writeJson, writeString } from "./storage";
 
 export type ColorMode = "light" | "dark";
@@ -11,6 +13,8 @@ export type ListDensity = "comfortable" | "compact";
 const KEYS = {
   colorMode: "musicmanager-color-mode",
   playerColumns: "musicmanager-player-columns",
+  nowPlayingShow: "musicmanager-now-playing-show",
+  nowPlayingQueue: "musicmanager-now-playing-queue",
   visualizerPreset: "musicmanager-player-visualizer-preset",
   showLyrics: "musicmanager-player-show-lyrics",
   startupScreen: "musicmanager-startup-screen",
@@ -62,7 +66,25 @@ export function normalizeAccentThemes(value: unknown): AccentTheme[] | null {
   return normalized.length ? normalized : null;
 }
 
-export function normalizePlayerColumns(value: unknown): PlayerColumnVisibility | null {
+/**
+ * Layout of the Now Playing screen. Versions before 2.0 stored column toggles (`player-columns`,
+ * `player-show-lyrics`); they are mapped to the new "parts" so nobody has to set it up again.
+ */
+function loadNowPlayingLayout(): Pick<SettingsState, "nowPlayingShow" | "nowPlayingQueue"> {
+  const savedShow = readJson(KEYS.nowPlayingShow);
+  const savedQueue = readString(KEYS.nowPlayingQueue);
+  if (Array.isArray(savedShow)) {
+    return { nowPlayingShow: normalizeNowPlayingParts(savedShow), nowPlayingQueue: savedQueue !== "false" };
+  }
+  const legacy = normalizePlayerColumns(readJson(KEYS.playerColumns));
+  const legacyLyrics = readString(KEYS.showLyrics) !== "false";
+  const parts: NowPlayingPart[] = ["cover"];
+  if (legacyLyrics) parts.push("lyrics");
+  if (legacy?.visualizer) parts.push("viz");
+  return { nowPlayingShow: normalizeNowPlayingParts(parts), nowPlayingQueue: legacy ? legacy.queue : savedQueue !== "false" };
+}
+
+function normalizePlayerColumns(value: unknown): PlayerColumnVisibility | null {
   if (!value || typeof value !== "object") {
     return null;
   }
@@ -98,9 +120,10 @@ export type SettingsState = {
   accentRotateOnLaunch: boolean;
   renameFields: RenameField[];
   renameSeparator: string;
-  playerColumnVisibility: PlayerColumnVisibility;
+  /** Which parts the Now Playing screen shows (at least one). */
+  nowPlayingShow: NowPlayingPart[];
+  nowPlayingQueue: boolean;
   playerVisualizerPresetId: VisualizerPresetId;
-  showPlayerLyricsSection: boolean;
   audioAutoEq: boolean;
   audioNormalizeVolume: boolean;
   audioSmartCrossfade: boolean;
@@ -123,8 +146,8 @@ export type SettingsState = {
   setRenameSeparator: (separator: string) => void;
   toggleRenameField: (field: RenameField) => void;
   moveRenameField: (field: RenameField, direction: -1 | 1) => void;
-  togglePlayerColumn: (column: keyof PlayerColumnVisibility) => void;
-  toggleShowPlayerLyrics: () => void;
+  setNowPlayingShow: (parts: NowPlayingPart[]) => void;
+  setNowPlayingQueue: (value: boolean) => void;
   setPlayerVisualizerPresetId: (id: VisualizerPresetId) => void;
   setAudioAutoEq: (value: boolean) => void;
   setAudioNormalizeVolume: (value: boolean) => void;
@@ -155,9 +178,9 @@ function loadInitialState(): Pick<
   | "accentRotateOnLaunch"
   | "renameFields"
   | "renameSeparator"
-  | "playerColumnVisibility"
+  | "nowPlayingShow"
+  | "nowPlayingQueue"
   | "playerVisualizerPresetId"
-  | "showPlayerLyricsSection"
   | "audioAutoEq"
   | "audioNormalizeVolume"
   | "audioSmartCrossfade"
@@ -190,15 +213,10 @@ function loadInitialState(): Pick<
     accentRotateOnLaunch,
     renameFields: normalizeRenameFields(readJson(KEYS.renameFields)) ?? [...DEFAULT_RENAME_FIELDS],
     renameSeparator: readString(KEYS.renameSeparator) ?? DEFAULT_RENAME_SEPARATOR,
-    playerColumnVisibility: normalizePlayerColumns(readJson(KEYS.playerColumns)) ?? {
-      library: true,
-      visualizer: true,
-      queue: true,
-    },
+    ...loadNowPlayingLayout(),
     playerVisualizerPresetId: VISUALIZER_IDS.includes(savedVisualizer as VisualizerPresetId)
       ? (savedVisualizer as VisualizerPresetId)
       : "scope",
-    showPlayerLyricsSection: readString(KEYS.showLyrics) !== "false",
     audioAutoEq: readString(KEYS.autoEq) === "true",
     audioNormalizeVolume: readString(KEYS.normalizeVolume) === "true",
     audioSmartCrossfade: readString(KEYS.smartCrossfade) === "true",
@@ -277,24 +295,8 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
       return { renameFields };
     }),
 
-  togglePlayerColumn: (column) =>
-    set((state) => {
-      const playerColumnVisibility = { ...state.playerColumnVisibility, [column]: !state.playerColumnVisibility[column] };
-      const { library, visualizer, queue } = playerColumnVisibility;
-      if (!library && !visualizer && !queue && !state.showPlayerLyricsSection) {
-        return state;
-      }
-      return { playerColumnVisibility };
-    }),
-  toggleShowPlayerLyrics: () =>
-    set((state) => {
-      const next = !state.showPlayerLyricsSection;
-      const { library, visualizer, queue } = state.playerColumnVisibility;
-      if (!next && !library && !visualizer && !queue) {
-        return state;
-      }
-      return { showPlayerLyricsSection: next };
-    }),
+  setNowPlayingShow: (parts) => set({ nowPlayingShow: normalizeNowPlayingParts(parts) }),
+  setNowPlayingQueue: (nowPlayingQueue) => set({ nowPlayingQueue }),
   setPlayerVisualizerPresetId: (playerVisualizerPresetId) => set({ playerVisualizerPresetId }),
 
   setAudioAutoEq: (audioAutoEq) => set({ audioAutoEq }),
@@ -315,9 +317,9 @@ function persistAll(state: SettingsState): void {
   writeString(KEYS.accentRotate, String(state.accentRotateOnLaunch));
   writeJson(KEYS.renameFields, state.renameFields);
   writeString(KEYS.renameSeparator, state.renameSeparator);
-  writeJson(KEYS.playerColumns, state.playerColumnVisibility);
+  writeJson(KEYS.nowPlayingShow, state.nowPlayingShow);
+  writeString(KEYS.nowPlayingQueue, String(state.nowPlayingQueue));
   writeString(KEYS.visualizerPreset, state.playerVisualizerPresetId);
-  writeString(KEYS.showLyrics, String(state.showPlayerLyricsSection));
   writeString(KEYS.autoEq, String(state.audioAutoEq));
   writeString(KEYS.normalizeVolume, String(state.audioNormalizeVolume));
   writeString(KEYS.smartCrossfade, String(state.audioSmartCrossfade));
@@ -341,9 +343,9 @@ useSettingsStore.subscribe((state, previous) => {
   if (state.accentRotateOnLaunch !== previous.accentRotateOnLaunch) writeString(KEYS.accentRotate, String(state.accentRotateOnLaunch));
   if (state.renameFields !== previous.renameFields) writeJson(KEYS.renameFields, state.renameFields);
   if (state.renameSeparator !== previous.renameSeparator) writeString(KEYS.renameSeparator, state.renameSeparator);
-  if (state.playerColumnVisibility !== previous.playerColumnVisibility) writeJson(KEYS.playerColumns, state.playerColumnVisibility);
+  if (state.nowPlayingShow !== previous.nowPlayingShow) writeJson(KEYS.nowPlayingShow, state.nowPlayingShow);
+  if (state.nowPlayingQueue !== previous.nowPlayingQueue) writeString(KEYS.nowPlayingQueue, String(state.nowPlayingQueue));
   if (state.playerVisualizerPresetId !== previous.playerVisualizerPresetId) writeString(KEYS.visualizerPreset, state.playerVisualizerPresetId);
-  if (state.showPlayerLyricsSection !== previous.showPlayerLyricsSection) writeString(KEYS.showLyrics, String(state.showPlayerLyricsSection));
   if (state.audioAutoEq !== previous.audioAutoEq) writeString(KEYS.autoEq, String(state.audioAutoEq));
   if (state.audioNormalizeVolume !== previous.audioNormalizeVolume) writeString(KEYS.normalizeVolume, String(state.audioNormalizeVolume));
   if (state.audioSmartCrossfade !== previous.audioSmartCrossfade) writeString(KEYS.smartCrossfade, String(state.audioSmartCrossfade));
