@@ -233,6 +233,11 @@ export const tauriAdapter: MusicAdapter = {
     });
   },
 
+  async renameFile(path: string, fileName: string): Promise<SaveTrackResult> {
+    const invoke = getInvoke();
+    return await invoke<SaveTrackResult>("rename_file", { path, fileName });
+  },
+
   async searchOnline(query: SearchQuery): Promise<OnlineMatch[]> {
     const invoke = getInvoke();
     const result = await invoke<TauriOnlineMatch[]>("search_online", { query });

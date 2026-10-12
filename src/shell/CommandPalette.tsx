@@ -1,5 +1,6 @@
 import { type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from "react";
 import { scanLibraryWithPicker, selectTrack } from "../actions/library";
+import { undoLast, undoWithToast } from "../actions/history";
 import { playNextTrack, playPreviousTrack } from "../actions/playback";
 import { useLibraryStore } from "../store/libraryStore";
 import { usePlayerStore } from "../store/playerStore";
@@ -61,6 +62,8 @@ export function CommandPalette({ onTogglePlayPause }: CommandPaletteProps) {
       command("play", isPlaying ? "Pause" : "Play", onTogglePlayPause),
       command("next", "Next track", () => void playNextTrack()),
       command("prev", "Previous track", () => void playPreviousTrack()),
+      command("undo", "Undo last tag change", () => void undoWithToast(undoLast)),
+      command("history", "Show change history", () => useUiStore.getState().setHistoryOpen(true)),
       command("fullwindow", "Full window Now Playing", () => {
         setActiveScreen("player");
         useUiStore.getState().setImmersive(true);

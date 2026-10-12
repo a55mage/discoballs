@@ -6,6 +6,8 @@ import { useUiStore } from "../store/uiStore";
 import { cx } from "../ui";
 import { Backdrop } from "./Backdrop";
 import { CommandPalette } from "./CommandPalette";
+import { FilenameTagsDialog } from "./FilenameTagsDialog";
+import { HistoryDialog } from "./HistoryDialog";
 import { Header } from "./Header";
 import { NavidromeDialog } from "./NavidromeDialog";
 import { Toast } from "./Toast";
@@ -57,6 +59,8 @@ export function AppShell({ children, inspector, onBrandClick, onTogglePlayPause 
       {!isImmersive ? <PlayerBar onTogglePlayPause={onTogglePlayPause} /> : null}
       <CommandPalette onTogglePlayPause={onTogglePlayPause} />
       <NavidromeDialog />
+      <HistoryDialog />
+      <FilenameTagsDialog />
       <Toast />
       {/* Always mounted so playback survives immersive mode and screen changes. */}
       <audio ref={audioRef as RefObject<HTMLAudioElement>} src={audioSrc || undefined} preload="metadata" />

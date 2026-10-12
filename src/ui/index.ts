@@ -7,6 +7,7 @@ export { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from ".
 export { Chip, type ChipProps } from "./components/Chip";
 export { Cover, type CoverProps } from "./components/Cover";
 export { CoverMosaic, type CoverMosaicProps } from "./components/CoverMosaic";
+export { Dialog, type DialogProps } from "./components/Dialog";
 export { Field, Select, TextInput, type SelectProps, type TextInputProps } from "./components/Field";
 export { IconButton, type IconButtonProps } from "./components/IconButton";
 export { Segmented, ToggleGroup, type SegmentedOption } from "./components/Segmented";

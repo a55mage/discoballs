@@ -28,6 +28,8 @@ export type PlaylistState = CoreState & {
   appendTracks: (trackIds: string[]) => void;
   moveEntry: (draggedEntryId: string, targetEntryId?: string | null) => void;
   removeEntry: (entryId: string) => void;
+  /** A track file was renamed: its entries in every playlist follow it. */
+  retargetTrack: (oldTrackId: string, newTrackId: string) => void;
 };
 
 /** Keeps the active playlist valid, mirroring what the UI expects after any change. */
@@ -229,6 +231,20 @@ export const usePlaylistStore = create<PlaylistState>()((set, get) => {
 
     removeEntry: (entryId) =>
       updateActive((playlist) => ({ ...playlist, entries: playlist.entries.filter((entry) => entry.id !== entryId) })),
+
+    retargetTrack: (oldTrackId, newTrackId) =>
+      update((state) => {
+        if (!state.playlists.some((playlist) => playlist.entries.some((entry) => entry.trackId === oldTrackId))) {
+          return state;
+        }
+        return {
+          ...state,
+          playlists: state.playlists.map((playlist) => ({
+            ...playlist,
+            entries: playlist.entries.map((entry) => (entry.trackId === oldTrackId ? { ...entry, trackId: newTrackId } : entry)),
+          })),
+        };
+      }),
   };
 });
 

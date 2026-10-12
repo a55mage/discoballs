@@ -188,6 +188,14 @@ export const mockAdapter: MusicAdapter = {
     return { path: nextPath };
   },
 
+  async renameFile(path: string, fileName: string): Promise<SaveTrackResult> {
+    await wait(120);
+    const baseDir = path.slice(0, path.lastIndexOf("/") + 1);
+    const nextPath = `${baseDir}${fileName}`;
+    tracks = tracks.map((track) => (track.path === path ? { ...track, id: nextPath, path: nextPath } : track));
+    return { path: nextPath };
+  },
+
   async getAudioSource(_track: Track): Promise<string> {
     return getMockToneUrl();
   },

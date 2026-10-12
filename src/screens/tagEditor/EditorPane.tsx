@@ -32,7 +32,7 @@ type EditorPaneProps = {
 export function EditorPane({ saved, draft, changes }: EditorPaneProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { renameFields, renameSeparator } = useSettingsStore();
-  const { setActiveScreen, setSettingsTab } = useUiStore();
+  const { setActiveScreen, setSettingsTab, setHistoryOpen, setFilenameTags } = useUiStore();
   const info = useTrackTechnicalInfo(draft);
   const changed = new Set(changes.map((change) => change.field));
   const isRemote = draft.source?.type === "navidrome";
@@ -91,6 +91,9 @@ export function EditorPane({ saved, draft, changes }: EditorPaneProps) {
                 </div>
               ))}
             </div>
+            <Button size="sm" className="tag-fromname" disabled={isRemote} onClick={() => setFilenameTags({ ids: [saved.id], mode: "draft" })}>
+              Fill from file name…
+            </Button>
             {isRemote ? <p className="tag-note">Tracks of a Navidrome server are read-only.</p> : null}
           </div>
         </div>
@@ -122,6 +125,7 @@ export function EditorPane({ saved, draft, changes }: EditorPaneProps) {
         <span className="tag-editor__status" role="status">
           {hasChanges ? `${changes.length} unsaved ${changes.length === 1 ? "change" : "changes"}: ${changes.map((change) => change.label).join(", ")}` : "No unsaved changes"}
         </span>
+        <Button size="sm" variant="ghost" onClick={() => setHistoryOpen(true)}>History</Button>
         <Button disabled={!hasChanges} onClick={revertDraft}>Revert</Button>
         <Button icon={<IconSave />} disabled={isRemote || !hasChanges} onClick={() => void saveTrackTags()}>Save tags</Button>
         <Button variant="primary" icon={<IconSaveRename />} disabled={isRemote || (!hasChanges && !willRename)} onClick={() => void saveTrackTagsAndRename()}>

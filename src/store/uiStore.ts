@@ -5,20 +5,28 @@ import { fieldSetter, type Setter } from "./util";
 
 export type SettingsTab = "general" | "audio" | "appearance" | "renaming" | "library";
 
-export type Toast = { id: number; message: string; tone: "info" | "success" | "error" };
+export type FilenameTagsRequest = { ids: string[]; mode: "write" | "draft" };
+
+export type ToastAction = { label: string; run: () => void };
+export type Toast = { id: number; message: string; tone: "info" | "success" | "error"; action?: ToastAction };
 
 export type UiState = {
   activeScreen: AppScreen;
   isPaletteOpen: boolean;
+  isHistoryOpen: boolean;
+  /** Set while the "tags from file names" dialog is open. */
+  filenameTags: FilenameTagsRequest | null;
   settingsTab: SettingsTab;
   /** Full-window mode: only the content is shown, without sidebar, header and player bar. */
   isImmersive: boolean;
   toast: Toast | null;
   setActiveScreen: Setter<AppScreen>;
   setPaletteOpen: Setter<boolean>;
+  setHistoryOpen: Setter<boolean>;
+  setFilenameTags: Setter<FilenameTagsRequest | null>;
   setSettingsTab: Setter<SettingsTab>;
   setImmersive: Setter<boolean>;
-  showToast: (message: string, tone?: Toast["tone"]) => void;
+  showToast: (message: string, tone?: Toast["tone"], action?: ToastAction) => void;
   dismissToast: () => void;
 };
 
@@ -28,18 +36,22 @@ let toastTimer: ReturnType<typeof setTimeout> | undefined;
 export const useUiStore = create<UiState>()((set) => ({
   activeScreen: useSettingsStore.getState().startupScreen,
   isPaletteOpen: false,
+  isHistoryOpen: false,
+  filenameTags: null,
   settingsTab: "general",
   isImmersive: false,
   toast: null,
   setActiveScreen: fieldSetter(set, "activeScreen"),
   setPaletteOpen: fieldSetter(set, "isPaletteOpen"),
+  setHistoryOpen: fieldSetter(set, "isHistoryOpen"),
+  setFilenameTags: fieldSetter(set, "filenameTags"),
   setSettingsTab: fieldSetter(set, "settingsTab"),
   setImmersive: fieldSetter(set, "isImmersive"),
-  showToast: (message, tone = "info") => {
+  showToast: (message, tone = "info", action) => {
     toastCounter += 1;
     clearTimeout(toastTimer);
-    set({ toast: { id: toastCounter, message, tone } });
-    toastTimer = setTimeout(() => set({ toast: null }), tone === "error" ? 6000 : 3200);
+    set({ toast: { id: toastCounter, message, tone, action } });
+    toastTimer = setTimeout(() => set({ toast: null }), action ? 9000 : tone === "error" ? 6000 : 3200);
   },
   dismissToast: () => {
     clearTimeout(toastTimer);

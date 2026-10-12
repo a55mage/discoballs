@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { IconClose, IconPlay, IconPlus, IconQueue, IconTag } from "../../components/icons";
-import { applyBatchEdit, type BatchPatch } from "../../actions/batchEdit";
+import { applyBatchEdit, describeBatchResult, type BatchPatch } from "../../actions/batchEdit";
+import { undoLast, undoWithToast } from "../../actions/history";
 import { clearSelection } from "../../actions/librarySelection";
 import { searchOnlineForTrack } from "../../actions/library";
 import { enqueueTrack, enqueueTracks, playFromLibraryCover } from "../../actions/playback";
@@ -46,6 +47,7 @@ export function LibraryInspector() {
 function SingleTrack({ track, issues, visibleIds }: { track: Track; issues: string[]; visibleIds: string[] }) {
   const setActiveScreen = useUiStore((state) => state.setActiveScreen);
   const showToast = useUiStore((state) => state.showToast);
+  const setFilenameTags = useUiStore((state) => state.setFilenameTags);
   const appendTracks = usePlaylistStore((state) => state.appendTracks);
   const info = useTrackTechnicalInfo(track);
   const title = track.title || track.path.replace(/\\/g, "/").split("/").pop() || "Untitled";
@@ -91,6 +93,7 @@ function SingleTrack({ track, issues, visibleIds }: { track: Track; issues: stri
           >
             Playlist
           </Button>
+          <Button size="sm" onClick={() => setFilenameTags({ ids: [track.id], mode: "write" })}>Tags from file name…</Button>
         </div>
 
         {issues.length ? (
@@ -130,6 +133,7 @@ function SingleTrack({ track, issues, visibleIds }: { track: Track; issues: stri
 
 function BatchEditor({ tracks }: { tracks: Track[] }) {
   const showToast = useUiStore((state) => state.showToast);
+  const setFilenameTags = useUiStore((state) => state.setFilenameTags);
   const appendTracks = usePlaylistStore((state) => state.appendTracks);
   const [patch, setPatch] = useState<BatchPatch>({});
   const [autoNumber, setAutoNumber] = useState(false);
@@ -151,12 +155,8 @@ function BatchEditor({ tracks }: { tracks: Track[] }) {
     setBusy(null);
     setPatch({});
     setAutoNumber(false);
-    const skipped = result.skippedRemote ? ` · ${result.skippedRemote} remote skipped` : "";
-    if (result.failed.length) {
-      showToast(`${result.updated} updated, ${result.failed.length} failed: ${result.failed[0].error}${skipped}`, "error");
-    } else {
-      showToast(`${result.updated} ${result.updated === 1 ? "track" : "tracks"} updated${skipped}`, "success");
-    }
+    const summary = describeBatchResult(result);
+    showToast(summary.message, summary.tone, result.updated ? { label: "Undo", run: () => void undoWithToast(undoLast) } : undefined);
   }
 
   return (
@@ -192,6 +192,9 @@ function BatchEditor({ tracks }: { tracks: Track[] }) {
       </label>
       <Button variant="primary" block disabled={!hasChanges || busy !== null} onClick={() => void apply()}>
         {busy ? `Saving ${busy.done}/${busy.total}…` : `Apply to ${tracks.length} tracks`}
+      </Button>
+      <Button block disabled={busy !== null} onClick={() => setFilenameTags({ ids: tracks.map((track) => track.id), mode: "write" })}>
+        Tags from file names…
       </Button>
       <Button
         block

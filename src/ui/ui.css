@@ -460,3 +460,57 @@ select.db-input {
   flex: none;
   gap: var(--db-space-2);
 }
+
+/* ---------- Dialog ---------- */
+.db-dialog-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.db-dialog-scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 10, 14, 0.55);
+}
+.db-dialog {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 100%;
+  padding: 20px;
+  border: 1px solid var(--db-line);
+  border-radius: 20px;
+  background: var(--db-solid);
+  color: var(--db-ink);
+  box-shadow: var(--db-shadow);
+  outline: none;
+}
+.db-dialog__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--db-space-3);
+}
+.db-dialog__head h2 {
+  margin: 0;
+  font-size: var(--db-text-2xl);
+  font-weight: 800;
+}
+.db-dialog__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  overflow: auto;
+}
+.db-dialog__foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--db-space-2);
+}

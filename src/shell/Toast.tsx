@@ -1,6 +1,6 @@
 import { IconCheck, IconClose, IconInfo } from "../components/icons";
 import { useUiStore } from "../store/uiStore";
-import { IconButton, cx } from "../ui";
+import { Button, IconButton, cx } from "../ui";
 
 /** Short confirmation or error message at the bottom of the window. */
 export function Toast() {
@@ -13,6 +13,19 @@ export function Toast() {
         <div key={toast.id} className={cx("shell__toast", `shell__toast--${toast.tone}`)}>
           {toast.tone === "success" ? <IconCheck aria-hidden="true" /> : <IconInfo aria-hidden="true" />}
           <span>{toast.message}</span>
+          {toast.action ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="shell__toast-action"
+              onClick={() => {
+                toast.action?.run();
+                dismiss();
+              }}
+            >
+              {toast.action.label}
+            </Button>
+          ) : null}
           <IconButton label="Dismiss" size="sm" onClick={dismiss}><IconClose /></IconButton>
         </div>
       ) : null}

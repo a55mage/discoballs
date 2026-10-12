@@ -410,6 +410,39 @@ fn rename_track(input: SaveTrackInput) -> Result<SaveTrackOutput, String> {
     })
 }
 
+/// A file name must stay inside the folder of the file it renames.
+fn validate_file_name(name: &str) -> Result<(), String> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() || trimmed == "." || trimmed == ".." {
+        return Err("The file name is empty".to_string());
+    }
+    if trimmed.len() > 255 || trimmed.contains(['/', '\\', '\0']) {
+        return Err("The file name is not valid".to_string());
+    }
+    Ok(())
+}
+
+/// Renames a file inside its own folder (used to restore a name after an undo).
+#[tauri::command]
+fn rename_file(path: String, file_name: String) -> Result<SaveTrackOutput, String> {
+    let original = PathBuf::from(&path);
+    if !original.exists() {
+        return Err(format!("File not found: {path}"));
+    }
+    validate_file_name(&file_name)?;
+    let target = original.with_file_name(file_name.trim());
+    if target == original {
+        return Ok(SaveTrackOutput { path });
+    }
+    if target.exists() {
+        return Err(format!("A file named {} already exists", file_name.trim()));
+    }
+    fs::rename(&original, &target).map_err(|e| format!("File rename error: {e}"))?;
+    Ok(SaveTrackOutput {
+        path: target.to_string_lossy().to_string(),
+    })
+}
+
 #[tauri::command]
 fn get_audio_data_url(path: String) -> Result<String, String> {
     let bytes = fs::read(&path).map_err(|e| format!("Audio read error: {e}"))?;
@@ -1385,6 +1418,7 @@ fn main() {
             navidrome_get_cover_data_url,
             save_track,
             rename_track,
+            rename_file,
             get_audio_data_url,
             get_track_technical_info,
             open_external_url,
@@ -1397,6 +1431,35 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn file_names_cannot_leave_their_folder() {
+        assert!(validate_file_name("01 - Song.mp3").is_ok());
+        assert!(validate_file_name("  ").is_err());
+        assert!(validate_file_name("..").is_err());
+        assert!(validate_file_name("../evil.mp3").is_err());
+        assert!(validate_file_name("a\\b.mp3").is_err());
+    }
+
+    #[test]
+    fn rename_file_moves_within_the_folder_and_never_overwrites() {
+        let dir = std::env::temp_dir().join(format!("discoballs-rename-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let first = dir.join("a.mp3");
+        let second = dir.join("b.mp3");
+        fs::write(&first, b"1").unwrap();
+        fs::write(&second, b"2").unwrap();
+
+        let renamed = rename_file(first.to_string_lossy().to_string(), "c.mp3".to_string()).unwrap();
+        assert!(PathBuf::from(&renamed.path).ends_with("c.mp3"));
+        assert!(!first.exists());
+
+        let clash = rename_file(renamed.path.clone(), "b.mp3".to_string());
+        assert!(clash.is_err());
+        assert!(second.exists());
+        assert!(rename_file(renamed.path.clone(), "../x.mp3".to_string()).is_err());
+        let _ = fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn primary_tag_type_matches_scanned_audio_formats() {

@@ -24,6 +24,8 @@ export interface MusicAdapter {
     removeCover?: boolean
   ): Promise<SaveTrackResult>;
   renameTrack(path: string, update: TrackUpdate, renameConfig: RenameConfig): Promise<SaveTrackResult>;
+  /** Renames a file inside its folder to an exact name (used to restore a name when undoing). */
+  renameFile(path: string, fileName: string): Promise<SaveTrackResult>;
   getAudioSource(track: Track): Promise<string>;
   getTrackTechnicalInfo(path: string): Promise<TrackTechnicalInfo | null>;
   getTrackCoverSource(track: Track): Promise<string | null>;
