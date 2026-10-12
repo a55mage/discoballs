@@ -14,6 +14,7 @@ export type UiState = {
   activeScreen: AppScreen;
   isPaletteOpen: boolean;
   isHistoryOpen: boolean;
+  isDuplicatesOpen: boolean;
   /** Set while the "tags from file names" dialog is open. */
   filenameTags: FilenameTagsRequest | null;
   settingsTab: SettingsTab;
@@ -23,6 +24,7 @@ export type UiState = {
   setActiveScreen: Setter<AppScreen>;
   setPaletteOpen: Setter<boolean>;
   setHistoryOpen: Setter<boolean>;
+  setDuplicatesOpen: Setter<boolean>;
   setFilenameTags: Setter<FilenameTagsRequest | null>;
   setSettingsTab: Setter<SettingsTab>;
   setImmersive: Setter<boolean>;
@@ -37,6 +39,7 @@ export const useUiStore = create<UiState>()((set) => ({
   activeScreen: useSettingsStore.getState().startupScreen,
   isPaletteOpen: false,
   isHistoryOpen: false,
+  isDuplicatesOpen: false,
   filenameTags: null,
   settingsTab: "general",
   isImmersive: false,
@@ -44,6 +47,7 @@ export const useUiStore = create<UiState>()((set) => ({
   setActiveScreen: fieldSetter(set, "activeScreen"),
   setPaletteOpen: fieldSetter(set, "isPaletteOpen"),
   setHistoryOpen: fieldSetter(set, "isHistoryOpen"),
+  setDuplicatesOpen: fieldSetter(set, "isDuplicatesOpen"),
   setFilenameTags: fieldSetter(set, "filenameTags"),
   setSettingsTab: fieldSetter(set, "settingsTab"),
   setImmersive: fieldSetter(set, "isImmersive"),

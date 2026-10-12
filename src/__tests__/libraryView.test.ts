@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   buildFolderEntries,
   countHealth,
+  duplicateKey,
+  findDuplicateGroups,
+  suggestKeep,
   findDuplicateIds,
   getIdRange,
   getTrackIssues,
@@ -139,5 +142,43 @@ describe("buildFolderEntries", () => {
   it("filters entries by query", () => {
     expect(buildFolderEntries(tracks, "/Music", [], "three")).toEqual([]);
     expect(buildFolderEntries(tracks, "/Music", ["B"], "three")).toHaveLength(1);
+  });
+});
+
+describe("duplicate groups", () => {
+  it("builds groups and honours ignored ones", () => {
+    const tracks = [
+      track("1", { title: "Afterimage", artist: "Velvet" }),
+      track("2", { title: "AFTERIMAGE", artist: "velvet" }),
+      track("3", { title: "Other", artist: "X" }),
+      track("4", { title: "Other", artist: "X" }),
+    ];
+    const groups = findDuplicateGroups(tracks);
+    expect(groups.map((group) => [group.key, group.tracks.length])).toEqual([
+      ["afterimage|velvet", 2],
+      ["other|x", 2],
+    ]);
+    expect([...findDuplicateIds(tracks, new Set(["other|x"]))].sort()).toEqual(["1", "2"]);
+    expect(duplicateKey(track("5", { title: "", artist: "A" }))).toBeNull();
+  });
+
+  it("suggests keeping the lossless, complete, non-copy file", () => {
+    const flac = track("a", { path: "/m/a.flac" });
+    const mp3 = track("b", { path: "/m/b.mp3" });
+    expect(suggestKeep({ key: "k", tracks: [mp3, flac] })).toBe(flac);
+
+    const complete = track("c", { path: "/m/c.mp3" });
+    const bare = track("d", { path: "/m/d.mp3", hasCover: false, genre: "", year: "" });
+    expect(suggestKeep({ key: "k", tracks: [bare, complete] })).toBe(complete);
+
+    const copy = track("e", { path: "/m/Album (copy)/e.mp3", album: "Album (copy)" });
+    const original = track("f", { path: "/m/Album/f.mp3" });
+    expect(suggestKeep({ key: "k", tracks: [copy, original] })).toBe(original);
+  });
+
+  it("keeps the first track when nothing tells them apart", () => {
+    const one = track("1", { path: "/m/1.mp3" });
+    const two = track("2", { path: "/m/2.mp3" });
+    expect(suggestKeep({ key: "k", tracks: [one, two] })).toBe(one);
   });
 });

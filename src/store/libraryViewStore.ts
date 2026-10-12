@@ -1,12 +1,13 @@
 import { create } from "zustand";
 import type { HealthFilter, LibraryScope, LibraryTab, SortDirection, SortKey } from "../domain/libraryView";
-import { readString, writeString } from "./storage";
+import { readJson, readString, writeJson, writeString } from "./storage";
 import { fieldSetter, type Setter } from "./util";
 
 const KEYS = {
   tab: "musicmanager-library-tab",
   sortKey: "musicmanager-library-sort-key",
   sortDirection: "musicmanager-library-sort-direction",
+  ignoredDuplicates: "musicmanager-ignored-duplicates",
 } as const;
 
 const TABS: LibraryTab[] = ["tracks", "albums", "artists", "folders"];
@@ -25,6 +26,8 @@ export type LibraryViewState = {
   anchorId: string;
   /** Position in the Folders tab, relative to the library root. */
   folderSegments: string[];
+  /** Duplicate groups (see `duplicateKey`) the user marked as "not duplicates". */
+  ignoredDuplicates: string[];
 
   setTab: Setter<LibraryTab>;
   setQuery: Setter<string>;
@@ -34,6 +37,8 @@ export type LibraryViewState = {
   setFolderSegments: Setter<string[]>;
   /** Same key again reverses the direction, a new key starts ascending. */
   clickSort: (key: SortKey) => void;
+  ignoreDuplicateGroup: (key: string) => void;
+  resetIgnoredDuplicates: () => void;
 };
 
 export const useLibraryViewStore = create<LibraryViewState>()((set) => {
@@ -49,6 +54,7 @@ export const useLibraryViewStore = create<LibraryViewState>()((set) => {
     selectedIds: [],
     anchorId: "",
     folderSegments: [],
+    ignoredDuplicates: Array.isArray(readJson(KEYS.ignoredDuplicates)) ? (readJson(KEYS.ignoredDuplicates) as unknown[]).filter((item): item is string => typeof item === "string") : [],
 
     setTab: fieldSetter(set, "tab"),
     setQuery: fieldSetter(set, "query"),
@@ -56,6 +62,8 @@ export const useLibraryViewStore = create<LibraryViewState>()((set) => {
     setScope: fieldSetter(set, "scope"),
     setSelection: (selectedIds, anchorId) => set((state) => ({ selectedIds, anchorId: anchorId ?? state.anchorId })),
     setFolderSegments: fieldSetter(set, "folderSegments"),
+    ignoreDuplicateGroup: (key) => set((state) => (state.ignoredDuplicates.includes(key) ? state : { ignoredDuplicates: [...state.ignoredDuplicates, key] })),
+    resetIgnoredDuplicates: () => set({ ignoredDuplicates: [] }),
     clickSort: (key) =>
       set((state) =>
         state.sortKey === key
@@ -69,4 +77,5 @@ useLibraryViewStore.subscribe((state, previous) => {
   if (state.tab !== previous.tab) writeString(KEYS.tab, state.tab);
   if (state.sortKey !== previous.sortKey) writeString(KEYS.sortKey, state.sortKey);
   if (state.sortDirection !== previous.sortDirection) writeString(KEYS.sortDirection, state.sortDirection);
+  if (state.ignoredDuplicates !== previous.ignoredDuplicates) writeJson(KEYS.ignoredDuplicates, state.ignoredDuplicates);
 });

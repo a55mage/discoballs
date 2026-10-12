@@ -6,6 +6,7 @@ import { useUiStore } from "../store/uiStore";
 import { cx } from "../ui";
 import { Backdrop } from "./Backdrop";
 import { CommandPalette } from "./CommandPalette";
+import { DuplicatesDialog } from "./DuplicatesDialog";
 import { FilenameTagsDialog } from "./FilenameTagsDialog";
 import { HistoryDialog } from "./HistoryDialog";
 import { Header } from "./Header";
@@ -60,6 +61,7 @@ export function AppShell({ children, inspector, onBrandClick, onTogglePlayPause 
       <CommandPalette onTogglePlayPause={onTogglePlayPause} />
       <NavidromeDialog />
       <HistoryDialog />
+      <DuplicatesDialog />
       <FilenameTagsDialog />
       <Toast />
       {/* Always mounted so playback survives immersive mode and screen changes. */}

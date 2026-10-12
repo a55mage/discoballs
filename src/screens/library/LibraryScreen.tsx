@@ -11,6 +11,7 @@ import { useLibraryViewStore } from "../../store/libraryViewStore";
 import { useNavidromeStore } from "../../store/navidromeStore";
 import { usePlayerStore } from "../../store/playerStore";
 import { useSettingsStore } from "../../store/settingsStore";
+import { useUiStore } from "../../store/uiStore";
 import type { Track } from "../../types";
 import { Button, Chip, IconButton, Segmented, TextInput } from "../../ui";
 import { AlbumGrid, ArtistList, FolderBrowser } from "./CollectionViews";
@@ -36,6 +37,7 @@ export function LibraryScreen({ onTogglePlayPause }: LibraryScreenProps) {
   const { playbackTrackId, isPlaying } = usePlayerStore();
   const { listDensity, setListDensity } = useSettingsStore();
   const setNavidromePanelOpen = useNavidromeStore((state) => state.setIsNavidromePanelOpen);
+  const setDuplicatesOpen = useUiStore((state) => state.setDuplicatesOpen);
   const { tracks, visibleTracks, unscopedTracks, duplicateIds, health } = useVisibleTracks();
 
   const albums = useMemo(() => summarizeAlbums(unscopedTracks), [unscopedTracks]);
@@ -101,6 +103,9 @@ export function LibraryScreen({ onTogglePlayPause }: LibraryScreenProps) {
               {chip.label}
             </Chip>
           ))}
+          {health.duplicates > 0 ? (
+            <Button size="sm" variant="ghost" onClick={() => setDuplicatesOpen(true)}>Review duplicates…</Button>
+          ) : null}
           {view.scope ? (
             <Chip on onClick={() => view.setScope(null)} aria-label={`Remove filter ${scopeLabel}`}>
               {scopeLabel}

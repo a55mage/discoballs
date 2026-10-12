@@ -27,25 +27,48 @@ export function hasAllTags(track: Track): boolean {
   return hasCoreTags(track) && Boolean(track.genre.trim() && track.year.trim());
 }
 
-/** Ids of tracks that share title and artist with another track. */
-export function findDuplicateIds(tracks: Track[]): Set<string> {
-  const groups = new Map<string, string[]>();
+/** Key shared by tracks that look like the same song: title and artist, ignoring case. Null for untitled tracks. */
+export function duplicateKey(track: Track): string | null {
+  const title = track.title.trim().toLowerCase();
+  const artist = track.artist.trim().toLowerCase();
+  return title && artist ? `${title}|${artist}` : null;
+}
+
+export type DuplicateGroup = { key: string; tracks: Track[] };
+
+/** Groups of two or more tracks with the same title and artist (except the groups the user marked as not duplicates). */
+export function findDuplicateGroups(tracks: Track[], ignoredKeys: ReadonlySet<string> = new Set()): DuplicateGroup[] {
+  const groups = new Map<string, Track[]>();
   for (const track of tracks) {
-    const title = track.title.trim().toLowerCase();
-    const artist = track.artist.trim().toLowerCase();
-    if (!title || !artist) {
-      continue;
-    }
-    const key = `${title}|${artist}`;
-    groups.set(key, [...(groups.get(key) ?? []), track.id]);
-  }
-  const duplicates = new Set<string>();
-  for (const ids of groups.values()) {
-    if (ids.length > 1) {
-      ids.forEach((id) => duplicates.add(id));
+    const key = duplicateKey(track);
+    if (key && !ignoredKeys.has(key)) {
+      groups.set(key, [...(groups.get(key) ?? []), track]);
     }
   }
-  return duplicates;
+  return [...groups.entries()].filter(([, list]) => list.length > 1).map(([key, list]) => ({ key, tracks: list }));
+}
+
+/** Ids of tracks that share title and artist with another track. */
+export function findDuplicateIds(tracks: Track[], ignoredKeys: ReadonlySet<string> = new Set()): Set<string> {
+  const ids = new Set<string>();
+  for (const group of findDuplicateGroups(tracks, ignoredKeys)) {
+    group.tracks.forEach((track) => ids.add(track.id));
+  }
+  return ids;
+}
+
+const FORMAT_QUALITY: Record<string, number> = { FLAC: 5, WAV: 5, AIFF: 5, ALAC: 5, M4A: 3, AAC: 3, OPUS: 3, OGG: 3, MP3: 2 };
+
+/** Which track of a group is the one to keep: lossless first, then complete tags and cover, then not a "copy". */
+export function suggestKeep(group: DuplicateGroup): Track {
+  const score = (track: Track, index: number): number => {
+    let value = (FORMAT_QUALITY[getFormat(track)] ?? 1) * 10;
+    if (hasCover(track)) value += 4;
+    if (hasAllTags(track)) value += 4;
+    if (/\b(copy|copia|duplicate)\b|\(\d+\)/i.test(`${track.path} ${track.album}`)) value -= 6;
+    return value - index * 0.01;
+  };
+  return group.tracks.reduce((best, track, index) => (score(track, index) > score(best, group.tracks.indexOf(best)) ? track : best), group.tracks[0]);
 }
 
 export function getTrackIssues(track: Track, duplicateIds: Set<string>): TrackIssue[] {

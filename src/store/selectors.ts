@@ -49,14 +49,17 @@ export function getEditableTrack(): Track | null {
 }
 
 let cachedDuplicateTracks: Track[] | null = null;
+let cachedIgnored: string[] | null = null;
 let cachedDuplicateIds = new Set<string>();
 
-/** Ids of tracks that look duplicated; recomputed only when the track list changes. */
+/** Ids of tracks that look duplicated; recomputed only when the track list or the ignored groups change. */
 export function getDuplicateIds(): Set<string> {
   const { tracks } = useLibraryStore.getState();
-  if (tracks !== cachedDuplicateTracks) {
+  const { ignoredDuplicates } = useLibraryViewStore.getState();
+  if (tracks !== cachedDuplicateTracks || ignoredDuplicates !== cachedIgnored) {
     cachedDuplicateTracks = tracks;
-    cachedDuplicateIds = findDuplicateIds(tracks);
+    cachedIgnored = ignoredDuplicates;
+    cachedDuplicateIds = findDuplicateIds(tracks, new Set(ignoredDuplicates));
   }
   return cachedDuplicateIds;
 }

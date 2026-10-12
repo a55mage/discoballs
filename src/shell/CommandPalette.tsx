@@ -63,6 +63,7 @@ export function CommandPalette({ onTogglePlayPause }: CommandPaletteProps) {
       command("next", "Next track", () => void playNextTrack()),
       command("prev", "Previous track", () => void playPreviousTrack()),
       command("undo", "Undo last tag change", () => void undoWithToast(undoLast)),
+      command("duplicates", "Review duplicates", () => useUiStore.getState().setDuplicatesOpen(true)),
       command("history", "Show change history", () => useUiStore.getState().setHistoryOpen(true)),
       command("fullwindow", "Full window Now Playing", () => {
         setActiveScreen("player");

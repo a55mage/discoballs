@@ -6,9 +6,9 @@ import { useLibraryViewStore } from "../store/libraryViewStore";
 /** The library as the Tracks tab shows it, plus the health information that drives filters and badges. */
 export function useVisibleTracks() {
   const tracks = useLibraryStore((state) => state.tracks);
-  const { query, filter, scope, sortKey, sortDirection } = useLibraryViewStore();
+  const { query, filter, scope, sortKey, sortDirection, ignoredDuplicates } = useLibraryViewStore();
 
-  const duplicateIds = useMemo(() => findDuplicateIds(tracks), [tracks]);
+  const duplicateIds = useMemo(() => findDuplicateIds(tracks, new Set(ignoredDuplicates)), [tracks, ignoredDuplicates]);
   const health = useMemo(() => countHealth(tracks, duplicateIds), [tracks, duplicateIds]);
   const visibleTracks = useMemo(
     () => getVisibleTracks(tracks, { query, filter, scope, sortKey, sortDirection }, duplicateIds),
