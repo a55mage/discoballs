@@ -111,7 +111,17 @@ export function TrackTable({
   const visible = tracks.slice(range.start, range.end);
 
   return (
-    <div className={cx("lib-table", `lib-table--${density}`)} role="grid" aria-label="Tracks" aria-multiselectable="true" aria-rowcount={tracks.length + 1}>
+    <div
+      className={cx("lib-table", `lib-table--${density}`)}
+      role="grid"
+      aria-label="Tracks"
+      aria-multiselectable="true"
+      aria-rowcount={tracks.length + 1}
+      tabIndex={0}
+      aria-activedescendant={cursorId ? `lib-row-${cursorId}` : undefined}
+      onKeyDown={onKeyDown}
+    >
+      <div role="rowgroup">
       <div className="lib-row lib-row--head" role="row">
         <div role="columnheader" className="lib-cell lib-cell--check">
           <button type="button" className={cx("lib-check", allSelected && "is-on")} role="checkbox" aria-checked={allSelected} aria-label="Select all tracks" onClick={onToggleAll}>
@@ -134,14 +144,9 @@ export function TrackTable({
         <div role="columnheader" className="lib-cell lib-cell--fav"><span className="db-sr-only">Favorite</span></div>
         <div role="columnheader" className="lib-cell lib-cell--status"><span className="db-sr-only">Issues</span></div>
       </div>
+      </div>
 
-      <div
-        ref={scrollRef}
-        className="lib-scroll"
-        tabIndex={0}
-        aria-activedescendant={cursorId ? `lib-row-${cursorId}` : undefined}
-        onKeyDown={onKeyDown}
-      >
+      <div ref={scrollRef} className="lib-scroll" role="rowgroup">
         <div style={{ height: range.offsetTop }} aria-hidden="true" />
         {visible.map((track, offset) => {
           const index = range.start + offset;

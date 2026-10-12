@@ -69,12 +69,12 @@ export function Dialog({ open, onClose, title, width = 560, className, children,
     <div className="db-dialog-layer" onKeyDown={onKeyDown}>
       <div className="db-dialog-scrim" onClick={onClose} aria-hidden="true" />
       <div ref={panelRef} className={cx("db-dialog", className)} style={{ width: `min(${width}px, 100%)` }} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
-        <header className="db-dialog__head">
+        <div className="db-dialog__head">
           <h2 id={titleId} className="db-text-display">{title}</h2>
           <IconButton label="Close" data-dialog-close="" onClick={onClose}><IconClose /></IconButton>
-        </header>
+        </div>
         <div className="db-dialog__body">{children}</div>
-        {footer ? <footer className="db-dialog__foot">{footer}</footer> : null}
+        {footer ? <div className="db-dialog__foot">{footer}</div> : null}
       </div>
     </div>
   );

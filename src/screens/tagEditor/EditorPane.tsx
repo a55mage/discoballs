@@ -121,17 +121,17 @@ export function EditorPane({ saved, draft, changes }: EditorPaneProps) {
         </section>
       </div>
 
-      <footer className="tag-editor__bar">
-        <span className="tag-editor__status" role="status">
+      <div className="tag-editor__bar">
+        <span className="tag-editor__status" role="status" title={hasChanges ? changes.map((change) => change.label).join(", ") : undefined}>
           {hasChanges ? `${changes.length} unsaved ${changes.length === 1 ? "change" : "changes"}: ${changes.map((change) => change.label).join(", ")}` : "No unsaved changes"}
         </span>
         <Button size="sm" variant="ghost" onClick={() => setHistoryOpen(true)}>History</Button>
-        <Button disabled={!hasChanges} onClick={revertDraft}>Revert</Button>
-        <Button icon={<IconSave />} disabled={isRemote || !hasChanges} onClick={() => void saveTrackTags()}>Save tags</Button>
-        <Button variant="primary" icon={<IconSaveRename />} disabled={isRemote || (!hasChanges && !willRename)} onClick={() => void saveTrackTagsAndRename()}>
+        <Button size="sm" disabled={!hasChanges} onClick={revertDraft}>Revert</Button>
+        <Button size="sm" icon={<IconSave />} disabled={isRemote || !hasChanges} onClick={() => void saveTrackTags()}>Save tags</Button>
+        <Button size="sm" variant="primary" icon={<IconSaveRename />} disabled={isRemote || (!hasChanges && !willRename)} onClick={() => void saveTrackTagsAndRename()}>
           Save &amp; rename
         </Button>
-      </footer>
+      </div>
     </div>
   );
 }

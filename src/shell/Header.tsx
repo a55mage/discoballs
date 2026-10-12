@@ -19,10 +19,10 @@ export function Header() {
         <p data-tauri-drag-region>{meta.subtitle}</p>
       </div>
 
-      <button type="button" className="shell__search" onClick={() => setPaletteOpen(true)} aria-label="Search tracks and commands" aria-keyshortcuts="Control+K Meta+K">
+      <button type="button" className="shell__search" onClick={() => setPaletteOpen(true)} aria-keyshortcuts="Control+K Meta+K">
         <IconSearch aria-hidden="true" />
         <span>Search tracks, commands…</span>
-        <kbd>{COMMAND_KEY_LABEL}</kbd>
+        <kbd aria-hidden="true">{COMMAND_KEY_LABEL}</kbd>
       </button>
 
       <div className="shell__header-actions">

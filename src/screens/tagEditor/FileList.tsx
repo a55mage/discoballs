@@ -36,12 +36,12 @@ export function FileList({ dirty }: FileListProps) {
         <Chip on={onlyIssues} onClick={() => setOnlyIssues((value) => !value)}>Needs attention</Chip>
       </header>
       <div ref={scrollRef} className="tag-files__scroll">
-        <ul role="listbox" aria-label="Tracks" style={{ paddingTop: range.offsetTop, paddingBottom: range.offsetBottom }}>
+        <ul aria-label="Tracks" style={{ paddingTop: range.offsetTop, paddingBottom: range.offsetBottom }}>
           {items.slice(range.start, range.end).map(({ track, issues }) => {
             const isSelected = track.id === selectedTrackId;
             return (
-              <li key={track.id} role="option" aria-selected={isSelected}>
-                <button type="button" className={cx("tag-file", isSelected && "is-selected")} style={{ height: ROW_HEIGHT }} onClick={() => selectTrack(track)}>
+              <li key={track.id}>
+                <button type="button" className={cx("tag-file", isSelected && "is-selected")} style={{ height: ROW_HEIGHT }} aria-current={isSelected || undefined} onClick={() => selectTrack(track)}>
                   <Cover size={36} radius={8} src={track.coverUrl} />
                   <span className="tag-file__text">
                     <span className="tag-file__title">{track.title || fileName(track.path)}</span>

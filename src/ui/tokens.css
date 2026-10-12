@@ -6,6 +6,12 @@
 @import "@fontsource-variable/manrope";
 @import "@fontsource-variable/syne";
 
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 :root {
   /* Typography */
   --db-font-sans: "Manrope Variable", "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;

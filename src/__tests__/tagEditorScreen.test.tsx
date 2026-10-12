@@ -86,16 +86,16 @@ describe("TagEditorScreen", () => {
 
   it("lists files and flags the ones that need attention", () => {
     render(<Harness />);
-    const options = screen.getAllByRole("option");
+    const options = within(screen.getByRole("list", { name: "Tracks" })).getAllByRole("listitem");
     expect(options).toHaveLength(2);
     expect(within(options[1]).getByRole("img", { name: /No cover, No genre/ })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Needs attention" }));
-    expect(screen.getAllByRole("option")).toHaveLength(1);
+    expect(within(screen.getByRole("list", { name: "Tracks" })).getAllByRole("listitem")).toHaveLength(1);
   });
 
   it("opens a track from the list and fills the form", () => {
     render(<Harness />);
-    fireEvent.click(within(screen.getAllByRole("option")[0]).getByRole("button"));
+    fireEvent.click(within(within(screen.getByRole("list", { name: "Tracks" })).getAllByRole("listitem")[0]).getByRole("button"));
     expect((screen.getByLabelText("Title") as HTMLInputElement).value).toBe("Song 1");
     expect((screen.getByLabelText("Genre") as HTMLInputElement).value).toBe("Rock");
     expect(screen.getByText("No unsaved changes")).toBeTruthy();

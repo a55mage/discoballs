@@ -267,14 +267,17 @@
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-  padding: 14px 28px;
+  padding: 10px 20px;
   border-top: 1px solid var(--db-line);
 }
 .tag-editor__status {
   flex: 1;
-  min-width: 160px;
+  min-width: 70px;
+  overflow: hidden;
   color: var(--db-ink-2);
   font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ---------- Online matches ---------- */

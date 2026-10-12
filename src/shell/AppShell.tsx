@@ -52,6 +52,7 @@ export function AppShell({ children, inspector, onBrandClick, onTogglePlayPause 
       {!isImmersive ? <Header /> : null}
 
       <main className="shell__content">
+        {isImmersive ? <h1 className="db-sr-only">Now Playing</h1> : null}
         <div className="shell__screen">
           <div className="shell__screen-body">{children}</div>
         </div>

@@ -10,42 +10,47 @@ DiscoBalls helps you manage local audio libraries (MP3/FLAC and other supported 
 - Desktop shell: Tauri 2
 - Native backend: Rust
 - Audio metadata engine: `lofty` (Rust)
+- State: Zustand; design system in `src/ui`
+- Tests: Vitest + Testing Library (frontend), `cargo test` (backend)
 - Online metadata sources: MusicBrainz, iTunes
 - Landing page: static HTML/CSS/JS in `docs/` for GitHub Pages
 
 ## Core App Functions
-- Library scan:
-  - Select a local music folder
-  - Recursively scan supported audio files
-  - Read and display existing tags and embedded cover art
-- Track editing:
-  - Edit title, artist, album, track number, year, genre
-  - Save tags directly to the selected file
-  - Save tags and optional cover art in one action
-- Online lookup:
-  - Search metadata by title/artist/album
-  - Preview multiple online matches
-  - Apply metadata to the selected track
-  - Apply and save directly from each result card
-- File renaming:
-  - Rename using configurable field order
-  - Custom separator support
-  - Preview output filename before rename
-- UI utilities:
-  - Compact and card library views
-  - Accent color cycling
-  - Light/Dark mode toggle with persisted preference
+- Library:
+  - Scan a local folder recursively; read tags, embedded covers and technical info
+  - Browse by tracks, albums, artists or folders; sort, filter, favorites and star ratings
+  - Library health filters: missing cover, missing tags, duplicates (reviewed, never deleted)
+- Tagging:
+  - Edit title, artist, album, track number, year, genre and cover art; save to the file
+  - Batch edit many tracks, read tags from file names, auto-number tracks
+  - Online lookup (MusicBrainz, iTunes) per track, or match a whole album to a MusicBrainz release
+  - Every change is recorded; undo a single edit or a whole batch
+  - Rename files with configurable field order and separator, with a live preview
+- Playback:
+  - Now Playing with cover, lyrics and visualizer, alone or combined, plus a full-window mode
+  - Queue, playlists with drag-and-drop, Equalizer Studio, Auto EQ by genre, ReplayGain volume normalization
+  - Navidrome (Subsonic) servers
+- Interface:
+  - One frosted frame (sidebar, header, player bar) around the content, light and dark themes
+  - Dynamic background tinted by the current cover (optional), accent palette, command palette (Cmd/Ctrl+K)
 
 ## Repository Structure
 - `src/`: React application
 - `src-tauri/`: Tauri + Rust backend commands
 - `docs/`: GitHub Pages landing and release download page
+- `docs-dev/`: architecture notes and the manual regression checklist
 
 ## Run Desktop (Tauri)
 ```bash
-cd /Users/riccardomacis/Progetti/musicmanager/web
 npm install
 npm run tauri:dev
+```
+
+## Test
+```bash
+npm test
+npx tsc --noEmit
+(cd src-tauri && cargo test)
 ```
 
 ## Build
@@ -61,10 +66,10 @@ npm run tauri:build
    - `src-tauri/tauri.conf.json`
    - any user-visible version string in UI/docs
 2. Push changes to `main`.
-3. Create and push a tag in `vX.Y.Z` format (example: `v1.5.0`):
+3. Create and push a tag in `vX.Y.Z` format (example: `v2.0.0`):
 ```bash
-git tag v1.5.0
-git push origin v1.5.0
+git tag v2.0.0
+git push origin v2.0.0
 ```
 4. GitHub Action `.github/workflows/tauri-build.yml` will:
    - build bundles for macOS, Windows, Linux

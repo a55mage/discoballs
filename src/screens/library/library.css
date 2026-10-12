@@ -108,7 +108,10 @@
   overflow: auto;
   outline: none;
 }
-.lib-scroll:focus-visible {
+.lib-table {
+  outline: none;
+}
+.lib-table:focus-visible {
   box-shadow: inset var(--db-focus);
   border-radius: var(--db-radius-md);
 }

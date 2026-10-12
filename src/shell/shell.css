@@ -1033,3 +1033,7 @@ body {
   display: flex;
   justify-content: flex-end;
 }
+
+.dup__group li.is-keep .db-badge {
+  color: var(--db-ink);
+}
