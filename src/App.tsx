@@ -53,6 +53,7 @@ import { SettingsSection } from "./sections/SettingsSection";
 import { TopBarSection } from "./sections/TopBarSection";
 import { TrackDetailsSection } from "./sections/TrackDetailsSection";
 import type { AppScreen, NavidromeBookmark, NavidromeConnectionInput, OnlineMatch, RenameField, SearchQuery, Track, TrackTechnicalInfo } from "./types";
+import { useEqualizerStore } from "./store/equalizerStore";
 import { usePlaylistStore } from "./store/playlistStore";
 import { useSettingsStore } from "./store/settingsStore";
 import { BUILTIN_EQ_PRESET_IDS, buildUniqueEqualizerPresetName } from "./domain/equalizer";
@@ -214,15 +215,6 @@ export function App() {
     moveEntry: movePlaylistEntry,
     removeEntry: removePlaylistEntry,
   } = usePlaylistStore();
-  const [genreEqPresetMap, setGenreEqPresetMap] = useState<Record<string, string>>({});
-  const [equalizerPresets, setEqualizerPresets] = useState<EqualizerPreset[]>(EQUALIZER_PRESETS.map((preset) => ({ ...preset, bandGains: [...preset.bandGains] })));
-  const [equalizerPresetId, setEqualizerPresetId] = useState(DEFAULT_EQUALIZER_PRESET.id);
-  const [startupEqualizerPresetId, setStartupEqualizerPresetId] = useState("");
-  const [equalizerPresetName, setEqualizerPresetName] = useState(DEFAULT_EQUALIZER_PRESET.name);
-  const [equalizerBandGains, setEqualizerBandGains] = useState<number[]>([...DEFAULT_EQUALIZER_PRESET.bandGains]);
-  const [equalizerPreampDb, setEqualizerPreampDb] = useState(0);
-  const [equalizerWetMixPercent, setEqualizerWetMixPercent] = useState(100);
-  const [isEqualizerPresetRenaming, setIsEqualizerPresetRenaming] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isShuffleEnabled, setIsShuffleEnabled] = useState(false);
   const [isRepeatTrackEnabled, setIsRepeatTrackEnabled] = useState(false);
@@ -275,6 +267,32 @@ export function App() {
     showPlayerLyricsSection,
     toggleShowPlayerLyrics: handleTogglePlayerLyricsSection,
   } = useSettingsStore();
+  const {
+    equalizerPresets,
+    equalizerPresetId,
+    startupEqualizerPresetId,
+    equalizerPresetName,
+    equalizerBandGains,
+    equalizerPreampDb,
+    equalizerWetMixPercent,
+    isEqualizerPresetRenaming,
+    genreEqPresetMap,
+    setEqualizerPresetIdRaw,
+    setStartupEqualizerPresetId,
+    setEqualizerPresetName,
+    setEqualizerPreampDb,
+    setEqualizerWetMixPercent,
+    setEqualizerBandGain: handleEqualizerBandGainChange,
+    changePreset: handleEqualizerPresetChange,
+    applyPreset: applyEqualizerPreset,
+    setGenreEqPreset: handleGenreEqPresetChange,
+    syncGenreEqMap,
+    createPreset: handleCreateEqualizerPreset,
+    savePreset: handleSaveEqualizerPreset,
+    renameButtonClick: handleRenameEqualizerPresetButtonClick,
+    deletePreset: handleDeleteEqualizerPreset,
+    reset: handleResetEqualizer,
+  } = useEqualizerStore();
   const [isDashboardDragging, setIsDashboardDragging] = useState(false);
   const [dashboardDropArea, setDashboardDropArea] = useState<"none" | "dropzone" | "playlist">("none");
   const [dashboardDropEntryId, setDashboardDropEntryId] = useState("");
@@ -559,23 +577,6 @@ export function App() {
       }
     }
 
-    const savedGenreEqMap = window.localStorage.getItem("musicmanager-genre-eq-map");
-    if (savedGenreEqMap) {
-      try {
-        const parsed = JSON.parse(savedGenreEqMap) as Record<string, unknown>;
-        if (parsed && typeof parsed === "object") {
-          const normalized = Object.fromEntries(
-            Object.entries(parsed)
-              .filter(([genreKey, presetId]) => typeof genreKey === "string" && typeof presetId === "string")
-              .map(([genreKey, presetId]) => [genreKey, presetId as string])
-          );
-          setGenreEqPresetMap(normalized);
-        }
-      } catch {
-        // Ignore invalid stored genre map.
-      }
-    }
-
     const savedShuffle = window.localStorage.getItem("musicmanager-player-shuffle");
     if (savedShuffle === "true") {
       setIsShuffleEnabled(true);
@@ -584,111 +585,6 @@ export function App() {
     const savedRepeatTrack = window.localStorage.getItem("musicmanager-player-repeat-track");
     if (savedRepeatTrack === "true") {
       setIsRepeatTrackEnabled(true);
-    }
-
-    let restoredEqPresets = EQUALIZER_PRESETS.map((preset) => ({ ...preset, bandGains: [...preset.bandGains] }));
-    const savedEqPresets = window.localStorage.getItem("musicmanager-eq-presets");
-    if (savedEqPresets) {
-      try {
-        const parsed = JSON.parse(savedEqPresets);
-        if (Array.isArray(parsed) && parsed.length) {
-          const normalized = parsed
-            .map((item) => {
-              if (!item || typeof item !== "object") {
-                return null;
-              }
-              const candidate = item as Record<string, unknown>;
-              const id = typeof candidate.id === "string" ? candidate.id.trim() : "";
-              const name = typeof candidate.name === "string" ? candidate.name.trim() : "";
-              const bandGainsRaw = Array.isArray(candidate.bandGains) ? candidate.bandGains : null;
-              if (!id || !name || !bandGainsRaw || bandGainsRaw.length !== EQUALIZER_FREQUENCIES.length) {
-                return null;
-              }
-              const bandGains = bandGainsRaw.map((value) => {
-                const numeric = Number(value);
-                if (!Number.isFinite(numeric)) {
-                  return 0;
-                }
-                return Math.max(-12, Math.min(12, numeric));
-              });
-              const preampDbRaw = Number(candidate.preampDb);
-              const wetMixRaw = Number(candidate.wetMixPercent);
-              return {
-                id,
-                name,
-                bandGains,
-                preampDb: Number.isFinite(preampDbRaw) ? Math.max(-12, Math.min(12, preampDbRaw)) : 0,
-                wetMixPercent: Number.isFinite(wetMixRaw) ? Math.max(0, Math.min(100, Math.round(wetMixRaw))) : 100,
-              } satisfies EqualizerPreset;
-            })
-            .filter((item): item is EqualizerPreset => Boolean(item));
-          if (normalized.length) {
-            const mergedBuiltins = EQUALIZER_PRESETS.map((preset) => ({ ...preset, bandGains: [...preset.bandGains] }));
-            const customPresets = normalized.filter((preset) => !BUILTIN_EQ_PRESET_IDS.has(preset.id));
-            restoredEqPresets = [...mergedBuiltins, ...customPresets];
-          }
-        }
-      } catch {
-        // Ignore invalid persisted presets.
-      }
-    }
-    setEqualizerPresets(restoredEqPresets);
-
-    const savedStartupEqPresetId = window.localStorage.getItem("musicmanager-startup-eq-preset-id") || "";
-    const startupEqPreset = restoredEqPresets.find((preset) => preset.id === savedStartupEqPresetId) ?? null;
-    if (startupEqPreset) {
-      setStartupEqualizerPresetId(startupEqPreset.id);
-      setEqualizerPresetId(startupEqPreset.id);
-      setEqualizerPresetName(startupEqPreset.name);
-      setEqualizerBandGains([...startupEqPreset.bandGains]);
-      setEqualizerPreampDb(startupEqPreset.preampDb);
-      setEqualizerWetMixPercent(startupEqPreset.wetMixPercent);
-    } else {
-      setStartupEqualizerPresetId("");
-      const savedEqPresetId = window.localStorage.getItem("musicmanager-eq-preset-id");
-      if (savedEqPresetId && restoredEqPresets.some((preset) => preset.id === savedEqPresetId)) {
-        setEqualizerPresetId(savedEqPresetId);
-      }
-
-      const savedEqPresetName = window.localStorage.getItem("musicmanager-eq-preset-name");
-      if (savedEqPresetName) {
-        setEqualizerPresetName(savedEqPresetName);
-      }
-
-      const savedEqBandGains = window.localStorage.getItem("musicmanager-eq-band-gains");
-      if (savedEqBandGains) {
-        try {
-          const parsed = JSON.parse(savedEqBandGains);
-          if (Array.isArray(parsed) && parsed.length === EQUALIZER_FREQUENCIES.length) {
-            const nextValues = parsed.map((value) => {
-              const numeric = Number(value);
-              if (!Number.isFinite(numeric)) {
-                return 0;
-              }
-              return Math.max(-12, Math.min(12, numeric));
-            });
-            setEqualizerBandGains(nextValues);
-          }
-        } catch {
-          // Ignore invalid stored EQ values.
-        }
-      }
-
-      const savedEqPreamp = window.localStorage.getItem("musicmanager-eq-preamp-db");
-      if (savedEqPreamp !== null) {
-        const numeric = Number(savedEqPreamp);
-        if (Number.isFinite(numeric)) {
-          setEqualizerPreampDb(Math.max(-12, Math.min(12, numeric)));
-        }
-      }
-
-      const savedEqWetMix = window.localStorage.getItem("musicmanager-eq-wet-mix");
-      if (savedEqWetMix !== null) {
-        const numeric = Number(savedEqWetMix);
-        if (Number.isFinite(numeric)) {
-          setEqualizerWetMixPercent(Math.max(0, Math.min(100, Math.round(numeric))));
-        }
-      }
     }
 
     const savedLibrarySnapshot = window.localStorage.getItem("musicmanager-library-snapshot");
@@ -817,55 +713,7 @@ export function App() {
   }, [playbackPlaylistId, playlists]);
 
   useEffect(() => {
-    if (!equalizerPresetId) {
-      return;
-    }
-    const stillExists = equalizerPresets.some((preset) => preset.id === equalizerPresetId);
-    if (!stillExists) {
-      setEqualizerPresetId("");
-      setIsEqualizerPresetRenaming(false);
-    }
-  }, [equalizerPresetId, equalizerPresets]);
-
-  useEffect(() => {
-    if (!startupEqualizerPresetId) {
-      return;
-    }
-    if (!equalizerPresets.some((preset) => preset.id === startupEqualizerPresetId)) {
-      setStartupEqualizerPresetId("");
-    }
-  }, [startupEqualizerPresetId, equalizerPresets]);
-
-  useEffect(() => {
-    const presetIdSet = new Set(equalizerPresets.map((preset) => preset.id));
-    setGenreEqPresetMap((prev) => {
-      let changed = false;
-      const next: Record<string, string> = { ...prev };
-
-      for (const [genreKey, presetId] of Object.entries(next)) {
-        if (presetId && !presetIdSet.has(presetId)) {
-          next[genreKey] = "";
-          changed = true;
-        }
-      }
-
-      for (const genre of libraryGenres) {
-        if (next[genre.key] !== undefined) {
-          continue;
-        }
-        const inferredPresetId = inferGenrePresetId(genre.label);
-        next[genre.key] = presetIdSet.has(inferredPresetId) ? inferredPresetId : "";
-        changed = true;
-      }
-
-      if (next[NO_GENRE_EQ_KEY] === undefined) {
-        const inferredDefaultPresetId = inferGenrePresetId("");
-        next[NO_GENRE_EQ_KEY] = presetIdSet.has(inferredDefaultPresetId) ? inferredDefaultPresetId : "";
-        changed = true;
-      }
-
-      return changed ? next : prev;
-    });
+    syncGenreEqMap(libraryGenres);
   }, [equalizerPresets, libraryGenres]);
 
   useEffect(() => {
@@ -899,12 +747,7 @@ export function App() {
     ) {
       return;
     }
-    setEqualizerPresetId(preset.id);
-    setEqualizerPresetName(preset.name);
-    setEqualizerBandGains([...preset.bandGains]);
-    setEqualizerPreampDb(preset.preampDb);
-    setEqualizerWetMixPercent(preset.wetMixPercent);
-    setIsEqualizerPresetRenaming(false);
+    applyEqualizerPreset(preset.id, preset.name, preset.bandGains, preset.preampDb, preset.wetMixPercent);
   }, [
     audioAutoEq,
     playbackTrack,
@@ -919,44 +762,12 @@ export function App() {
   ]);
 
   useEffect(() => {
-    window.localStorage.setItem("musicmanager-genre-eq-map", JSON.stringify(genreEqPresetMap));
-  }, [genreEqPresetMap]);
-
-  useEffect(() => {
     window.localStorage.setItem("musicmanager-player-shuffle", String(isShuffleEnabled));
   }, [isShuffleEnabled]);
 
   useEffect(() => {
     window.localStorage.setItem("musicmanager-player-repeat-track", String(isRepeatTrackEnabled));
   }, [isRepeatTrackEnabled]);
-
-  useEffect(() => {
-    window.localStorage.setItem("musicmanager-eq-preset-id", equalizerPresetId);
-  }, [equalizerPresetId]);
-
-  useEffect(() => {
-    window.localStorage.setItem("musicmanager-startup-eq-preset-id", startupEqualizerPresetId);
-  }, [startupEqualizerPresetId]);
-
-  useEffect(() => {
-    window.localStorage.setItem("musicmanager-eq-preset-name", equalizerPresetName);
-  }, [equalizerPresetName]);
-
-  useEffect(() => {
-    window.localStorage.setItem("musicmanager-eq-band-gains", JSON.stringify(equalizerBandGains));
-  }, [equalizerBandGains]);
-
-  useEffect(() => {
-    window.localStorage.setItem("musicmanager-eq-preamp-db", String(equalizerPreampDb));
-  }, [equalizerPreampDb]);
-
-  useEffect(() => {
-    window.localStorage.setItem("musicmanager-eq-wet-mix", String(equalizerWetMixPercent));
-  }, [equalizerWetMixPercent]);
-
-  useEffect(() => {
-    window.localStorage.setItem("musicmanager-eq-presets", JSON.stringify(equalizerPresets));
-  }, [equalizerPresets]);
 
   useEffect(() => {
     if (!folderPath || !tracks.length || folderPath.startsWith("Navidrome/")) {
@@ -2322,144 +2133,11 @@ export function App() {
     setShouldAutoplay(isPlaying);
   }
 
-  function handleEqualizerPresetChange(presetId: string) {
-    if (audioAutoEq) {
-      setAudioAutoEq(false);
-    }
-    const preset = equalizerPresets.find((item) => item.id === presetId);
-    if (!preset) {
-      setEqualizerPresetId("");
-      return;
-    }
-    handleApplyEqualizerPreset(
-      preset.id,
-      preset.name,
-      preset.bandGains,
-      preset.preampDb,
-      preset.wetMixPercent
-    );
-  }
-
-  function handleGenreEqPresetChange(genreKey: string, presetId: string) {
-    setGenreEqPresetMap((prev) => ({ ...prev, [genreKey]: presetId }));
-  }
-
-  function handleEqualizerBandGainChange(index: number, value: number) {
-    const nextValue = Math.max(-12, Math.min(12, value));
-    setEqualizerBandGains((prev) => {
-      if (index < 0 || index >= prev.length) {
-        return prev;
-      }
-      return prev.map((current, currentIndex) => (currentIndex === index ? nextValue : current));
-    });
-  }
-
-  function handleApplyEqualizerPreset(
-    presetId: string,
-    presetName: string,
-    bandGains: number[],
-    preampDb = 0,
-    wetMixPercent = 100
-  ) {
-    setEqualizerPresetId(presetId);
-    setEqualizerPresetName(presetName);
-    const normalized = EQUALIZER_FREQUENCIES.map((_, index) => Math.max(-12, Math.min(12, Number(bandGains[index] ?? 0))));
-    setEqualizerBandGains(normalized);
-    setEqualizerPreampDb(Math.max(-12, Math.min(12, preampDb)));
-    setEqualizerWetMixPercent(Math.max(0, Math.min(100, Math.round(wetMixPercent))));
-    setIsEqualizerPresetRenaming(false);
-  }
-
-  function handleCreateEqualizerPreset() {
-    const baseName = "new preset";
-    const name = buildUniqueEqualizerPresetName(equalizerPresets, baseName);
-    const nextPreset: EqualizerPreset = {
-      id: `eq-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      name,
-      bandGains: [...equalizerBandGains],
-      preampDb: equalizerPreampDb,
-      wetMixPercent: equalizerWetMixPercent,
-    };
-    setEqualizerPresets((prev) => [...prev, nextPreset]);
-    setEqualizerPresetId(nextPreset.id);
-    setEqualizerPresetName(nextPreset.name);
-    setIsEqualizerPresetRenaming(true);
-  }
-
-  function handleSaveEqualizerPreset() {
-    if (!equalizerPresetId || BUILTIN_EQ_PRESET_IDS.has(equalizerPresetId)) {
-      handleCreateEqualizerPreset();
-      return;
-    }
-    const trimmedName = equalizerPresetName.trim();
-    const uniqueName = buildUniqueEqualizerPresetName(equalizerPresets, trimmedName || "Preset", equalizerPresetId);
-    setEqualizerPresets((prev) => prev.map((preset) => (
-      preset.id === equalizerPresetId
-        ? {
-          ...preset,
-          name: uniqueName,
-          bandGains: [...equalizerBandGains],
-          preampDb: equalizerPreampDb,
-          wetMixPercent: equalizerWetMixPercent,
-        }
-        : preset
-    )));
-    setEqualizerPresetName(uniqueName);
-    setIsEqualizerPresetRenaming(false);
-  }
-
-  function handleRenameEqualizerPresetButtonClick() {
-    if (!equalizerPresetId || BUILTIN_EQ_PRESET_IDS.has(equalizerPresetId)) {
-      return;
-    }
-    if (!isEqualizerPresetRenaming) {
-      setIsEqualizerPresetRenaming(true);
-      return;
-    }
-    const trimmedName = equalizerPresetName.trim();
-    if (!trimmedName) {
-      return;
-    }
-    const uniqueName = buildUniqueEqualizerPresetName(equalizerPresets, trimmedName, equalizerPresetId);
-    setEqualizerPresets((prev) => prev.map((preset) => (
-      preset.id === equalizerPresetId ? { ...preset, name: uniqueName } : preset
-    )));
-    setEqualizerPresetName(uniqueName);
-    setIsEqualizerPresetRenaming(false);
-  }
-
   function handleEqualizerPresetNameInputKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === "Enter") {
       event.preventDefault();
       handleRenameEqualizerPresetButtonClick();
     }
-  }
-
-  function handleDeleteEqualizerPreset() {
-    if (!equalizerPresetId || BUILTIN_EQ_PRESET_IDS.has(equalizerPresetId)) {
-      return;
-    }
-    setEqualizerPresets((prev) => {
-      const next = prev.filter((preset) => preset.id !== equalizerPresetId);
-      const fallback = next.find((preset) => preset.id === DEFAULT_EQUALIZER_PRESET.id) ?? next[0] ?? DEFAULT_EQUALIZER_PRESET;
-      setEqualizerPresetId(fallback.id);
-      setEqualizerPresetName(fallback.name);
-      setEqualizerBandGains([...fallback.bandGains]);
-      setEqualizerPreampDb(fallback.preampDb);
-      setEqualizerWetMixPercent(fallback.wetMixPercent);
-      return next;
-    });
-    setIsEqualizerPresetRenaming(false);
-  }
-
-  function handleResetEqualizer() {
-    const flatPreset = equalizerPresets.find((preset) => preset.id === DEFAULT_EQUALIZER_PRESET.id) ?? DEFAULT_EQUALIZER_PRESET;
-    setEqualizerPresetId(flatPreset.id);
-    setEqualizerPresetName(flatPreset.name);
-    setEqualizerBandGains([...flatPreset.bandGains]);
-    setEqualizerPreampDb(flatPreset.preampDb);
-    setEqualizerWetMixPercent(flatPreset.wetMixPercent);
-    setIsEqualizerPresetRenaming(false);
   }
 
   function handlePlaylistRenameInputKeyDown(event: KeyboardEvent<HTMLInputElement>) {
@@ -3099,10 +2777,7 @@ export function App() {
           startupEqualizerPresetId={startupEqualizerPresetId}
           onStartupEqualizerPresetIdChange={setStartupEqualizerPresetId}
           equalizerPresetId={equalizerPresetId}
-          onEqualizerPresetIdChange={(value) => {
-            setEqualizerPresetId(value);
-            setIsEqualizerPresetRenaming(false);
-          }}
+          onEqualizerPresetIdChange={setEqualizerPresetIdRaw}
           onEqualizerPresetChange={handleEqualizerPresetChange}
           equalizerPresetName={equalizerPresetName}
           onEqualizerPresetNameChange={setEqualizerPresetName}
