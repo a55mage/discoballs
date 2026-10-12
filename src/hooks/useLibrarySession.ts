@@ -68,11 +68,10 @@ export function useLibrarySession(): void {
       return;
     }
     hasAutoOpenedDefaultFolderRef.current = true;
-    let canceled = false;
     const library = useLibraryStore.getState();
     const editor = useTagEditorStore.getState();
     const shouldHydrateFromSnapshot =
-      didRestoreLibrarySnapshotRef.current && folderPath === defaultFolderPath && tracks.length > 0;
+      didRestoreLibrarySnapshotRef.current && library.folderPath === defaultFolderPath && library.tracks.length > 0;
     cancelOnlineSearch();
     if (!shouldHydrateFromSnapshot) {
       library.setIsLoadingScan(true);
@@ -80,7 +79,7 @@ export function useLibrarySession(): void {
     void (async () => {
       try {
         const result = await adapter.scanFolder(defaultFolderPath);
-        if (canceled || !result.folderPath) {
+        if (!result.folderPath) {
           return;
         }
         if (shouldHydrateFromSnapshot) {
@@ -93,23 +92,18 @@ export function useLibrarySession(): void {
           );
           library.setFolderPath(result.folderPath);
         } else {
-          applyLoadedLibrary(result.folderPath, result.tracks, selectedTrackId);
+          applyLoadedLibrary(result.folderPath, result.tracks, useLibraryStore.getState().selectedTrackId);
         }
         editor.setSearchStatus("Ready");
       } catch (error) {
-        if (!canceled) {
-          editor.setSearchStatus(`Auto-open scan error: ${formatError(error)}`);
-        }
+        editor.setSearchStatus(`Auto-open scan error: ${formatError(error)}`);
       } finally {
-        if (!canceled) {
-          library.setIsLoadingScan(false);
-        }
+        library.setIsLoadingScan(false);
       }
     })();
-    return () => {
-      canceled = true;
-    };
-  }, [autoOpenDefaultFolder, defaultFolderPath, folderPath, selectedTrackId, tracks.length]);
+    // The scan runs once per launch and is deliberately not cancelled on re-render: the guard above
+    // (and React StrictMode in development) would otherwise leave the library stuck in "scanning".
+  }, [autoOpenDefaultFolder, defaultFolderPath]);
 
   // Reconnect the Navidrome server flagged "connect on open".
   useEffect(() => {
