@@ -1,26 +1,12 @@
 import { type ComponentType, type SVGProps, useState } from "react";
 import { Card } from "../components/Card";
+import type { LibraryAlbumSummary, LibraryArtistSummary } from "../domain/library";
 import type { Track } from "../types";
 import { LibrarySection, type LibrarySectionProps } from "./LibrarySection";
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
 
-export type LibraryArtistSummary = {
-  id: string;
-  name: string;
-  trackCount: number;
-  albumCount: number;
-  coverUrl?: string;
-};
-
-export type LibraryAlbumSummary = {
-  id: string;
-  title: string;
-  artist: string;
-  year: string;
-  trackCount: number;
-  coverUrl?: string;
-};
+export type { LibraryAlbumSummary, LibraryArtistSummary };
 
 type LibraryBrowserSectionProps = {
   libraryProps: LibrarySectionProps;

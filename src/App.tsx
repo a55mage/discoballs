@@ -1,11 +1,9 @@
-import { type ChangeEvent, type CSSProperties, type KeyboardEvent, type MouseEvent, type PointerEvent, useEffect, useMemo, useRef, useState } from "react";
-import { adapter } from "./api";
+import { type ChangeEvent, type CSSProperties, type KeyboardEvent, type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   cancelOnlineSearch,
   searchOnlineForCurrentQuery,
 } from "./actions/onlineSearch";
 import {
-  applyLoadedLibrary,
   chooseDefaultFolder as handleChooseDefaultFolder,
   openLibraryFolder as handleOpenLibraryFolder,
   openTrackInFileManager,
@@ -14,6 +12,36 @@ import {
   selectTrack,
 } from "./actions/library";
 import { openExternalLink } from "./utils/external";
+import {
+  applyAndSaveOnlineResult as handleApplyAndSaveOnlineResult,
+  applyOnlineCoverOnly as handleApplyOnlineCoverOnly,
+  applyOnlineResult as handleApplyOnlineResult,
+  changeDraftField as handleTrackFieldChange,
+  loadDraftCoverFromFile,
+  removeDraftCover as handleRemoveCover,
+  renameTrackFileOnly as handleRenameOnlyTrack,
+  saveTrackTags as handleSaveTrack,
+  saveTrackTagsAndRename as handleSaveAndRenameTrack,
+} from "./actions/tagEditor";
+import {
+  connectNavidromeBookmark as handleConnectNavidromeBookmark,
+  connectNavidromeFromForm as handleConnectNavidrome,
+  deleteNavidromeBookmark as handleDeleteNavidromeBookmark,
+  saveNavidromeBookmark as handleSaveNavidromeBookmark,
+  setNavidromeBookmarkConnectOnOpen as handleToggleNavidromeBookmarkConnectOnOpen,
+} from "./actions/navidrome";
+import { orderOnlineResults } from "./domain/onlineResults";
+import {
+  summarizeAlbums,
+  summarizeArtists,
+  summarizeGenres,
+  type LibraryAlbumSummary,
+  type LibraryArtistSummary,
+} from "./domain/library";
+import { useDashboardDrag } from "./hooks/useDashboardDrag";
+import { useLibrarySession } from "./hooks/useLibrarySession";
+import { useLyrics } from "./hooks/useLyrics";
+import { useTrackTechnicalInfo } from "./hooks/useTrackTechnicalInfo";
 import {
   changeVolume,
   clearPlayerQueue,
@@ -74,47 +102,27 @@ import {
   IconVolume,
 } from "./components/icons";
 import { DashboardSection } from "./sections/DashboardSection";
-import { LibraryBrowserSection, type LibraryAlbumSummary, type LibraryArtistSummary } from "./sections/LibraryBrowserSection";
+import { LibraryBrowserSection } from "./sections/LibraryBrowserSection";
 import { LibrarySection } from "./sections/LibrarySection";
-import type { VisualizerPresetId } from "./sections/MusicVisualizerSection";
 import { OnlineSearchSection } from "./sections/OnlineSearchSection";
 import { PlayerSection } from "./sections/PlayerSection";
 import { RenameSettingsModal } from "./sections/RenameSettingsModal";
 import { SettingsSection } from "./sections/SettingsSection";
 import { TopBarSection } from "./sections/TopBarSection";
 import { TrackDetailsSection } from "./sections/TrackDetailsSection";
-import type { AppScreen, NavidromeBookmark, NavidromeConnectionInput, OnlineMatch, RenameField, SearchQuery, Track, TrackTechnicalInfo } from "./types";
+import type { AppScreen, Track } from "./types";
 import { useEqualizerStore } from "./store/equalizerStore";
 import { useLibraryStore } from "./store/libraryStore";
-import { consumePendingStartupConnection, useNavidromeStore } from "./store/navidromeStore";
-import { PLAYER_QUEUE_HISTORY_SIZE, PLAYER_QUEUE_PAGE_SIZE, usePlayerStore } from "./store/playerStore";
+import { useNavidromeStore } from "./store/navidromeStore";
+import { usePlayerStore } from "./store/playerStore";
 import { useTagEditorStore } from "./store/tagEditorStore";
-import { buildNavidromeBookmarkId, defaultNavidromeBookmarkName } from "./domain/navidrome";
 import { usePlaylistStore } from "./store/playlistStore";
 import { useSettingsStore } from "./store/settingsStore";
-import { BUILTIN_EQ_PRESET_IDS, buildUniqueEqualizerPresetName } from "./domain/equalizer";
-import {
-  areTrackIdListsEqual,
-  buildLibraryQueueOrder,
-  buildPlaylistQueueOrder,
-  buildUniquePlaylistName,
-  normalizePlaylistName,
-  shuffleTrackIds,
-  type Playlist,
-  type PlaylistEntry,
-} from "./domain/playlist";
-import { RENAME_FIELD_KEYS, RENAME_FIELD_OPTIONS, renameFieldLabel } from "./domain/rename";
-import { ACCENT_THEMES, buildSoftAccent, buildStrongAccent, type AccentTheme } from "./domain/theme";
+import { BUILTIN_EQ_PRESET_IDS } from "./domain/equalizer";
+import { RENAME_FIELD_OPTIONS, renameFieldLabel } from "./domain/rename";
+import { ACCENT_THEMES } from "./domain/theme";
 import { useLibraryView } from "./hooks/useLibraryView";
-import { formatError, getFileName, getUserLocale } from "./utils/common";
-import {
-  applyEqualizerSettings,
-  DEFAULT_EQUALIZER_PRESET,
-  EQUALIZER_PRESETS,
-  EQUALIZER_FREQUENCIES,
-  getOrCreateMediaAudioGraph,
-  type EqualizerPreset,
-} from "./utils/audioGraph";
+import { getFileName, getUserLocale } from "./utils/common";
 import {
   areTracksEqual,
   buildRenamePreview,
@@ -122,35 +130,15 @@ import {
   formatOnlineMatchDate,
   formatTrackTechnicalBadge,
   formatTrackTechnicalSummary,
-  getOnlineMatchDateSortKey,
   inferGenrePresetId,
   NO_GENRE_EQ_KEY,
   normalizeGenreKey,
-  scoreOnlineMatch,
 } from "./utils/appHelpers";
-import { fetchLyrics, getActiveLyricIndex, type LyricLine } from "./utils/lyrics";
+import { getActiveLyricIndex, } from "./utils/lyrics";
 
-const STORAGE_PLAYER_COLUMNS_KEY = "musicmanager-player-columns";
-const STORAGE_PLAYER_VISUALIZER_PRESET_KEY = "musicmanager-player-visualizer-preset";
-const STORAGE_PLAYER_SHOW_LYRICS_KEY = "musicmanager-player-show-lyrics";
-const STORAGE_STARTUP_SCREEN_KEY = "musicmanager-startup-screen";
 
 export function App() {
   const coverInputRef = useRef<HTMLInputElement | null>(null);
-  const hasAutoOpenedDefaultFolderRef = useRef(false);
-  const didAutoConnectNavidromeRef = useRef(false);
-  const shouldRunNavidromeStartupConnectionRef = useRef(consumePendingStartupConnection());
-  const didRestoreLibrarySnapshotRef = useRef(false);
-  const coverRequestIdsRef = useRef<Set<string>>(new Set());
-  const coverCacheRef = useRef<Map<string, string | null>>(new Map());
-  const pointerDragStateRef = useRef<{
-    kind: "none" | "library-track" | "playlist-entry";
-    id: string;
-    startX: number;
-    startY: number;
-    moved: boolean;
-  }>({ kind: "none", id: "", startX: 0, startY: 0, moved: false });
-  const suppressNextPlaylistItemClickRef = useRef(false);
   const [activeScreen, setActiveScreen] = useState<AppScreen>(() => useSettingsStore.getState().startupScreen);
   const [showRenameSettings, setShowRenameSettings] = useState(false);
   const {
@@ -166,13 +154,8 @@ export function App() {
     deleteActivePlaylist: handleDeletePlaylist,
     insertTrack: insertTrackIntoActivePlaylist,
     appendTracks,
-    moveEntry: movePlaylistEntry,
     removeEntry: removePlaylistEntry,
   } = usePlaylistStore();
-  const [lyricsLines, setLyricsLines] = useState<LyricLine[]>([]);
-  const [lyricsIsSynced, setLyricsIsSynced] = useState(false);
-  const [lyricsStatus, setLyricsStatus] = useState("Select a track to load lyrics.");
-  const [trackTechnicalInfo, setTrackTechnicalInfo] = useState<TrackTechnicalInfo | null>(null);
   const {
     startupScreen,
     setStartupScreen,
@@ -236,7 +219,7 @@ export function App() {
     deletePreset: handleDeleteEqualizerPreset,
     reset: handleResetEqualizer,
   } = useEqualizerStore();
-  const { tracks, folderPath, selectedTrackId, isLoadingScan, setTracks, setFolderPath, setSelectedTrackId, setIsLoadingScan } =
+  const { tracks, folderPath, selectedTrackId, isLoadingScan, } =
     useLibraryStore();
   const {
     trackDraft,
@@ -248,10 +231,7 @@ export function App() {
     searchArtist,
     searchAlbum,
     setTrackDraft,
-    setOnlineResults,
     setSelectedResultId,
-    setIsLoadingSearch,
-    setSearchStatus,
     setSearchTitle,
     setSearchArtist,
     setSearchAlbum,
@@ -273,14 +253,9 @@ export function App() {
     setNavidromeUsername,
     setNavidromePassword,
     setNavidromeConnectOnOpen,
-    setNavidromeBookmarks,
-    setConnectedNavidromeBookmarkId,
-    setNavidromeStatus,
-    setIsConnectingNavidrome,
   } = useNavidromeStore();
   const {
     playbackTrackId,
-    playbackPlaylistId,
     playbackQueueTrackIds,
     playbackHistoryTrackIds,
     playerQueueVisibleCount,
@@ -294,27 +269,10 @@ export function App() {
     audioSrc,
     audioTrackId,
     audioError,
-    shouldAutoplay,
-    setPlaybackTrackId,
-    setPlaybackPlaylistId,
-    setPlaybackQueueTrackIds,
-    setPlaybackHistoryTrackIds,
-    setPlayerQueueVisibleCount,
-    setIsPlaying,
     setIsShuffleEnabled,
     setIsRepeatTrackEnabled,
-    setCurrentTime,
-    setDuration,
-    setVolume,
     setIsMuted,
-    setAudioSrc,
-    setAudioTrackId,
-    setAudioError,
-    setShouldAutoplay,
   } = usePlayerStore();
-  const [isDashboardDragging, setIsDashboardDragging] = useState(false);
-  const [dashboardDropArea, setDashboardDropArea] = useState<"none" | "dropzone" | "playlist">("none");
-  const [dashboardDropEntryId, setDashboardDropEntryId] = useState("");
   const {
     query,
     setQuery,
@@ -336,6 +294,8 @@ export function App() {
     virtualTrackWindow,
   } = useLibraryView(tracks, activeScreen, folderPath);
   usePlaybackEngine();
+  useLibrarySession(virtualTrackWindow.visibleTracks);
+  const dashboardDrag = useDashboardDrag(activeScreen);
   const userLocale = useMemo(() => getUserLocale(), []);
   const activePlaylist = useMemo(
     () => playlists.find((playlist) => playlist.id === activePlaylistId) ?? null,
@@ -346,160 +306,22 @@ export function App() {
     [equalizerPresets, equalizerPresetId]
   );
   const canRenameDeleteEqualizerPreset = Boolean(activeEqualizerPreset && !BUILTIN_EQ_PRESET_IDS.has(activeEqualizerPreset.id));
-  const libraryGenres = useMemo(() => {
-    const genreMap = new Map<string, string>();
-    for (const track of tracks) {
-      const rawGenre = String(track.genre || "").trim();
-      if (!rawGenre) {
-        continue;
-      }
-      const genreKey = normalizeGenreKey(rawGenre);
-      if (!genreKey || genreMap.has(genreKey)) {
-        continue;
-      }
-      genreMap.set(genreKey, rawGenre);
-    }
-    return [...genreMap.entries()]
-      .map(([key, label]) => ({ key, label }))
-      .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }));
-  }, [tracks]);
-  const libraryArtists = useMemo<LibraryArtistSummary[]>(() => {
-    const artists = new Map<string, {
-      name: string;
-      trackCount: number;
-      albums: Set<string>;
-      coverUrl?: string;
-    }>();
-    for (const track of tracks) {
-      const name = track.artist.trim() || "Unknown artist";
-      const key = name.toLowerCase();
-      const artist = artists.get(key) ?? {
-        name,
-        trackCount: 0,
-        albums: new Set<string>(),
-        coverUrl: undefined,
-      };
-      artist.trackCount += 1;
-      artist.albums.add((track.album.trim() || "Unknown album").toLowerCase());
-      if (!artist.coverUrl && track.coverUrl) {
-        artist.coverUrl = track.coverUrl;
-      }
-      artists.set(key, artist);
-    }
-    return [...artists.entries()]
-      .map(([id, artist]) => ({
-        id,
-        name: artist.name,
-        trackCount: artist.trackCount,
-        albumCount: artist.albums.size,
-        coverUrl: artist.coverUrl,
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
-  }, [tracks]);
-  const libraryAlbums = useMemo<LibraryAlbumSummary[]>(() => {
-    const albums = new Map<string, {
-      title: string;
-      artist: string;
-      year: string;
-      trackCount: number;
-      coverUrl?: string;
-    }>();
-    for (const track of tracks) {
-      const title = track.album.trim() || "Unknown album";
-      const artist = track.artist.trim() || "Unknown artist";
-      const key = `${artist.toLowerCase()}|${title.toLowerCase()}`;
-      const album = albums.get(key) ?? {
-        title,
-        artist,
-        year: track.year,
-        trackCount: 0,
-        coverUrl: undefined,
-      };
-      album.trackCount += 1;
-      if (!album.year && track.year) {
-        album.year = track.year;
-      }
-      if (!album.coverUrl && track.coverUrl) {
-        album.coverUrl = track.coverUrl;
-      }
-      albums.set(key, album);
-    }
-    return [...albums.entries()]
-      .map(([id, album]) => ({
-        id,
-        title: album.title,
-        artist: album.artist,
-        year: album.year,
-        trackCount: album.trackCount,
-        coverUrl: album.coverUrl,
-      }))
-      .sort((a, b) => (
-        a.artist.localeCompare(b.artist, undefined, { sensitivity: "base" }) ||
-        a.title.localeCompare(b.title, undefined, { sensitivity: "base" })
-      ));
-  }, [tracks]);
+  const libraryGenres = useMemo(() => summarizeGenres(tracks), [tracks]);
+  const libraryArtists = useMemo(() => summarizeArtists(tracks), [tracks]);
+  const libraryAlbums = useMemo(() => summarizeAlbums(tracks), [tracks]);
 
   const selectedTrack = tracks.find((t) => t.id === selectedTrackId) ?? null;
   const playbackTrack = tracks.find((t) => t.id === playbackTrackId) ?? null;
-  function getRemoteCoverCacheKey(track: Track): string {
-    if (track.source?.type === "navidrome" && track.source.coverArtId) {
-      return `${track.source.baseUrl}:${track.source.coverArtId}`;
-    }
-    return track.id;
-  }
   const lyricsTrack = playbackTrack ?? selectedTrack;
   const playerInfoTrack = playbackTrack ?? selectedTrack;
+  const { lines: lyricsLines, isSynced: lyricsIsSynced, status: lyricsStatus } = useLyrics(lyricsTrack);
   const lyricsActiveIndex = useMemo(
     () => getActiveLyricIndex(lyricsLines, currentTime),
     [lyricsLines, currentTime]
   );
   const editableTrack = trackDraft ?? selectedTrack;
 
-  useEffect(() => {
-    const candidates = [
-      playbackTrack,
-      selectedTrack,
-      ...virtualTrackWindow.visibleTracks.slice(0, 30),
-    ].filter((track): track is Track => Boolean(track?.source?.type === "navidrome" && track.hasCover && !track.coverUrl));
-    const uniqueCandidates = new Map<string, Track>();
-    for (const track of candidates) {
-      uniqueCandidates.set(getRemoteCoverCacheKey(track), track);
-    }
-    const pending = [...uniqueCandidates.entries()].filter(([cacheKey]) => (
-      !coverRequestIdsRef.current.has(cacheKey) && !coverCacheRef.current.has(cacheKey)
-    ));
-    if (!pending.length) {
-      return;
-    }
-
-    let cancelled = false;
-    for (const [cacheKey, track] of pending.slice(0, 8)) {
-      coverRequestIdsRef.current.add(cacheKey);
-      void (async () => {
-        try {
-          const coverUrl = await adapter.getTrackCoverSource(track);
-          coverCacheRef.current.set(cacheKey, coverUrl);
-          if (cancelled || !coverUrl) {
-            return;
-          }
-          setTracks((prev) => prev.map((item) => (
-            getRemoteCoverCacheKey(item) === cacheKey ? { ...item, coverUrl } : item
-          )));
-          setTrackDraft((prev) => (
-            prev && getRemoteCoverCacheKey(prev) === cacheKey ? { ...prev, coverUrl } : prev
-          ));
-        } catch {
-          coverCacheRef.current.set(cacheKey, null);
-        } finally {
-          coverRequestIdsRef.current.delete(cacheKey);
-        }
-      })();
-    }
-
-    return () => {
-      cancelled = true;
-    };
-  }, [playbackTrack, selectedTrack, virtualTrackWindow.visibleTracks]);
+  const trackTechnicalInfo = useTrackTechnicalInfo(editableTrack);
   const trackTechnicalBadge = useMemo(
     () => formatTrackTechnicalBadge(trackTechnicalInfo, editableTrack?.path),
     [trackTechnicalInfo, editableTrack?.path]
@@ -508,160 +330,16 @@ export function App() {
     () => formatTrackTechnicalSummary(trackTechnicalInfo),
     [trackTechnicalInfo]
   );
-  const dateSortedOnlineResults = useMemo(
-    () =>
-      [...onlineResults].sort((a, b) => {
-        const aDate = getOnlineMatchDateSortKey(a.date);
-        const bDate = getOnlineMatchDateSortKey(b.date);
-        if (aDate === bDate) {
-          return 0;
-        }
-        return aDate < bDate ? -1 : 1;
-      }),
-    [onlineResults]
+  const { sorted: sortedOnlineResults, bestMatchId: bestMatchResultId } = useMemo(
+    () => orderOnlineResults(onlineResults, { title: searchTitle, artist: searchArtist, album: searchAlbum }),
+    [onlineResults, searchTitle, searchArtist, searchAlbum]
   );
-  const bestMatchResultId = useMemo(() => {
-    let bestMatch: OnlineMatch | null = null;
-    let bestScore = Number.NEGATIVE_INFINITY;
-    for (const result of onlineResults) {
-      const score = scoreOnlineMatch(result, {
-        title: searchTitle,
-        artist: searchArtist,
-        album: searchAlbum,
-      });
-      if (score === null || score < bestScore) {
-        continue;
-      }
-      if (score > bestScore) {
-        bestScore = score;
-        bestMatch = result;
-        continue;
-      }
-      if (!bestMatch) {
-        bestMatch = result;
-        continue;
-      }
-      const dateSortKey = getOnlineMatchDateSortKey(result.date);
-      const bestDateSortKey = getOnlineMatchDateSortKey(bestMatch.date);
-      if (dateSortKey < bestDateSortKey) {
-        bestMatch = result;
-      }
-    }
-    return bestMatch?.id ?? "";
-  }, [onlineResults, searchTitle, searchArtist, searchAlbum]);
-  const sortedOnlineResults = useMemo(() => {
-    if (!bestMatchResultId) {
-      return dateSortedOnlineResults;
-    }
-    const bestMatchIndex = dateSortedOnlineResults.findIndex((result) => result.id === bestMatchResultId);
-    if (bestMatchIndex <= 0) {
-      return dateSortedOnlineResults;
-    }
-    const bestMatch = dateSortedOnlineResults[bestMatchIndex];
-    return [
-      bestMatch,
-      ...dateSortedOnlineResults.slice(0, bestMatchIndex),
-      ...dateSortedOnlineResults.slice(bestMatchIndex + 1),
-    ];
-  }, [bestMatchResultId, dateSortedOnlineResults]);
-  const selectedResult = onlineResults.find((r) => r.id === selectedResultId) ?? null;
   const accentTheme = accentThemes[Math.max(0, accentIndex % Math.max(1, accentThemes.length))] ?? ACCENT_THEMES[0];
   const appStyle: CSSProperties = {
     "--accent": accentTheme.accent,
     "--accent-soft": accentTheme.soft,
     "--accent-strong": accentTheme.strong,
   } as CSSProperties;
-
-  useEffect(() => {
-    const savedLibrarySnapshot = window.localStorage.getItem("musicmanager-library-snapshot");
-    if (useSettingsStore.getState().autoOpenDefaultFolder && savedLibrarySnapshot) {
-      try {
-        const snapshot = JSON.parse(savedLibrarySnapshot) as { folderPath?: unknown; tracks?: unknown };
-        if (typeof snapshot.folderPath === "string" && Array.isArray(snapshot.tracks)) {
-          const restoredTracks = snapshot.tracks as Track[];
-          didRestoreLibrarySnapshotRef.current = true;
-          setFolderPath(snapshot.folderPath);
-          setTracks(restoredTracks);
-          setSelectedTrackId(restoredTracks[0]?.id ?? "");
-          usePlayerStore.getState().resetSession();
-          setSearchStatus("Ready");
-        }
-      } catch {
-        // Ignore invalid snapshot.
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!autoOpenDefaultFolder || !defaultFolderPath || hasAutoOpenedDefaultFolderRef.current) {
-      return;
-    }
-    hasAutoOpenedDefaultFolderRef.current = true;
-    let canceled = false;
-    const shouldHydrateFromSnapshot =
-      didRestoreLibrarySnapshotRef.current && folderPath === defaultFolderPath && tracks.length > 0;
-    cancelOnlineSearch();
-    if (!shouldHydrateFromSnapshot) {
-      setIsLoadingScan(true);
-    }
-    void (async () => {
-      try {
-        const result = await adapter.scanFolder(defaultFolderPath);
-        if (canceled || !result.folderPath) {
-          return;
-        }
-        if (shouldHydrateFromSnapshot) {
-          const scannedById = new Map(result.tracks.map((track) => [track.id, track] as const));
-          setTracks((prev) => prev.map((track) => {
-            const scanned = scannedById.get(track.id);
-            if (!scanned) {
-              return track;
-            }
-            return {
-              ...track,
-              hasCover: scanned.hasCover,
-              coverUrl: scanned.coverUrl,
-            };
-          }));
-          setFolderPath(result.folderPath);
-        } else {
-          applyLoadedLibrary(result.folderPath, result.tracks, selectedTrackId);
-        }
-        setSearchStatus("Ready");
-      } catch (error) {
-        if (!canceled) {
-          setSearchStatus(`Auto-open scan error: ${formatError(error)}`);
-        }
-      } finally {
-        if (!canceled) {
-          setIsLoadingScan(false);
-        }
-      }
-    })();
-    return () => {
-      canceled = true;
-    };
-  }, [autoOpenDefaultFolder, defaultFolderPath, folderPath, selectedTrackId, tracks.length]);
-
-  useEffect(() => {
-    if (
-      didAutoConnectNavidromeRef.current ||
-      !shouldRunNavidromeStartupConnectionRef.current ||
-      !navidromeBookmarks.length
-    ) {
-      return;
-    }
-    const startupBookmark = navidromeBookmarks.find((bookmark) => bookmark.connectOnOpen);
-    if (!startupBookmark) {
-      didAutoConnectNavidromeRef.current = true;
-      shouldRunNavidromeStartupConnectionRef.current = false;
-      return;
-    }
-    didAutoConnectNavidromeRef.current = true;
-    shouldRunNavidromeStartupConnectionRef.current = false;
-    setIsNavidromePanelOpen(true);
-    handleConnectNavidromeBookmark(startupBookmark);
-  }, [navidromeBookmarks]);
 
   useEffect(() => {
     syncGenreEqMap(libraryGenres);
@@ -712,74 +390,6 @@ export function App() {
     equalizerWetMixPercent,
   ]);
 
-  useEffect(() => {
-    if (!folderPath || !tracks.length || folderPath.startsWith("Navidrome/")) {
-      return;
-    }
-    try {
-      // Keep snapshot lightweight to avoid localStorage quota crashes on large libraries/covers.
-      const snapshotTracks = tracks.map(({ coverUrl: _coverUrl, ...track }) => track);
-      window.localStorage.setItem("musicmanager-library-snapshot", JSON.stringify({ folderPath, tracks: snapshotTracks }));
-    } catch {
-      // Ignore quota/serialization failures to keep UI responsive.
-    }
-  }, [folderPath, tracks]);
-
-  useEffect(() => {
-    const onPointerMove = (event: globalThis.PointerEvent) => {
-      const state = pointerDragStateRef.current;
-      if (state.kind === "none") {
-        return;
-      }
-      const distance = Math.hypot(event.clientX - state.startX, event.clientY - state.startY);
-      if (!state.moved && distance > 6) {
-        state.moved = true;
-        setIsDashboardDragging(true);
-      }
-      if (!state.moved || activeScreen !== "dashboard") {
-        return;
-      }
-      const hoveredElement = document.elementFromPoint(event.clientX, event.clientY) as HTMLElement | null;
-      const hoveredEntry = hoveredElement?.closest<HTMLElement>("[data-playlist-entry-id]");
-      const hoveredDropzone = hoveredElement?.closest<HTMLElement>("[data-playlist-dropzone]");
-      const hoveredList = hoveredElement?.closest<HTMLElement>("[data-playlist-list]");
-      const nextDropArea = hoveredDropzone ? "dropzone" : hoveredList ? "playlist" : "none";
-      const nextDropEntryId = hoveredEntry?.dataset.playlistEntryId ?? "";
-      setDashboardDropArea((prev) => (prev === nextDropArea ? prev : nextDropArea));
-      setDashboardDropEntryId((prev) => (prev === nextDropEntryId ? prev : nextDropEntryId));
-    };
-
-    const onPointerUp = (event: globalThis.PointerEvent) => {
-      const state = pointerDragStateRef.current;
-      if (activeScreen !== "dashboard" || state.kind === "none") {
-        clearDragState();
-        return;
-      }
-      if (!state.moved) {
-        clearDragState();
-        return;
-      }
-      const target = document.elementFromPoint(event.clientX, event.clientY);
-      const payload =
-        state.kind === "library-track"
-          ? ({ kind: "library-track", trackId: state.id } as const)
-          : ({ kind: "playlist-entry", entryId: state.id } as const);
-      const applied = applyDashboardPointerDrop(payload, target);
-      if (applied) {
-        suppressNextPlaylistItemClickRef.current = true;
-      }
-      clearDragState();
-    };
-
-    window.addEventListener("pointermove", onPointerMove);
-    window.addEventListener("pointerup", onPointerUp);
-    window.addEventListener("pointercancel", onPointerUp);
-    return () => {
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerup", onPointerUp);
-      window.removeEventListener("pointercancel", onPointerUp);
-    };
-  }, [activeScreen, activePlaylistId, playlists.length]);
   const selectedFileName = editableTrack ? getFileName(editableTrack.path) : "No file selected";
   const hasUnsavedChanges = useMemo(() => {
     if (!selectedTrack || !editableTrack || selectedTrack.id !== editableTrack.id) {
@@ -798,78 +408,6 @@ export function App() {
   useEffect(() => {
     setTrackDraft(selectedTrack ? { ...selectedTrack } : null);
   }, [selectedTrackId, tracks]);
-
-  useEffect(() => {
-    let cancelled = false;
-    if (!editableTrack?.path || editableTrack.source?.type === "navidrome") {
-      setTrackTechnicalInfo(null);
-      return;
-    }
-    const path = editableTrack.path;
-
-    (async () => {
-      try {
-        const info = await adapter.getTrackTechnicalInfo(path);
-        if (!cancelled) {
-          setTrackTechnicalInfo(info);
-        }
-      } catch {
-        if (!cancelled) {
-          setTrackTechnicalInfo(null);
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [editableTrack?.path]);
-
-  useEffect(() => {
-    const track = lyricsTrack;
-    if (!track) {
-      setLyricsLines([]);
-      setLyricsIsSynced(false);
-      setLyricsStatus("Select a track to load lyrics.");
-      return;
-    }
-    const title = track.title.trim();
-    const artist = track.artist.trim();
-    if (!title || !artist) {
-      setLyricsLines([]);
-      setLyricsIsSynced(false);
-      setLyricsStatus("Missing title or artist metadata.");
-      return;
-    }
-
-    const controller = new AbortController();
-    let cancelled = false;
-    setLyricsIsSynced(false);
-    setLyricsStatus("Loading lyrics...");
-    (async () => {
-      try {
-        const result = await fetchLyrics(title, artist, track.album, controller.signal);
-        if (cancelled) {
-          return;
-        }
-        setLyricsLines(result.lines);
-        setLyricsIsSynced(result.isSynced);
-        setLyricsStatus(result.lines.length ? "" : "No lyrics found.");
-      } catch {
-        if (cancelled) {
-          return;
-        }
-        setLyricsLines([]);
-        setLyricsIsSynced(false);
-        setLyricsStatus("Lyrics unavailable for this track.");
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, [lyricsTrack?.id]);
 
   const trackById = useMemo(() => new Map(tracks.map((track) => [track.id, track])), [tracks]);
   const playbackQueueTracks = useMemo(
@@ -897,122 +435,6 @@ export function App() {
     [playbackHistoryTrackIds, trackById]
   );
 
-  function getNavidromeFormInput(): NavidromeConnectionInput | null {
-    const baseUrl = navidromeBaseUrl.trim();
-    const username = navidromeUsername.trim();
-    if (!baseUrl || !username || !navidromePassword) {
-      setNavidromeStatus("Server URL, username and password are required.");
-      return null;
-    }
-    return {
-      name: navidromeName.trim() || defaultNavidromeBookmarkName(baseUrl),
-      baseUrl,
-      username,
-      password: navidromePassword,
-    };
-  }
-
-  async function connectToNavidrome(input: NavidromeConnectionInput, bookmarkId = "") {
-    setIsConnectingNavidrome(true);
-    setNavidromeStatus(`Connecting to ${input.name || input.baseUrl}...`);
-    try {
-      const result = await adapter.connectNavidrome(input);
-      if (!result.ok) {
-        setConnectedNavidromeBookmarkId("");
-        setNavidromeStatus(result.message || "Navidrome connection rejected.");
-        return;
-      }
-
-      const library = await adapter.scanNavidromeLibrary(input);
-      const connectedAt = new Date().toLocaleString(userLocale, {
-        dateStyle: "short",
-        timeStyle: "short",
-      });
-      setConnectedNavidromeBookmarkId(bookmarkId);
-      if (bookmarkId) {
-        setNavidromeBookmarks((prev) => prev.map((bookmark) => (
-          bookmark.id === bookmarkId
-            ? { ...bookmark, lastConnectedAt: connectedAt }
-            : bookmark
-        )));
-      }
-      applyLoadedLibrary(library.folderPath, library.tracks);
-      setIsNavidromePanelOpen(false);
-      setNavidromeStatus(
-        `Connected to ${input.name || input.baseUrl} · loaded ${library.tracks.length} tracks${result.serverVersion ? ` · server ${result.serverVersion}` : ""}${result.apiVersion ? ` · API ${result.apiVersion}` : ""}`
-      );
-      setSearchStatus(`Navidrome library loaded: ${library.tracks.length} tracks.`);
-    } catch (error) {
-      setConnectedNavidromeBookmarkId("");
-      setNavidromeStatus(`Navidrome connection error: ${formatError(error)}`);
-    } finally {
-      setIsConnectingNavidrome(false);
-    }
-  }
-
-  function handleSaveNavidromeBookmark() {
-    const input = getNavidromeFormInput();
-    if (!input) {
-      return;
-    }
-    setNavidromeBookmarks((prev) => {
-      const existing = prev.find((bookmark) => (
-        bookmark.baseUrl === input.baseUrl && bookmark.username === input.username
-      ));
-      const nextBookmark: NavidromeBookmark = {
-        ...(existing ?? { id: buildNavidromeBookmarkId() }),
-        ...input,
-        connectOnOpen: navidromeConnectOnOpen,
-      };
-      const next = existing
-        ? prev.map((bookmark) => (bookmark.id === existing.id ? nextBookmark : bookmark))
-        : [...prev, nextBookmark];
-      if (!navidromeConnectOnOpen) {
-        return next;
-      }
-      return next.map((bookmark) => ({
-        ...bookmark,
-        connectOnOpen: bookmark.id === nextBookmark.id,
-      }));
-    });
-    setNavidromeStatus(`Saved bookmark ${input.name}.`);
-  }
-
-  function handleConnectNavidrome() {
-    const input = getNavidromeFormInput();
-    if (!input) {
-      return;
-    }
-    const matchingBookmark = navidromeBookmarks.find((bookmark) => (
-      bookmark.baseUrl === input.baseUrl && bookmark.username === input.username
-    ));
-    void connectToNavidrome(input, matchingBookmark?.id ?? "");
-  }
-
-  function handleConnectNavidromeBookmark(bookmark: NavidromeBookmark) {
-    setNavidromeName(bookmark.name);
-    setNavidromeBaseUrl(bookmark.baseUrl);
-    setNavidromeUsername(bookmark.username);
-    setNavidromePassword(bookmark.password);
-    setNavidromeConnectOnOpen(bookmark.connectOnOpen);
-    void connectToNavidrome(bookmark, bookmark.id);
-  }
-
-  function handleDeleteNavidromeBookmark(bookmarkId: string) {
-    setNavidromeBookmarks((prev) => prev.filter((bookmark) => bookmark.id !== bookmarkId));
-    if (connectedNavidromeBookmarkId === bookmarkId) {
-      setConnectedNavidromeBookmarkId("");
-      setNavidromeStatus("Navidrome bookmark removed.");
-    }
-  }
-
-  function handleToggleNavidromeBookmarkConnectOnOpen(bookmarkId: string, enabled: boolean) {
-    setNavidromeBookmarks((prev) => prev.map((bookmark) => ({
-      ...bookmark,
-      connectOnOpen: enabled ? bookmark.id === bookmarkId : bookmark.id === bookmarkId ? false : bookmark.connectOnOpen,
-    })));
-  }
-
   function handleSearchButtonClick() {
     if (isLoadingSearch) {
       cancelOnlineSearch();
@@ -1022,175 +444,6 @@ export function App() {
       return;
     }
     void searchOnlineForCurrentQuery();
-  }
-
-  function handleTrackFieldChange(field: keyof Track, value: string) {
-    if (!editableTrack) {
-      return;
-    }
-    setTrackDraft((prev) => (prev ? { ...prev, [field]: value } : prev));
-  }
-
-  async function handleSaveTrack() {
-    if (!editableTrack) {
-      return;
-    }
-    const shouldRemoveCover = Boolean(selectedTrack?.hasCover) && !editableTrack.hasCover && !editableTrack.coverUrl;
-    try {
-      const result = await adapter.saveTrack(
-        editableTrack.id,
-        editableTrack.path,
-        {
-          title: editableTrack.title,
-          artist: editableTrack.artist,
-          album: editableTrack.album,
-          tracknumber: editableTrack.tracknumber,
-          year: editableTrack.year,
-          genre: editableTrack.genre,
-        },
-        editableTrack.coverUrl,
-        undefined,
-        shouldRemoveCover
-      );
-      commitTrackAfterTagSave(editableTrack.id, editableTrack, result.path);
-      setSearchStatus("Tags saved to track");
-    } catch (error) {
-      setSearchStatus(`Save error: ${formatError(error)}`);
-    }
-  }
-
-  async function handleSaveAndRenameTrack() {
-    if (!editableTrack) {
-      return;
-    }
-    const shouldRemoveCover = Boolean(selectedTrack?.hasCover) && !editableTrack.hasCover && !editableTrack.coverUrl;
-    try {
-      const result = await adapter.saveTrack(
-        editableTrack.id,
-        editableTrack.path,
-        {
-          title: editableTrack.title,
-          artist: editableTrack.artist,
-          album: editableTrack.album,
-          tracknumber: editableTrack.tracknumber,
-          year: editableTrack.year,
-          genre: editableTrack.genre,
-        },
-        editableTrack.coverUrl,
-        {
-          fields: renameFields,
-          separator: renameSeparator,
-        },
-        shouldRemoveCover
-      );
-      commitTrackAfterTagSave(editableTrack.id, editableTrack, result.path);
-      setSearchStatus("Tags saved and file renamed");
-    } catch (error) {
-      setSearchStatus(`Save/rename error: ${formatError(error)}`);
-    }
-  }
-
-  async function handleRenameOnlyTrack() {
-    if (!editableTrack) {
-      return;
-    }
-    try {
-      const result = await adapter.renameTrack(
-        editableTrack.path,
-        {
-          title: editableTrack.title,
-          artist: editableTrack.artist,
-          album: editableTrack.album,
-          tracknumber: editableTrack.tracknumber,
-          year: editableTrack.year,
-          genre: editableTrack.genre,
-        },
-        {
-          fields: renameFields,
-          separator: renameSeparator,
-        }
-      );
-      commitPathAfterRename(editableTrack.id, result.path);
-      setSearchStatus("File renamed");
-    } catch (error) {
-      setSearchStatus(`Rename error: ${formatError(error)}`);
-    }
-  }
-
-  function applyOnlineResultToTrack(result: OnlineMatch): Track | null {
-    const baseTrack = editableTrack;
-    if (!baseTrack) {
-      return null;
-    }
-
-    const nextTrack: Track = {
-      ...baseTrack,
-      title: result.title,
-      artist: result.artist,
-      album: result.album,
-      tracknumber: result.tracknumber ?? baseTrack.tracknumber,
-      year: result.date.slice(0, 4),
-      coverUrl: result.coverUrl,
-      hasCover: Boolean(result.coverUrl),
-    };
-
-    setTrackDraft(nextTrack);
-
-    return nextTrack;
-  }
-
-  function handleApplyOnlineResult(result: OnlineMatch) {
-    if (!editableTrack) {
-      return;
-    }
-    applyOnlineResultToTrack(result);
-    setSearchStatus("Result applied. Save the track to confirm changes.");
-  }
-
-  function handleApplyOnlineCoverOnly(result: OnlineMatch) {
-    if (!editableTrack) {
-      return;
-    }
-    if (!result.coverUrl?.trim()) {
-      setSearchStatus("Selected result has no cover image.");
-      return;
-    }
-    setTrackDraft((prev) => (prev ? { ...prev, coverUrl: result.coverUrl, hasCover: true } : prev));
-    setSearchStatus("Cover applied. Save the track to persist changes.");
-  }
-
-  async function handleApplyAndSaveOnlineResult(result: OnlineMatch) {
-    if (!editableTrack) {
-      return;
-    }
-
-    const nextTrack = applyOnlineResultToTrack(result);
-    if (!nextTrack) {
-      return;
-    }
-
-    const shouldRemoveCover = Boolean(selectedTrack?.hasCover) && !nextTrack.hasCover && !nextTrack.coverUrl;
-    try {
-      const result = await adapter.saveTrack(
-        nextTrack.id,
-        nextTrack.path,
-        {
-          title: nextTrack.title,
-          artist: nextTrack.artist,
-          album: nextTrack.album,
-          tracknumber: nextTrack.tracknumber,
-          year: nextTrack.year,
-          genre: nextTrack.genre,
-        },
-        nextTrack.coverUrl,
-        undefined,
-        shouldRemoveCover
-      );
-      commitTrackAfterTagSave(editableTrack.id, nextTrack, result.path);
-      setSearchStatus("Result applied and tags saved to track");
-    } catch (error) {
-      setSearchStatus(`Apply and save error: ${formatError(error)}`);
-    }
   }
 
   async function handleOpenExternalLink(event: { preventDefault: () => void }, url: string) {
@@ -1218,36 +471,9 @@ export function App() {
   function handleCoverFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
-    if (!file || !editableTrack) {
-      return;
+    if (file) {
+      loadDraftCoverFromFile(file);
     }
-    if (!file.type.startsWith("image/")) {
-      setSearchStatus("Invalid cover format. Select an image file.");
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result;
-      if (typeof dataUrl !== "string") {
-        setSearchStatus("Unable to read cover file.");
-        return;
-      }
-      setTrackDraft((prev) => (prev ? { ...prev, coverUrl: dataUrl, hasCover: true } : prev));
-      setSearchStatus("Cover loaded. Save the track to persist changes.");
-    };
-    reader.onerror = () => {
-      setSearchStatus("Unable to read cover file.");
-    };
-    reader.readAsDataURL(file);
-  }
-
-  function handleRemoveCover() {
-    if (!editableTrack) {
-      return;
-    }
-    setTrackDraft((prev) => (prev ? { ...prev, coverUrl: undefined, hasCover: false } : prev));
-    setSearchStatus("Cover removed from draft. Save the track to persist changes.");
   }
 
   function handleLibraryArtistClick(artist: LibraryArtistSummary) {
@@ -1310,26 +536,6 @@ export function App() {
     confirmPlaylistRename();
   }
 
-  function handleLibraryTrackPointerDown(event: PointerEvent<HTMLElement>, track: Track) {
-    pointerDragStateRef.current = {
-      kind: "library-track",
-      id: track.id,
-      startX: event.clientX,
-      startY: event.clientY,
-      moved: false,
-    };
-  }
-
-  function handlePlaylistEntryPointerDown(event: PointerEvent<HTMLElement>, entryId: string) {
-    pointerDragStateRef.current = {
-      kind: "playlist-entry",
-      id: entryId,
-      startX: event.clientX,
-      startY: event.clientY,
-      moved: false,
-    };
-  }
-
   function appendTrackToActivePlaylist(trackId: string) {
     insertTrackIntoActivePlaylist(trackId, null);
   }
@@ -1340,72 +546,6 @@ export function App() {
 
   function handleAddFilteredTracksToActivePlaylist() {
     appendTracksToActivePlaylist(filteredTracks.map((track) => track.id));
-  }
-
-  function applyDashboardPointerDrop(
-    payload: { kind: "library-track"; trackId: string } | { kind: "playlist-entry"; entryId: string },
-    target: Element | null
-  ): boolean {
-    if (activeScreen !== "dashboard") {
-      return false;
-    }
-    const targetElement = target instanceof HTMLElement ? target : null;
-    if (!targetElement) {
-      return false;
-    }
-    const entryElement = targetElement.closest<HTMLElement>("[data-playlist-entry-id]");
-    const listElement = targetElement.closest<HTMLElement>("[data-playlist-list]");
-    const dropzoneElement = targetElement.closest<HTMLElement>("[data-playlist-dropzone]");
-    if (!entryElement && !listElement && !dropzoneElement) {
-      return false;
-    }
-    const targetEntryId = entryElement?.dataset.playlistEntryId ?? null;
-    if (payload.kind === "library-track") {
-      insertTrackIntoActivePlaylist(payload.trackId, targetEntryId);
-      return true;
-    }
-    if (payload.kind === "playlist-entry") {
-      movePlaylistEntry(payload.entryId, targetEntryId);
-      return true;
-    }
-    return false;
-  }
-
-  function clearDragState() {
-    pointerDragStateRef.current = { kind: "none", id: "", startX: 0, startY: 0, moved: false };
-    setIsDashboardDragging(false);
-    setDashboardDropArea("none");
-    setDashboardDropEntryId("");
-  }
-
-  function commitTrackAfterTagSave(currentId: string, source: Track, newPath: string) {
-    const finalPath = newPath || source.path;
-    const committed: Track = {
-      ...source,
-      id: finalPath,
-      path: finalPath,
-    };
-    setTracks((prev) => prev.map((track) => (track.id === currentId ? committed : track)));
-    setTrackDraft(committed);
-    setSelectedTrackId(finalPath);
-    if (playbackTrackId === currentId) {
-      setPlaybackTrackId(finalPath);
-    }
-  }
-
-  function commitPathAfterRename(currentId: string, newPath: string) {
-    if (!newPath) {
-      return;
-    }
-
-    setTracks((prev) =>
-      prev.map((track) => (track.id === currentId ? { ...track, id: newPath, path: newPath } : track))
-    );
-    setTrackDraft((prev) => (prev ? { ...prev, id: newPath, path: newPath } : prev));
-    setSelectedTrackId(newPath);
-    if (playbackTrackId === currentId) {
-      setPlaybackTrackId(newPath);
-    }
   }
 
   const hasAudioLoaded = Boolean(audioSrc && audioTrackId === playbackTrackId);
@@ -1676,11 +816,8 @@ export function App() {
             onPlayFromLibraryCover: handlePlayFromLibraryCover,
             enableTrackDrag: true,
             useNativeTrackDrag: false,
-            onTrackPointerDown: handleLibraryTrackPointerDown,
-            draggingTrackId:
-              isDashboardDragging && pointerDragStateRef.current.kind === "library-track"
-                ? pointerDragStateRef.current.id
-                : "",
+            onTrackPointerDown: dashboardDrag.onLibraryTrackPointerDown,
+            draggingTrackId: dashboardDrag.draggingTrackId,
             IconFolder,
             IconArrowUp,
             IconMusicNote,
@@ -1697,18 +834,13 @@ export function App() {
           }}
           activePlaylistEntries={activePlaylist?.entries ?? []}
           tracks={tracks}
-          isDashboardDragging={isDashboardDragging}
-          dashboardDropArea={dashboardDropArea}
-          dashboardDropEntryId={dashboardDropEntryId}
-          draggingPlaylistEntryId={
-            isDashboardDragging && pointerDragStateRef.current.kind === "playlist-entry"
-              ? pointerDragStateRef.current.id
-              : ""
-          }
-          onPlaylistEntryPointerDown={handlePlaylistEntryPointerDown}
+          isDashboardDragging={dashboardDrag.isDragging}
+          dashboardDropArea={dashboardDrag.dropArea}
+          dashboardDropEntryId={dashboardDrag.dropEntryId}
+          draggingPlaylistEntryId={dashboardDrag.draggingPlaylistEntryId}
+          onPlaylistEntryPointerDown={dashboardDrag.onPlaylistEntryPointerDown}
           onPlaylistEntryClick={(track) => {
-            if (suppressNextPlaylistItemClickRef.current) {
-              suppressNextPlaylistItemClickRef.current = false;
+            if (dashboardDrag.consumeSuppressedClick()) {
               return;
             }
             handlePlayTrackFromPlaylist(track, activePlaylist?.id);

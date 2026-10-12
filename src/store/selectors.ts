@@ -1,6 +1,7 @@
 import type { Track } from "../types";
 import { useLibraryStore } from "./libraryStore";
 import { usePlayerStore } from "./playerStore";
+import { useTagEditorStore } from "./tagEditorStore";
 
 let cachedTracks: Track[] | null = null;
 let cachedMap = new Map<string, Track>();
@@ -38,4 +39,9 @@ export function getPlaybackQueueTracks(): Track[] {
 export function getPlaybackTrackIndex(): number {
   const { playbackTrackId } = usePlayerStore.getState();
   return getPlaybackQueueTracks().findIndex((track) => track.id === playbackTrackId);
+}
+
+/** The track shown in the tag editor: the unsaved draft when present, else the selected track. */
+export function getEditableTrack(): Track | null {
+  return useTagEditorStore.getState().trackDraft ?? getSelectedTrack();
 }

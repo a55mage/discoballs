@@ -32,10 +32,12 @@ export type NavidromeState = {
 /** True until the startup auto-connection has been handled (set when a bookmark has connectOnOpen). */
 let pendingStartupConnection = false;
 
-export function consumePendingStartupConnection(): boolean {
-  const pending = pendingStartupConnection;
+export function isStartupConnectionPending(): boolean {
+  return pendingStartupConnection;
+}
+
+export function clearPendingStartupConnection(): void {
   pendingStartupConnection = false;
-  return pending;
 }
 
 function loadInitialState() {
