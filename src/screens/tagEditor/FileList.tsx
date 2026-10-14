@@ -1,10 +1,11 @@
 import { useMemo, useRef, useState } from "react";
 import { selectTrack } from "../../actions/library";
-import { getTrackIssues } from "../../domain/libraryView";
+import { type HealthFilter, getTrackIssues, matchesHealthFilter } from "../../domain/libraryView";
 import { useVirtualList } from "../../hooks/useVirtualList";
 import { useVisibleTracks } from "../../hooks/useVisibleTracks";
 import { useLibraryStore } from "../../store/libraryStore";
-import { Chip, Cover, cx } from "../../ui";
+import { useUiStore } from "../../store/uiStore";
+import { Button, Chip, Cover, cx } from "../../ui";
 
 const ROW_HEIGHT = 52;
 
@@ -13,19 +14,27 @@ type FileListProps = {
   dirty: boolean;
 };
 
-/** Left pane of the Tag Editor: every track, optionally only those with something to fix. */
+const CHIPS: Array<{ value: HealthFilter; label: string }> = [
+  { value: "all", label: "All" },
+  { value: "cover", label: "Missing cover" },
+  { value: "tags", label: "Missing tags" },
+  { value: "duplicates", label: "Duplicates" },
+];
+
+/** Left pane of the Tag Editor: every track, with filters for what needs fixing (the only home of the health chips). */
 export function FileList({ dirty }: FileListProps) {
-  const { tracks, duplicateIds } = useVisibleTracks();
+  const { tracks, duplicateIds, health } = useVisibleTracks();
+  const setDuplicatesOpen = useUiStore((state) => state.setDuplicatesOpen);
   const selectedTrackId = useLibraryStore((state) => state.selectedTrackId);
-  const [onlyIssues, setOnlyIssues] = useState(false);
+  const [filter, setFilter] = useState<HealthFilter>("all");
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   const items = useMemo(
     () =>
       tracks
-        .map((track) => ({ track, issues: getTrackIssues(track, duplicateIds) }))
-        .filter((item) => !onlyIssues || item.issues.length > 0),
-    [tracks, duplicateIds, onlyIssues]
+        .filter((track) => matchesHealthFilter(track, filter, duplicateIds))
+        .map((track) => ({ track, issues: getTrackIssues(track, duplicateIds) })),
+    [tracks, duplicateIds, filter]
   );
   const range = useVirtualList(scrollRef, items.length, ROW_HEIGHT);
 
@@ -33,8 +42,15 @@ export function FileList({ dirty }: FileListProps) {
     <section className="tag-files db-glass db-pane--divider-right" aria-label="Files">
       <header className="tag-files__head">
         <h2>Files</h2>
-        <Chip on={onlyIssues} onClick={() => setOnlyIssues((value) => !value)}>Needs attention</Chip>
       </header>
+      <div className="tag-files__filters" role="group" aria-label="Show tracks">
+        {CHIPS.map((chip) => (
+          <Chip key={chip.value} on={filter === chip.value} count={chip.value === "all" ? undefined : health[chip.value]} onClick={() => setFilter(chip.value)}>
+            {chip.label}
+          </Chip>
+        ))}
+        {health.duplicates > 0 ? <Button size="sm" variant="ghost" onClick={() => setDuplicatesOpen(true)}>Review duplicates…</Button> : null}
+      </div>
       <div ref={scrollRef} className="tag-files__scroll">
         <ul aria-label="Tracks" style={{ paddingTop: range.offsetTop, paddingBottom: range.offsetBottom }}>
           {items.slice(range.start, range.end).map(({ track, issues }) => {
@@ -54,7 +70,7 @@ export function FileList({ dirty }: FileListProps) {
             );
           })}
         </ul>
-        {items.length === 0 ? <p className="tag-files__empty">{tracks.length ? "Nothing needs attention." : "Open a folder to start."}</p> : null}
+        {items.length === 0 ? <p className="tag-files__empty">{tracks.length ? "No tracks match this filter." : "Open a folder to start."}</p> : null}
       </div>
     </section>
   );

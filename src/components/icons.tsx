@@ -242,6 +242,13 @@ export const IconGrid = (props: SVGProps<SVGSVGElement>) => (
   </IconBase>
 );
 
+export const IconRows = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <rect x="4" y="5" width="16" height="5" rx="1.5" />
+    <rect x="4" y="14" width="16" height="5" rx="1.5" />
+  </IconBase>
+);
+
 export const IconListCompact = (props: SVGProps<SVGSVGElement>) => (
   <IconBase {...props}>
     <line x1="6" y1="7" x2="20" y2="7" />

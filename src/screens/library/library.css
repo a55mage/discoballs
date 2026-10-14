@@ -56,7 +56,13 @@
 }
 .lib-search {
   position: relative;
-  width: 240px;
+  flex: 1;
+  min-width: 140px;
+  max-width: 420px;
+}
+.lib-sortselect {
+  width: 130px;
+  height: 36px;
 }
 .lib-search svg {
   position: absolute;
@@ -629,4 +635,137 @@
 }
 .lib-rate .db-icon-btn--active svg {
   fill: currentColor;
+}
+
+/* ---------- Track grid ---------- */
+.lib-grid {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  outline: none;
+}
+.lib-grid:focus-visible {
+  box-shadow: inset var(--db-focus);
+  border-radius: var(--db-radius-md);
+}
+.lib-grid__scroll {
+  flex: 1;
+  min-height: 0;
+  padding: 14px 18px 0;
+  overflow: auto;
+}
+.lib-grid__row {
+  display: grid;
+  column-gap: 16px;
+}
+.lib-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  align-self: start;
+  padding: 8px;
+  border-radius: var(--db-radius-lg);
+  cursor: default;
+}
+.lib-card:hover {
+  background: var(--db-hover);
+}
+.lib-card.is-selected {
+  background: var(--db-accent-soft);
+}
+.lib-card.is-cursor {
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--db-accent) 55%, transparent);
+}
+.lib-card__art {
+  position: relative;
+  display: block;
+  margin-bottom: 8px;
+}
+.lib-card__art .db-cover {
+  width: 100%;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+}
+.lib-card__play {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--db-accent-fill);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity var(--db-dur-fast) var(--db-ease), transform var(--db-dur-fast) var(--db-ease);
+  cursor: pointer;
+}
+.lib-card__play svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+  stroke: none;
+}
+.lib-card:hover .lib-card__play,
+.lib-card__play.is-playing,
+.lib-card__play:focus-visible {
+  opacity: 1;
+  transform: none;
+}
+.lib-card__check,
+.lib-card__heart {
+  position: absolute;
+  top: 8px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  opacity: 0;
+}
+.lib-card__check {
+  left: 8px;
+  border-color: #fff;
+}
+.lib-card__heart {
+  right: 8px;
+  padding: 5px;
+  border-radius: 50%;
+}
+.lib-card:hover .lib-card__check,
+.lib-card:hover .lib-card__heart,
+.lib-card.is-selected .lib-card__check,
+.lib-card__heart.is-on {
+  opacity: 1;
+}
+.lib-card__heart.is-on {
+  color: var(--db-accent);
+}
+.lib-card__issue {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+}
+.lib-card__title,
+.lib-card__artist {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.lib-card__title {
+  font-weight: 800;
+}
+.lib-card.is-current .lib-card__title {
+  color: var(--db-accent-text);
+}
+.lib-card__artist {
+  color: var(--db-ink-2);
+  font-size: var(--db-text-sm);
+}
+.lib-card__title.is-missing,
+.lib-card__artist.is-missing {
+  color: var(--db-warn);
 }

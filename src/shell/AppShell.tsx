@@ -48,8 +48,8 @@ export function AppShell({ children, inspector, onBrandClick, onTogglePlayPause 
       <div className="shell__veil" aria-hidden="true" />
       {!isImmersive ? <div className="db-glass shell__frame" aria-hidden="true" /> : null}
 
-      {!isImmersive ? <Sidebar onBrandClick={onBrandClick} /> : null}
-      {!isImmersive ? <Header /> : null}
+      {!isImmersive ? <Sidebar /> : null}
+      {!isImmersive ? <Header onBrandClick={onBrandClick} /> : null}
 
       <main className="shell__content">
         {isImmersive ? <h1 className="db-sr-only">Now Playing</h1> : null}

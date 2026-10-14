@@ -35,6 +35,13 @@
   color: var(--db-ink-2);
   font-size: var(--db-text-xs);
 }
+.tag-files__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px 10px;
+}
 .tag-files__scroll {
   flex: 1;
   min-height: 0;

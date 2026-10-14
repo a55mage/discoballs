@@ -104,13 +104,13 @@ describe("in the library", () => {
     expect(within(rows()[1]).getByRole("button", { name: "Remove Bravo from favorites" }).getAttribute("aria-pressed")).toBe("true");
   });
 
-  it("filters on favorites and counts them", () => {
+  it("filters on favorites and lets you remove the filter", () => {
     useFavoritesStore.setState({ favorites: ["1", "3"], ratings: {} });
+    useLibraryViewStore.setState({ filter: "favorites" });
     render(<LibraryScreen onTogglePlayPause={() => undefined} />);
-    const chip = screen.getByRole("button", { name: /Favorites/ });
-    expect(chip.textContent).toContain("2");
-    fireEvent.click(chip);
     expect(titles()).toEqual(["Alpha", "Charlie"]);
+    fireEvent.click(screen.getByRole("button", { name: "Remove filter Favorites" }));
+    expect(titles()).toHaveLength(3);
   });
 
   it("sorts by rating, unrated first when ascending", () => {
@@ -151,7 +151,7 @@ describe("elsewhere", () => {
     useFavoritesStore.setState({ favorites: ["1"], ratings: {} });
     useUiStore.setState({ activeScreen: "player" });
     useLibraryViewStore.setState({ scope: { kind: "artist", artist: "x" }, tab: "albums" });
-    render(<Sidebar onBrandClick={() => undefined} />);
+    render(<Sidebar />);
     fireEvent.click(screen.getByRole("button", { name: /Favorites/ }));
     expect(useUiStore.getState().activeScreen).toBe("library");
     expect(useLibraryViewStore.getState()).toMatchObject({ filter: "favorites", scope: null, tab: "tracks" });

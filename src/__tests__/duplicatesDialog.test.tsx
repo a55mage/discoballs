@@ -9,7 +9,7 @@ vi.mock("../api", () => ({
 }));
 
 import { DuplicatesDialog } from "../shell/DuplicatesDialog";
-import { LibraryScreen } from "../screens/library/LibraryScreen";
+import { FileList } from "../screens/tagEditor/FileList";
 import { useLibraryStore } from "../store/libraryStore";
 import { useLibraryViewStore } from "../store/libraryViewStore";
 import { useUiStore } from "../store/uiStore";
@@ -98,17 +98,17 @@ describe("DuplicatesDialog", () => {
   });
 });
 
-describe("Library duplicates entry point", () => {
+describe("Tag Editor duplicates entry point", () => {
   it("offers a review button only when there are duplicates, and the filter ignores dismissed groups", () => {
     useUiStore.setState({ isDuplicatesOpen: false });
-    render(<LibraryScreen onTogglePlayPause={() => undefined} />);
+    render(<FileList dirty={false} />);
     expect(screen.getByRole("button", { name: /Duplicates/ }).textContent).toContain("4");
     fireEvent.click(screen.getByRole("button", { name: "Review duplicates…" }));
     expect(useUiStore.getState().isDuplicatesOpen).toBe(true);
 
     cleanup();
     useLibraryViewStore.setState({ ignoredDuplicates: ["afterimage|velvet circuit", "twin|x"] });
-    render(<LibraryScreen onTogglePlayPause={() => undefined} />);
+    render(<FileList dirty={false} />);
     expect(screen.queryByRole("button", { name: "Review duplicates…" })).toBeNull();
     expect(screen.getByRole("button", { name: /Duplicates/ }).textContent).toBe("Duplicates0");
   });

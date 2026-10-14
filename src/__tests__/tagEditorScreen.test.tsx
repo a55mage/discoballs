@@ -89,7 +89,7 @@ describe("TagEditorScreen", () => {
     const options = within(screen.getByRole("list", { name: "Tracks" })).getAllByRole("listitem");
     expect(options).toHaveLength(2);
     expect(within(options[1]).getByRole("img", { name: /No cover, No genre/ })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Needs attention" }));
+    fireEvent.click(screen.getByRole("button", { name: /Missing cover/ }));
     expect(within(screen.getByRole("list", { name: "Tracks" })).getAllByRole("listitem")).toHaveLength(1);
   });
 

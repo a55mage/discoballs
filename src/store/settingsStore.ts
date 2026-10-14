@@ -8,7 +8,8 @@ type PlayerColumnVisibility = { library: boolean; visualizer: boolean; queue: bo
 import { readJson, readString, writeJson, writeString } from "./storage";
 
 export type ColorMode = "light" | "dark";
-export type ListDensity = "comfortable" | "compact";
+/** How the library lists tracks: two table densities, or a wall of covers. */
+export type ListDensity = "comfortable" | "compact" | "grid";
 
 const KEYS = {
   colorMode: "musicmanager-color-mode",
@@ -35,6 +36,10 @@ const KEYS = {
 
 const VISUALIZER_IDS: VisualizerPresetId[] = ["scope", "alchemy", "xp-bars", "turntable"];
 const STARTUP_SCREENS: StartupScreen[] = ["tagging", "library", "dashboard", "player"];
+
+function readListDensity(value: string | null): ListDensity {
+  return value === "compact" || value === "grid" ? value : "comfortable";
+}
 
 export const DEFAULT_RENAME_FIELDS: RenameField[] = ["tracknumber", "artist", "title"];
 export const DEFAULT_RENAME_SEPARATOR = " - ";
@@ -222,7 +227,7 @@ function loadInitialState(): Pick<
     audioSmartCrossfade: readString(KEYS.smartCrossfade) === "true",
     dynamicBackground: readString(KEYS.dynamicBackground) !== "false",
     backgroundIntensity: readIntensity(readString(KEYS.backgroundIntensity)),
-    listDensity: readString(KEYS.listDensity) === "compact" ? "compact" : "comfortable",
+    listDensity: readListDensity(readString(KEYS.listDensity)),
   };
 }
 

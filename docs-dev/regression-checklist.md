@@ -5,7 +5,9 @@ Items marked (web) can also be checked with `npm run dev` and the mock adapter.
 Automated: `npm test`, `npx tsc --noEmit`, `cargo test` in `src-tauri/`.
 
 ## Shell and window
-- [ ] The sidebar, header and player bar read as one frosted "C" around the content; no seams (web)
+- [ ] The logo sits at the left of the top bar (no app name); clicking it rotates the accent (web)
+- [ ] "Open folder" and "Connect server" are two buttons in the top bar and do what they say (web)
+- [ ] The top bar, sidebar and player bar read as one frosted "C" around the content; no seams (web)
 - [ ] macOS: traffic lights sit in the sidebar corner; the header drags the window; double-click toggles maximize
 - [ ] Windows/Linux: the glass blur renders (WebView2 / WebKitGTK); text stays readable without it
 - [ ] Minimum window size (900×600) keeps everything usable
@@ -16,8 +18,11 @@ Automated: `npm test`, `npx tsc --noEmit`, `cargo test` in `src-tauri/`.
 ## Library
 - [ ] Open folder via picker; tracks, covers and counts appear
 - [ ] Auto-open default folder on launch (setting on/off)
-- [ ] Tabs Tracks / Albums / Artists / Folders; filter text; sort by every column, both directions (web)
-- [ ] Health chips: missing cover, missing tags, duplicates, favorites (web)
+- [ ] Tabs Tracks / Albums / Artists / Folders and the filter box share one toolbar row (web)
+- [ ] Three list styles (comfortable rows, compact rows, grid of covers); the choice persists (web)
+- [ ] Table: sort by every column header, both directions; grid: sort from the toolbar select and arrow (web)
+- [ ] Grid: hover play/select/favorite, arrow keys move by card, Enter plays, selection and inspector work (web)
+- [ ] The sidebar Favorites shortcut shows a removable "Favorites" chip in the toolbar (web)
 - [ ] Large library (1000+ tracks) scrolls smoothly; list density setting works
 - [ ] Keyboard: arrows and PageUp/PageDown move the cursor, Shift extends, ⌘/Ctrl+A selects all, Enter plays, Home/End (web)
 - [ ] Inspector: details, play, edit tags, queue, add to playlist, rating, favorite (web)
@@ -28,6 +33,7 @@ Automated: `npm test`, `npx tsc --noEmit`, `cargo test` in `src-tauri/`.
 - [ ] Review duplicates: suggested copy, "Select the others", "Not duplicates"; nothing is ever deleted
 
 ## Tag editor
+- [ ] File list filters: All, Missing cover, Missing tags, Duplicates (with counts) and "Review duplicates…" (web)
 - [ ] Select a file: fields, cover, technical badge (format, bitrate, duration, size) (web)
 - [ ] Edit fields: changed fields are marked, the footer lists unsaved changes
 - [ ] Save tags writes to the file (rescan to confirm); Revert discards the draft

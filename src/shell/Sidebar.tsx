@@ -1,7 +1,6 @@
 import { IconHeart, IconPlus } from "../components/icons";
 import { useFavoritesStore } from "../store/favoritesStore";
 import { useLibraryViewStore } from "../store/libraryViewStore";
-import appIcon from "../assets/discoballs-icon.png";
 import { usePlaylistStore } from "../store/playlistStore";
 import { useLibraryStore } from "../store/libraryStore";
 import { useNavidromeStore } from "../store/navidromeStore";
@@ -9,12 +8,7 @@ import { useUiStore } from "../store/uiStore";
 import { Cover, IconButton, cx } from "../ui";
 import { SCREENS } from "./screens";
 
-type SidebarProps = {
-  /** The accent rotates when the brand is clicked (kept from earlier versions). */
-  onBrandClick: () => void;
-};
-
-export function Sidebar({ onBrandClick }: SidebarProps) {
+export function Sidebar() {
   const { activeScreen, setActiveScreen } = useUiStore();
   const { playlists, activePlaylistId, setActivePlaylist, createPlaylist } = usePlaylistStore();
   const tracks = useLibraryStore((state) => state.tracks);
@@ -32,11 +26,6 @@ export function Sidebar({ onBrandClick }: SidebarProps) {
 
   return (
     <aside className="shell__sidebar" aria-label="Main navigation">
-      <button type="button" className="shell__brand" onClick={onBrandClick} title="Change accent color" aria-label="DiscoBalls, change accent color">
-        <img src={appIcon} alt="" className="shell__brand-icon" />
-        <span className="shell__navlabel db-text-display">DiscoBalls</span>
-      </button>
-
       <nav className="shell__nav">
         {mainScreens.map(({ id, label, Icon }) => (
           <button

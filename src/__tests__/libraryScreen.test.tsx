@@ -72,19 +72,19 @@ describe("LibraryScreen", () => {
     expect(screen.getByRole("button", { name: "Open music folder" })).toBeTruthy();
   });
 
-  it("lists tracks as an ARIA grid with health counts on the filters", () => {
+  it("lists tracks as an ARIA grid and keeps the health chips for the Tag Editor", () => {
     render(<Harness />);
     expect(screen.getByRole("grid", { name: "Tracks" })).toBeTruthy();
     expect(rows()).toHaveLength(4);
-    expect(screen.getByRole("button", { name: /Missing cover/ }).textContent).toContain("1");
-    expect(screen.getByRole("button", { name: /Duplicates/ }).textContent).toContain("2");
+    expect(screen.queryByRole("button", { name: /Missing cover/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Navidrome/ })).toBeNull();
   });
 
-  it("narrows the list with a health filter and with the text filter", () => {
+  it("narrows the list with an active filter and with the text filter", () => {
+    useLibraryViewStore.setState({ filter: "cover" });
     render(<Harness />);
-    fireEvent.click(screen.getByRole("button", { name: /Missing cover/ }));
     expect(rows()).toHaveLength(1);
-    fireEvent.click(screen.getByRole("button", { name: /^All/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Remove filter Missing cover" }));
     fireEvent.change(screen.getByLabelText("Filter library"), { target: { value: "someone" } });
     expect(rows()).toHaveLength(1);
   });

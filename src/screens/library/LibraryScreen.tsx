@@ -1,21 +1,21 @@
-import { type MouseEvent, useMemo } from "react";
-import { IconClose, IconFolder, IconGlobe, IconGrid, IconListCompact, IconSearch } from "../../components/icons";
+import { type MouseEvent, type ReactNode, useMemo } from "react";
+import { IconClose, IconFolder, IconGlobe, IconGrid, IconListCompact, IconRows, IconSearch, IconArrowUp, IconArrowDown } from "../../components/icons";
 import { scanLibraryWithPicker } from "../../actions/library";
 import { moveSelection, selectOnly, selectRangeTo, toggleSelectAll, toggleSelected } from "../../actions/librarySelection";
 import { playFromLibraryCover } from "../../actions/playback";
 import { summarizeAlbums, summarizeArtists, type LibraryAlbumSummary, type LibraryArtistSummary } from "../../domain/library";
-import type { HealthFilter, LibraryTab } from "../../domain/libraryView";
+import type { HealthFilter, LibraryTab, SortKey } from "../../domain/libraryView";
 import { useVisibleTracks } from "../../hooks/useVisibleTracks";
 import { useFavoritesStore } from "../../store/favoritesStore";
 import { useLibraryStore } from "../../store/libraryStore";
 import { useLibraryViewStore } from "../../store/libraryViewStore";
 import { useNavidromeStore } from "../../store/navidromeStore";
 import { usePlayerStore } from "../../store/playerStore";
-import { useSettingsStore } from "../../store/settingsStore";
-import { useUiStore } from "../../store/uiStore";
+import { useSettingsStore, type ListDensity } from "../../store/settingsStore";
 import type { Track } from "../../types";
-import { Button, Chip, IconButton, Segmented, TextInput } from "../../ui";
+import { Button, Chip, IconButton, Segmented, Select, TextInput } from "../../ui";
 import { AlbumGrid, ArtistList, FolderBrowser } from "./CollectionViews";
+import { TrackGrid } from "./TrackGrid";
 import { TrackTable } from "./TrackTable";
 import "./library.css";
 
@@ -24,6 +24,31 @@ const TAB_OPTIONS: Array<{ value: LibraryTab; label: string }> = [
   { value: "albums", label: "Albums" },
   { value: "artists", label: "Artists" },
   { value: "folders", label: "Folders" },
+];
+
+const FILTER_LABELS: Record<HealthFilter, string> = {
+  all: "All",
+  cover: "Missing cover",
+  tags: "Missing tags",
+  duplicates: "Duplicates",
+  favorites: "Favorites",
+};
+
+const SORT_OPTIONS: Array<{ value: SortKey; label: string }> = [
+  { value: "added", label: "Date added" },
+  { value: "title", label: "Title" },
+  { value: "artist", label: "Artist" },
+  { value: "album", label: "Album" },
+  { value: "year", label: "Year" },
+  { value: "genre", label: "Genre" },
+  { value: "format", label: "Format" },
+  { value: "rating", label: "Rating" },
+];
+
+const STYLE_OPTIONS: Array<{ value: ListDensity; label: ReactNode; ariaLabel: string }> = [
+  { value: "comfortable", label: <IconRows aria-hidden="true" />, ariaLabel: "Comfortable rows" },
+  { value: "compact", label: <IconListCompact aria-hidden="true" />, ariaLabel: "Compact rows" },
+  { value: "grid", label: <IconGrid aria-hidden="true" />, ariaLabel: "Grid of covers" },
 ];
 
 type LibraryScreenProps = {
@@ -38,8 +63,7 @@ export function LibraryScreen({ onTogglePlayPause }: LibraryScreenProps) {
   const { playbackTrackId, isPlaying } = usePlayerStore();
   const { listDensity, setListDensity } = useSettingsStore();
   const setNavidromePanelOpen = useNavidromeStore((state) => state.setIsNavidromePanelOpen);
-  const setDuplicatesOpen = useUiStore((state) => state.setDuplicatesOpen);
-  const { tracks, visibleTracks, unscopedTracks, duplicateIds, health } = useVisibleTracks();
+  const { tracks, visibleTracks, unscopedTracks, duplicateIds } = useVisibleTracks();
   const { favorites, ratings, toggleFavorite, setRating } = useFavoritesStore();
   const favoriteIds = useMemo(() => new Set(favorites), [favorites]);
 
@@ -88,57 +112,78 @@ export function LibraryScreen({ onTogglePlayPause }: LibraryScreenProps) {
     );
   }
 
-  const chips: Array<{ value: HealthFilter; label: string; count: number }> = [
-    { value: "all", label: "All", count: health.all },
-    { value: "cover", label: "Missing cover", count: health.cover },
-    { value: "tags", label: "Missing tags", count: health.tags },
-    { value: "duplicates", label: "Duplicates", count: health.duplicates },
-    { value: "favorites", label: "Favorites", count: health.favorites },
-  ];
   const scopeLabel = view.scope ? (view.scope.kind === "album" ? `${view.scope.album} · ${view.scope.artist}` : view.scope.artist) : "";
+  const filterLabel = view.filter === "all" ? "" : FILTER_LABELS[view.filter];
 
   return (
     <div className="lib-screen">
       <div className="lib-toolbar">
         <Segmented label="Library view" value={view.tab} options={TAB_OPTIONS} onChange={view.setTab} />
-        <div className="lib-chips" role="group" aria-label="Library health filters">
-          {chips.map((chip) => (
-            <Chip key={chip.value} on={view.filter === chip.value} count={chip.value === "all" ? undefined : chip.count} onClick={() => view.setFilter(chip.value)}>
-              {chip.label}
-            </Chip>
-          ))}
-          {health.duplicates > 0 ? (
-            <Button size="sm" variant="ghost" onClick={() => setDuplicatesOpen(true)}>Review duplicates…</Button>
-          ) : null}
-          {view.scope ? (
-            <Chip on onClick={() => view.setScope(null)} aria-label={`Remove filter ${scopeLabel}`}>
-              {scopeLabel}
-              <IconClose aria-hidden="true" width={12} height={12} />
-            </Chip>
-          ) : null}
-        </div>
-        <div className="lib-toolbar__end">
-          <label className="lib-search">
-            <IconSearch aria-hidden="true" />
-            <TextInput placeholder="Filter this list…" aria-label="Filter library" value={view.query} onChange={(event) => view.setQuery(event.target.value)} />
-          </label>
-          <IconButton
-            label={listDensity === "compact" ? "Use comfortable rows" : "Use compact rows"}
-            active={listDensity === "compact"}
-            onClick={() => setListDensity(listDensity === "compact" ? "comfortable" : "compact")}
-          >
-            {listDensity === "compact" ? <IconListCompact /> : <IconGrid />}
-          </IconButton>
-          <IconButton label="Connect a Navidrome server" onClick={() => setNavidromePanelOpen(true)}><IconGlobe /></IconButton>
-        </div>
+        <label className="lib-search">
+          <IconSearch aria-hidden="true" />
+          <TextInput placeholder="Filter this list…" aria-label="Filter library" value={view.query} onChange={(event) => view.setQuery(event.target.value)} />
+        </label>
+        {view.scope || filterLabel ? (
+          <div className="lib-chips" role="group" aria-label="Active filters">
+            {filterLabel ? (
+              <Chip on onClick={() => view.setFilter("all")} aria-label={`Remove filter ${filterLabel}`}>
+                {filterLabel}
+                <IconClose aria-hidden="true" width={12} height={12} />
+              </Chip>
+            ) : null}
+            {view.scope ? (
+              <Chip on onClick={() => view.setScope(null)} aria-label={`Remove filter ${scopeLabel}`}>
+                {scopeLabel}
+                <IconClose aria-hidden="true" width={12} height={12} />
+              </Chip>
+            ) : null}
+          </div>
+        ) : null}
+        {view.tab === "tracks" ? (
+          <div className="lib-toolbar__end">
+            {listDensity === "grid" ? (
+              <>
+                <Select className="lib-sortselect" aria-label="Sort by" value={view.sortKey} onChange={(event) => view.clickSort(event.target.value as SortKey)}>
+                  {SORT_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </Select>
+                <IconButton
+                  label={view.sortDirection === "asc" ? "Ascending: switch to descending" : "Descending: switch to ascending"}
+                  onClick={() => view.clickSort(view.sortKey)}
+                >
+                  {view.sortDirection === "asc" ? <IconArrowUp /> : <IconArrowDown />}
+                </IconButton>
+              </>
+            ) : null}
+            <Segmented label="Track list style" value={listDensity} onChange={setListDensity} options={STYLE_OPTIONS} />
+          </div>
+        ) : null}
       </div>
 
       <div className="lib-body">
-        {view.tab === "tracks" ? (
+        {view.tab === "tracks" && listDensity === "grid" ? (
+          <TrackGrid
+            tracks={visibleTracks}
+            duplicateIds={duplicateIds}
+            selectedIds={view.selectedIds}
+            cursorId={view.anchorId}
+            playingTrackId={playbackTrackId}
+            isPlaying={isPlaying}
+            favoriteIds={favoriteIds}
+            onRowClick={onRowClick}
+            onToggleSelected={(track) => toggleSelected(track.id)}
+            onPlay={playTrack}
+            onToggleFavorite={(track) => toggleFavorite(track.id)}
+            onKeyNavigate={moveSelection}
+            onSelectAll={toggleSelectAll}
+          />
+        ) : null}
+        {view.tab === "tracks" && listDensity !== "grid" ? (
           <TrackTable
             tracks={visibleTracks}
             duplicateIds={duplicateIds}
-            density={listDensity}
+            density={listDensity === "compact" ? "compact" : "comfortable"}
             selectedIds={view.selectedIds}
             cursorId={view.anchorId}
             playingTrackId={playbackTrackId}

@@ -18,7 +18,7 @@ DiscoBalls helps you manage local audio libraries (MP3/FLAC and other supported 
 ## Core App Functions
 - Library:
   - Scan a local folder recursively; read tags, embedded covers and technical info
-  - Browse by tracks, albums, artists or folders; sort, filter, favorites and star ratings
+  - Browse by tracks, albums, artists or folders; list, compact list or a grid of covers; sort, filter, favorites and star ratings
   - Library health filters: missing cover, missing tags, duplicates (reviewed, never deleted)
 - Tagging:
   - Edit title, artist, album, track number, year, genre and cover art; save to the file

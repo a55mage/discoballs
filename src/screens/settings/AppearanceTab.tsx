@@ -21,14 +21,15 @@ export function AppearanceTab() {
             ]}
           />
         </SettingRow>
-        <SettingRow title="List density" description="Row height of the library list.">
+        <SettingRow title="Track list style" description="Table rows or a grid of covers in the library.">
           <Segmented
-            label="List density"
+            label="Track list style"
             value={s.listDensity}
             onChange={s.setListDensity}
             options={[
               { value: "comfortable", label: "Comfortable" },
               { value: "compact", label: "Compact" },
+              { value: "grid", label: "Grid" },
             ]}
           />
         </SettingRow>

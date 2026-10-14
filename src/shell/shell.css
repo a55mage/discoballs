@@ -25,12 +25,14 @@ body {
 .shell {
   --shell-side: 236px;
   --shell-player-h: 96px;
+  /* Space left of the logo; the macOS overlay title bar needs room for the window buttons. */
+  --shell-head-pad: 22px;
   position: relative;
   display: grid;
   grid-template-columns: var(--shell-side) minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr) var(--shell-player-h);
   grid-template-areas:
-    "side head"
+    "head head"
     "side content"
     "player player";
   height: 100vh;
@@ -100,22 +102,21 @@ body {
   flex-direction: column;
   gap: 6px;
   min-height: 0;
-  padding: 18px 14px;
+  padding: 4px 14px 18px;
 }
-.shell--overlay-titlebar .shell__sidebar {
-  padding-top: 40px;
+.shell--overlay-titlebar {
+  --shell-head-pad: 84px;
 }
 .shell__brand {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 2px 8px 14px;
+  flex: none;
+  /* As wide as the sidebar, so the screen title lines up with the content window. */
+  width: max(36px, calc(var(--shell-side) - var(--shell-head-pad) - var(--db-space-4)));
+  padding: 0;
   border: 0;
   background: none;
-  color: var(--db-ink);
   cursor: pointer;
-  font-size: 20px;
-  font-weight: 800;
 }
 .shell__brand-icon {
   width: 36px;
@@ -287,7 +288,7 @@ body {
   align-items: center;
   gap: var(--db-space-4);
   flex-wrap: wrap;
-  padding: 14px 24px 14px 8px;
+  padding: 12px 24px 12px var(--shell-head-pad);
 }
 .shell__title h1 {
   margin: 0;
@@ -560,8 +561,7 @@ body {
   .shell__navlabel {
     display: none;
   }
-  .shell__nav-btn,
-  .shell__brand {
+  .shell__nav-btn {
     justify-content: center;
     padding-inline: 0;
   }
