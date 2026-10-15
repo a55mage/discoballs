@@ -93,12 +93,13 @@ describe("grid view of the library", () => {
 });
 
 describe("header", () => {
-  it("has the logo (no app title) and separate buttons for folders and servers", () => {
+  it("has the logo next to the app name (no section title) and separate buttons for folders and servers", () => {
     useUiStore.setState({ activeScreen: "library" });
     useNavidromeStore.setState({ isNavidromePanelOpen: false });
     const rotate = vi.fn();
     render(<Header onBrandClick={rotate} />);
-    expect(screen.queryByText("DiscoBalls")).toBeNull();
+    expect(screen.getByRole("heading", { name: "DiscoBalls" })).toBeTruthy();
+    expect(screen.queryByText("Browse and manage your music")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /change accent color/ }));
     expect(rotate).toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Open folder" })).toBeTruthy();

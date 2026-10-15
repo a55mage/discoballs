@@ -5,7 +5,7 @@ Items marked (web) can also be checked with `npm run dev` and the mock adapter.
 Automated: `npm test`, `npx tsc --noEmit`, `cargo test` in `src-tauri/`.
 
 ## Shell and window
-- [ ] The logo sits right next to the section title in the top bar (no app name); clicking it rotates the accent (web)
+- [ ] The logo sits right next to the section title in the top bar (app name, no section title); clicking it rotates the accent (web)
 - [ ] "Open folder" and "Connect server" are two buttons in the top bar and do what they say (web)
 - [ ] The top bar, sidebar and player bar read as one frosted "C" around the content; no seams (web)
 - [ ] macOS: traffic lights sit in the sidebar corner; the header drags the window; double-click toggles maximize

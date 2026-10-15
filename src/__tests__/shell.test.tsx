@@ -141,7 +141,7 @@ describe("AppShell", () => {
       "Playlists",
       "Now Playing",
     ]);
-    expect(screen.getByRole("heading", { name: "Library" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "DiscoBalls" })).toBeTruthy();
     expect(screen.getByRole("contentinfo", { name: "Player" })).toBeTruthy();
     expect(screen.getByText("Screen content")).toBeTruthy();
   });
@@ -152,7 +152,6 @@ describe("AppShell", () => {
     await userEvent.click(tagEditor);
     expect(useUiStore.getState().activeScreen).toBe("tagging");
     expect(tagEditor.getAttribute("aria-current")).toBe("page");
-    expect(screen.getByRole("heading", { name: "Tag Editor" })).toBeTruthy();
   });
 
   it("opens the palette with Ctrl+K", () => {

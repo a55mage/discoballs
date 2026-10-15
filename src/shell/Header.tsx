@@ -6,7 +6,6 @@ import { useNavidromeStore } from "../store/navidromeStore";
 import { useUiStore } from "../store/uiStore";
 import { Button, IconButton } from "../ui";
 import { COMMAND_KEY_LABEL } from "./platform";
-import { getScreenMeta } from "./screens";
 
 type HeaderProps = {
   /** The accent rotates when the logo is clicked (kept from earlier versions). */
@@ -14,10 +13,9 @@ type HeaderProps = {
 };
 
 export function Header({ onBrandClick }: HeaderProps) {
-  const { activeScreen, setPaletteOpen } = useUiStore();
+  const { setPaletteOpen } = useUiStore();
   const { colorMode, setColorMode } = useSettingsStore();
   const setNavidromePanelOpen = useNavidromeStore((state) => state.setIsNavidromePanelOpen);
-  const meta = getScreenMeta(activeScreen);
   const isDark = colorMode === "dark";
 
   return (
@@ -27,8 +25,7 @@ export function Header({ onBrandClick }: HeaderProps) {
       </button>
 
       <div className="shell__title" data-tauri-drag-region>
-        <h1 className="db-text-display" data-tauri-drag-region>{meta.title}</h1>
-        <p data-tauri-drag-region>{meta.subtitle}</p>
+        <h1 className="db-text-display" data-tauri-drag-region>DiscoBalls</h1>
       </div>
 
       <button type="button" className="shell__search" onClick={() => setPaletteOpen(true)} aria-keyshortcuts="Control+K Meta+K">
