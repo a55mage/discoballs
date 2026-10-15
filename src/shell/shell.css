@@ -25,7 +25,7 @@ body {
 .shell {
   --shell-side: 236px;
   --shell-player-h: 96px;
-  /* Space left of the logo; the macOS overlay title bar needs room for the window buttons. */
+  /* Space left of the logo. */
   --shell-head-pad: 22px;
   position: relative;
   display: grid;
@@ -104,8 +104,10 @@ body {
   min-height: 0;
   padding: 4px 14px 18px;
 }
-.shell--overlay-titlebar {
-  --shell-head-pad: 84px;
+/* macOS overlay title bar: the window buttons get their own strip above the header, so the logo lines up
+   with the sidebar instead of being pushed aside by them. */
+.shell--overlay-titlebar .shell__header {
+  padding-top: 30px;
 }
 .shell__brand {
   display: flex;
