@@ -7,13 +7,16 @@ import { useLibraryViewStore } from "../store/libraryViewStore";
 /** The library as the Tracks tab shows it, plus the health information that drives filters and badges. */
 export function useVisibleTracks() {
   const tracks = useLibraryStore((state) => state.tracks);
-  const { query, filter, scope, sortKey, sortDirection, ignoredDuplicates } = useLibraryViewStore();
+  const { query, filter, scope, sortKey, sortDirection, ignoredDuplicates, duplicatesIgnoreFormats } = useLibraryViewStore();
 
   const favorites = useFavoritesStore((state) => state.favorites);
   const ratings = useFavoritesStore((state) => state.ratings);
   const favoriteIds = useMemo(() => new Set(favorites), [favorites]);
 
-  const duplicateIds = useMemo(() => findDuplicateIds(tracks, new Set(ignoredDuplicates)), [tracks, ignoredDuplicates]);
+  const duplicateIds = useMemo(
+    () => findDuplicateIds(tracks, new Set(ignoredDuplicates), { ignoreOtherFormats: duplicatesIgnoreFormats }),
+    [tracks, ignoredDuplicates, duplicatesIgnoreFormats]
+  );
   const health = useMemo(() => countHealth(tracks, duplicateIds, favoriteIds), [tracks, duplicateIds, favoriteIds]);
   const visibleTracks = useMemo(
     () => getVisibleTracks(tracks, { query, filter, scope, sortKey, sortDirection }, duplicateIds, { favoriteIds, ratings }),

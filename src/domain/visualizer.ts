@@ -1,9 +1,9 @@
 export type VisualizerPresetId = "xp-bars" | "alchemy" | "scope" | "turntable";
 
 export const VISUALIZER_PRESETS: Array<{ id: VisualizerPresetId; label: string }> = [
-  { id: "scope", label: "Scope Line" },
-  { id: "alchemy", label: "Alchemy" },
-  { id: "xp-bars", label: "XP Bars" },
+  { id: "scope", label: "Wave" },
+  { id: "alchemy", label: "Radial" },
+  { id: "xp-bars", label: "Spectrum" },
   { id: "turntable", label: "Turntable" },
 ];
 

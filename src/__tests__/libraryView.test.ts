@@ -182,3 +182,36 @@ describe("duplicate groups", () => {
     expect(suggestKeep({ key: "k", tracks: [one, two] })).toBe(one);
   });
 });
+
+describe("duplicates across formats", () => {
+  const song = (id: string, path: string, patch: Partial<Track> = {}): Track => ({
+    id,
+    path,
+    title: "Harbor Lights",
+    artist: "Marlow Vane",
+    album: "Night Ferry",
+    tracknumber: "1",
+    year: "2019",
+    genre: "Indie",
+    hasCover: true,
+    ...patch,
+  });
+  const tracks = [song("flac", "/m/a.flac"), song("mp3", "/m/a.mp3"), song("mp3b", "/m/b.mp3")];
+
+  it("counts a FLAC and an MP3 of one song as duplicates by default", () => {
+    expect([...findDuplicateIds(tracks)].sort()).toEqual(["flac", "mp3", "mp3b"]);
+  });
+
+  it("with other formats ignored, only copies in the same format remain", () => {
+    expect([...findDuplicateIds(tracks, new Set(), { ignoreOtherFormats: true })].sort()).toEqual(["mp3", "mp3b"]);
+    expect(findDuplicateGroups(tracks.slice(0, 2), new Set(), { ignoreOtherFormats: true })).toEqual([]);
+  });
+
+  it("is not fooled by case, accents or punctuation, and honours dismissed groups in either mode", () => {
+    const variants = [song("1", "/m/1.mp3", { title: "Café del Mar!" }), song("2", "/m/2.mp3", { title: "cafe  del mar" })];
+    expect(findDuplicateGroups(variants)).toHaveLength(1);
+    const key = findDuplicateGroups(variants)[0].key;
+    expect(findDuplicateGroups(variants, new Set([key]))).toEqual([]);
+    expect(findDuplicateGroups(variants, new Set([key]), { ignoreOtherFormats: true })).toEqual([]);
+  });
+});

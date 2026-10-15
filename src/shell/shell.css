@@ -111,16 +111,15 @@ body {
   display: flex;
   align-items: center;
   flex: none;
-  /* As wide as the sidebar, so the screen title lines up with the content window. */
-  width: max(36px, calc(var(--shell-side) - var(--shell-head-pad) - var(--db-space-4)));
   padding: 0;
   border: 0;
+  border-radius: 50%;
   background: none;
   cursor: pointer;
 }
 .shell__brand-icon {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
 }
 .shell__nav {
@@ -1036,4 +1035,16 @@ body {
 
 .dup__group li.is-keep .db-badge {
   color: var(--db-ink);
+}
+
+.dup__option {
+  display: flex;
+  align-items: center;
+  gap: var(--db-space-3);
+  font-weight: 700;
+}
+.dup__option small {
+  display: block;
+  color: var(--db-ink-2);
+  font-weight: 500;
 }

@@ -6,7 +6,7 @@ import { averageGain, buildEqCurvePath, formatBandFrequency, formatGain } from "
 import { useEqualizerStore } from "../../store/equalizerStore";
 import { useSettingsStore } from "../../store/settingsStore";
 import { EQUALIZER_FREQUENCIES, getOrCreateMediaAudioGraph } from "../../utils/audioGraph";
-import { drawXpBars } from "../nowPlaying/Visualizer";
+import { VizState, drawSpectrum } from "../nowPlaying/vizEffects";
 import { Button, Field, IconButton, Select, Slider, TextInput } from "../../ui";
 
 /** Live spectrum behind the tone curve, so the effect of a change is visible while music plays. */
@@ -21,6 +21,7 @@ function Spectrum() {
       return;
     }
     let frame = 0;
+    const state = new VizState();
     const draw = () => {
       const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
       const width = canvas.clientWidth;
@@ -35,7 +36,8 @@ function Spectrum() {
       const graph = audio ? getOrCreateMediaAudioGraph(audio) : null;
       if (graph) {
         graph.analyser.getByteFrequencyData(graph.frequencyData);
-        drawXpBars(ctx, width, height, graph.frequencyData, accent, true);
+        graph.analyser.getByteTimeDomainData(graph.timeData);
+        drawSpectrum(ctx, width, height, { freq: graph.frequencyData, time: graph.timeData, isPlaying: true, accent, isDark: false, t: performance.now() * 0.001 }, state);
       }
       frame = requestAnimationFrame(draw);
     };

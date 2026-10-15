@@ -2,7 +2,7 @@ import { type KeyboardEvent, type MouseEvent, useRef } from "react";
 import { IconCheck, IconHeart, IconPause, IconPlay } from "../../components/icons";
 import { getFormat, getTrackIssues, type SortKey } from "../../domain/libraryView";
 import { useVirtualList } from "../../hooks/useVirtualList";
-import { Badge, Cover, Rating, cx } from "../../ui";
+import { Badge, Cover, cx } from "../../ui";
 import type { Track } from "../../types";
 
 const ROW_HEIGHT = { comfortable: 60, compact: 40 } as const;
@@ -26,9 +26,7 @@ type TrackTableProps = {
   onKeyNavigate: (step: number, extend: boolean) => void;
   onSelectAll: () => void;
   favoriteIds: ReadonlySet<string>;
-  ratings: Readonly<Record<string, number>>;
   onToggleFavorite: (track: Track) => void;
-  onRate: (track: Track, rating: number) => void;
 };
 
 const COLUMNS: Array<{ key: SortKey; label: string }> = [
@@ -37,7 +35,6 @@ const COLUMNS: Array<{ key: SortKey; label: string }> = [
   { key: "year", label: "Year" },
   { key: "genre", label: "Genre" },
   { key: "format", label: "Format" },
-  { key: "rating", label: "Rating" },
 ];
 
 /** Virtualized, sortable, multi-select track list (ARIA grid). */
@@ -59,9 +56,7 @@ export function TrackTable({
   onKeyNavigate,
   onSelectAll,
   favoriteIds,
-  ratings,
   onToggleFavorite,
-  onRate,
 }: TrackTableProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const rowHeight = ROW_HEIGHT[density];
@@ -208,9 +203,6 @@ export function TrackTable({
               <div role="gridcell" className={cx("lib-cell", "lib-cell--year", !track.year && "is-missing")}>{track.year || "—"}</div>
               <div role="gridcell" className={cx("lib-cell", "lib-cell--genre", !track.genre && "is-missing")}>{track.genre || "—"}</div>
               <div role="gridcell" className="lib-cell lib-cell--format"><Badge tone="neutral">{getFormat(track) || "?"}</Badge></div>
-              <div role="gridcell" className="lib-cell lib-cell--rating">
-                <Rating size="sm" value={ratings[track.id] ?? 0} label={`Rating of ${track.title || "track"}`} onChange={(rating) => onRate(track, rating)} />
-              </div>
               <div role="gridcell" className="lib-cell lib-cell--fav">
                 <button
                   type="button"

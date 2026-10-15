@@ -5,6 +5,7 @@ import { useSettingsStore } from "../../store/settingsStore";
 import { getOrCreateMediaAudioGraph, type MediaAudioGraph } from "../../utils/audioGraph";
 
 import type { VisualizerPresetId } from "../../domain/visualizer";
+import { VizState, drawRadial, drawSpectrum, drawWave, idleFrameData, withAlpha, type VizFrame } from "./vizEffects";
 
 type VisualizerProps = {
   preset: VisualizerPresetId;
@@ -29,6 +30,9 @@ export function Visualizer({ preset, coverUrl }: VisualizerProps) {
   const coverImageUrlRef = useRef<string>("");
   const currentTimeRef = useRef(0);
   const durationRef = useRef(0);
+  const vizStateRef = useRef(new VizState());
+  const idleFreqRef = useRef(new Uint8Array(256));
+  const idleTimeRef = useRef(new Uint8Array(512));
 
   useEffect(() => {
     if (!isActive) {
@@ -105,47 +109,39 @@ export function Visualizer({ preset, coverUrl }: VisualizerProps) {
     }
 
     const drawFrame = () => {
-      const width = canvas.width / Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
-      const height = canvas.height / Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
-      drawBackground(ctx, width, height);
+      const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
+      const width = canvas.width / dpr;
+      const height = canvas.height / dpr;
+      ctx.clearRect(0, 0, width, height);
 
-      if (!hasAudio) {
-        frameRef.current = requestAnimationFrame(drawFrame);
-        return;
-      }
-
+      const t = performance.now() * 0.001;
       const graph = graphRef.current;
-      if (!graph) {
-        frameRef.current = requestAnimationFrame(drawFrame);
-        return;
+      let freq = idleFreqRef.current;
+      let time = idleTimeRef.current;
+      if (hasAudio && graph) {
+        graph.analyser.getByteFrequencyData(graph.frequencyData);
+        graph.analyser.getByteTimeDomainData(graph.timeData);
+        freq = graph.frequencyData;
+        time = graph.timeData;
+      } else {
+        idleFrameData(t, freq, time);
       }
-
-      graph.analyser.getByteFrequencyData(graph.frequencyData);
-      graph.analyser.getByteTimeDomainData(graph.timeData);
+      const frame: VizFrame = { freq, time, isPlaying: isPlaying && hasAudio, accent: accentColor, isDark: isDarkMode, t };
+      const state = vizStateRef.current;
 
       switch (preset) {
         case "alchemy":
-          drawAlchemy(ctx, width, height, graph.frequencyData, accentColor, isPlaying);
+          drawRadial(ctx, width, height, frame, state);
           break;
         case "scope":
-          drawScope(ctx, width, height, graph.timeData, accentColor, isPlaying);
+          drawWave(ctx, width, height, frame, state);
           break;
         case "turntable":
-          drawTurntable(
-            ctx,
-            width,
-            height,
-            coverImageRef.current,
-            accentColor,
-            isDarkMode,
-            isPlaying,
-            currentTimeRef.current,
-            durationRef.current
-          );
+          drawTurntable(ctx, width, height, coverImageRef.current, accentColor, isDarkMode, isPlaying, currentTimeRef.current, durationRef.current);
           break;
         case "xp-bars":
         default:
-          drawXpBars(ctx, width, height, graph.frequencyData, accentColor, isPlaying);
+          drawSpectrum(ctx, width, height, frame, state);
           break;
       }
 
@@ -169,140 +165,9 @@ export function Visualizer({ preset, coverUrl }: VisualizerProps) {
   return (
     <div ref={containerRef} className="np-viz">
       <canvas ref={canvasRef} className="np-viz__canvas" aria-label="Audio visualizer" role="img" />
-      {!hasAudio && (
-        <div className="np-viz__overlay">
-          <p>No audio loaded</p>
-          <small>Press play to start.</small>
-        </div>
-      )}
+      {!hasAudio && <p className="np-viz__hint">Press play to bring it to life.</p>}
     </div>
   );
-}
-
-function drawBackground(ctx: CanvasRenderingContext2D, width: number, height: number) {
-  // Transparent: the frosted pane behind the canvas provides the surface.
-  ctx.clearRect(0, 0, width, height);
-}
-
-function drawAlchemy(
-  ctx: CanvasRenderingContext2D,
-  width: number,
-  height: number,
-  freq: Uint8Array<ArrayBuffer>,
-  accentColor: string,
-  isPlaying: boolean
-) {
-  const cx = width * 0.5;
-  const cy = height * 0.5;
-  const ringCount = 16;
-  const maxRadius = Math.min(width, height) * 0.42;
-  const baseAlpha = isPlaying ? 0.75 : 0.3;
-  const t = performance.now() * 0.001;
-  const low = bandEnergy(freq, 0, 28);
-  const mid = bandEnergy(freq, 28, 96);
-  const globalPulse = Math.sin(t * (1.6 + low * 2.2)) * (2 + low * 7);
-
-  for (let i = 0; i < ringCount; i += 1) {
-    const bin = Math.min(freq.length - 1, i * 3);
-    const energy = freq[bin] / 255;
-    const baseRadius = (i + 1) * (maxRadius / ringCount);
-    const radius = baseRadius * (0.78 + energy * 0.42) + globalPulse * (0.35 + i * 0.05);
-    const alpha = baseAlpha * (0.45 + energy * 0.55);
-    ctx.lineWidth = 0.7 + energy * 1.1;
-    ctx.strokeStyle = withAlpha(accentColor, alpha);
-    ctx.beginPath();
-    ctx.arc(cx, cy, Math.max(2, radius), 0, Math.PI * 2);
-    ctx.stroke();
-
-    // Secondary halo ripple: stays circular (no rotation), reacts to audio energy.
-    const rippleOffset = (Math.sin(t * (2.1 + mid * 2.8) + i * 0.38) * (1.2 + energy * 5.2));
-    ctx.lineWidth = 0.5 + energy * 0.7;
-    ctx.strokeStyle = withAlpha(accentColor, alpha * 0.42);
-    ctx.beginPath();
-    ctx.arc(cx, cy, Math.max(2, radius + rippleOffset), 0, Math.PI * 2);
-    ctx.stroke();
-  }
-
-  const coreEnergy = freq[1] / 255;
-  const coreRadius = 14 + coreEnergy * 34;
-  const radial = ctx.createRadialGradient(cx, cy, 1, cx, cy, coreRadius);
-  radial.addColorStop(0, withAlpha(accentColor, 0.9));
-  radial.addColorStop(1, "rgba(255,255,255,0)");
-  ctx.fillStyle = radial;
-  ctx.beginPath();
-  ctx.arc(cx, cy, coreRadius, 0, Math.PI * 2);
-  ctx.fill();
-}
-
-function bandEnergy(freq: Uint8Array<ArrayBuffer>, start: number, end: number): number {
-  const from = Math.max(0, Math.min(freq.length - 1, start));
-  const to = Math.max(from + 1, Math.min(freq.length, end));
-  let sum = 0;
-  for (let i = from; i < to; i += 1) {
-    sum += freq[i];
-  }
-  return sum / ((to - from) * 255);
-}
-
-export function drawXpBars(
-  ctx: CanvasRenderingContext2D,
-  width: number,
-  height: number,
-  freq: Uint8Array<ArrayBuffer>,
-  accentColor: string,
-  isPlaying: boolean
-) {
-  const bins = Math.min(64, freq.length);
-  const barGap = 2;
-  const totalGapWidth = (bins - 1) * barGap;
-  const barWidth = Math.max(1, (width - totalGapWidth) / bins);
-  const baselineY = height;
-
-  for (let i = 0; i < bins; i += 1) {
-    const energy = freq[i] / 255;
-    const boost = isPlaying ? 1 : 0.25;
-    const amp = Math.max(0.02, energy * boost);
-    const barHeight = amp * (height * 0.88);
-    const x = i * (barWidth + barGap);
-    const y = baselineY - barHeight;
-
-    const topGradient = ctx.createLinearGradient(0, y, 0, baselineY);
-    topGradient.addColorStop(0, accentColor);
-    topGradient.addColorStop(1, withAlpha(accentColor, 0.2));
-    ctx.fillStyle = topGradient;
-    ctx.fillRect(x, y, barWidth, barHeight);
-  }
-}
-
-function drawScope(
-  ctx: CanvasRenderingContext2D,
-  width: number,
-  height: number,
-  time: Uint8Array<ArrayBuffer>,
-  accentColor: string,
-  isPlaying: boolean
-) {
-  const centerY = height * 0.5;
-  const amp = isPlaying ? height * 0.35 : height * 0.1;
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = accentColor;
-  ctx.shadowBlur = 10;
-  ctx.shadowColor = accentColor;
-  ctx.beginPath();
-
-  for (let i = 0; i < time.length; i += 1) {
-    const x = (i / (time.length - 1)) * width;
-    const normalized = (time[i] - 128) / 128;
-    const y = centerY + normalized * amp;
-    if (i === 0) {
-      ctx.moveTo(x, y);
-    } else {
-      ctx.lineTo(x, y);
-    }
-  }
-
-  ctx.stroke();
-  ctx.shadowBlur = 0;
 }
 
 function drawTurntable(
@@ -470,19 +335,3 @@ function drawTurntable(
   ctx.arc(stylusX, stylusY, 4, 0, Math.PI * 2);
   ctx.fill();
 }
-
-function withAlpha(color: string, alpha: number): string {
-  const safe = Math.max(0, Math.min(1, alpha));
-  if (color.startsWith("#")) {
-    const hex = color.slice(1);
-    if (hex.length === 6) {
-      const r = parseInt(hex.slice(0, 2), 16);
-      const g = parseInt(hex.slice(2, 4), 16);
-      const b = parseInt(hex.slice(4, 6), 16);
-      return `rgba(${r}, ${g}, ${b}, ${safe})`;
-    }
-  }
-  return color;
-}
-
-

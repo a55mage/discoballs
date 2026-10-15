@@ -92,7 +92,7 @@ export function getOrCreateMediaAudioGraph(audio: HTMLAudioElement): MediaAudioG
     return filter;
   });
 
-  analyser.fftSize = 512;
+  analyser.fftSize = 2048;
   analyser.smoothingTimeConstant = 0.82;
   normalizeGain.gain.value = 1;
   preamp.gain.value = 1;

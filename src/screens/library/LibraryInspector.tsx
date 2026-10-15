@@ -16,7 +16,7 @@ import { usePlaylistStore } from "../../store/playlistStore";
 import { useUiStore } from "../../store/uiStore";
 import type { Track } from "../../types";
 import { formatTrackTechnicalSummary } from "../../utils/appHelpers";
-import { Badge, Button, Cover, Field, IconButton, Rating, Switch, TextInput } from "../../ui";
+import { Badge, Button, Cover, Field, IconButton, Switch, TextInput } from "../../ui";
 
 const BATCH_FIELDS: Array<{ key: keyof BatchPatch; label: string }> = [
   { key: "artist", label: "Artist" },
@@ -56,8 +56,7 @@ function SingleTrack({ track, issues, visibleIds }: { track: Track; issues: stri
   const appendTracks = usePlaylistStore((state) => state.appendTracks);
   const info = useTrackTechnicalInfo(track);
   const isFavorite = useFavoritesStore((state) => state.favorites.includes(track.id));
-  const rating = useFavoritesStore((state) => state.ratings[track.id] ?? 0);
-  const { toggleFavorite, setRating } = useFavoritesStore();
+  const toggleFavorite = useFavoritesStore((state) => state.toggleFavorite);
   const title = track.title || track.path.replace(/\\/g, "/").split("/").pop() || "Untitled";
 
   const facts: Array<[string, string]> = [
@@ -106,7 +105,6 @@ function SingleTrack({ track, issues, visibleIds }: { track: Track; issues: stri
         </div>
 
         <div className="lib-rate">
-          <Rating value={rating} label={`Rating of ${title}`} onChange={(value) => setRating(track.id, value)} />
           <IconButton label={isFavorite ? "Remove from favorites" : "Add to favorites"} active={isFavorite} onClick={() => toggleFavorite(track.id)} className="lib-rate__heart">
             <IconHeart />
           </IconButton>

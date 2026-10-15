@@ -51,16 +51,18 @@ export function getEditableTrack(): Track | null {
 
 let cachedDuplicateTracks: Track[] | null = null;
 let cachedIgnored: string[] | null = null;
+let cachedIgnoreFormats = false;
 let cachedDuplicateIds = new Set<string>();
 
 /** Ids of tracks that look duplicated; recomputed only when the track list or the ignored groups change. */
 export function getDuplicateIds(): Set<string> {
   const { tracks } = useLibraryStore.getState();
-  const { ignoredDuplicates } = useLibraryViewStore.getState();
-  if (tracks !== cachedDuplicateTracks || ignoredDuplicates !== cachedIgnored) {
+  const { ignoredDuplicates, duplicatesIgnoreFormats } = useLibraryViewStore.getState();
+  if (tracks !== cachedDuplicateTracks || ignoredDuplicates !== cachedIgnored || duplicatesIgnoreFormats !== cachedIgnoreFormats) {
     cachedDuplicateTracks = tracks;
     cachedIgnored = ignoredDuplicates;
-    cachedDuplicateIds = findDuplicateIds(tracks, new Set(ignoredDuplicates));
+    cachedIgnoreFormats = duplicatesIgnoreFormats;
+    cachedDuplicateIds = findDuplicateIds(tracks, new Set(ignoredDuplicates), { ignoreOtherFormats: duplicatesIgnoreFormats });
   }
   return cachedDuplicateIds;
 }

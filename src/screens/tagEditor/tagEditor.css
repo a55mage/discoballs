@@ -35,6 +35,33 @@
   color: var(--db-ink-2);
   font-size: var(--db-text-xs);
 }
+.tag-files__search {
+  position: relative;
+  display: block;
+  padding: 0 14px 8px;
+}
+.tag-files__search svg {
+  position: absolute;
+  top: 11px;
+  left: 25px;
+  width: 15px;
+  height: 15px;
+  color: var(--db-ink-2);
+  pointer-events: none;
+}
+.tag-files__search .db-input {
+  height: 34px;
+  padding-left: 32px;
+}
+.tag-files__option {
+  display: flex;
+  align-items: center;
+  gap: var(--db-space-2);
+  padding: 0 14px 10px;
+  color: var(--db-ink-2);
+  font-size: var(--db-text-sm);
+  font-weight: 700;
+}
 .tag-files__filters {
   display: flex;
   flex-wrap: wrap;

@@ -94,11 +94,10 @@ describe("Rating", () => {
 });
 
 describe("in the library", () => {
-  it("rates and favorites straight from the list without selecting the row", () => {
+  it("favorites straight from the list without selecting the row", () => {
     render(<LibraryScreen onTogglePlayPause={() => undefined} />);
-    fireEvent.click(within(rows()[1]).getByRole("button", { name: "5 stars" }));
+    expect(within(rows()[1]).queryByRole("button", { name: "5 stars" })).toBeNull();
     fireEvent.click(within(rows()[1]).getByRole("button", { name: "Add Bravo to favorites" }));
-    expect(useFavoritesStore.getState().ratings).toEqual({ "2": 5 });
     expect(useFavoritesStore.getState().favorites).toEqual(["2"]);
     expect(useLibraryViewStore.getState().selectedIds).toEqual([]);
     expect(within(rows()[1]).getByRole("button", { name: "Remove Bravo from favorites" }).getAttribute("aria-pressed")).toBe("true");
@@ -113,17 +112,7 @@ describe("in the library", () => {
     expect(titles()).toHaveLength(3);
   });
 
-  it("sorts by rating, unrated first when ascending", () => {
-    useFavoritesStore.setState({ favorites: [], ratings: { "1": 5, "3": 2 } });
-    render(<LibraryScreen onTogglePlayPause={() => undefined} />);
-    const header = screen.getByRole("columnheader", { name: /Rating/ });
-    fireEvent.click(within(header).getByRole("button"));
-    expect(titles()).toEqual(["Bravo", "Charlie", "Alpha"]);
-    fireEvent.click(within(header).getByRole("button"));
-    expect(titles()).toEqual(["Alpha", "Charlie", "Bravo"]);
-  });
-
-  it("rates and favorites a track from the inspector", () => {
+  it("favorites a track from the inspector, which has no rating", () => {
     render(
       <>
         <LibraryScreen onTogglePlayPause={() => undefined} />
@@ -132,9 +121,9 @@ describe("in the library", () => {
     );
     fireEvent.click(rows()[0]);
     const inspector = within(screen.getByRole("complementary", { name: "Track inspector" }));
-    fireEvent.click(inspector.getByRole("button", { name: "3 stars" }));
+    expect(inspector.queryByRole("button", { name: "3 stars" })).toBeNull();
     fireEvent.click(inspector.getByRole("button", { name: "Add to favorites" }));
-    expect(useFavoritesStore.getState()).toMatchObject({ ratings: { "1": 3 }, favorites: ["1"] });
+    expect(useFavoritesStore.getState().favorites).toEqual(["1"]);
   });
 });
 

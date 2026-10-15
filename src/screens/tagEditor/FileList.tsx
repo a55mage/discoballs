@@ -1,11 +1,13 @@
 import { useMemo, useRef, useState } from "react";
 import { selectTrack } from "../../actions/library";
 import { type HealthFilter, getTrackIssues, matchesHealthFilter } from "../../domain/libraryView";
+import { IconSearch } from "../../components/icons";
 import { useVirtualList } from "../../hooks/useVirtualList";
 import { useVisibleTracks } from "../../hooks/useVisibleTracks";
 import { useLibraryStore } from "../../store/libraryStore";
 import { useUiStore } from "../../store/uiStore";
-import { Button, Chip, Cover, cx } from "../../ui";
+import { useLibraryViewStore } from "../../store/libraryViewStore";
+import { Button, Chip, Cover, Switch, TextInput, cx } from "../../ui";
 
 const ROW_HEIGHT = 52;
 
@@ -27,14 +29,16 @@ export function FileList({ dirty }: FileListProps) {
   const setDuplicatesOpen = useUiStore((state) => state.setDuplicatesOpen);
   const selectedTrackId = useLibraryStore((state) => state.selectedTrackId);
   const [filter, setFilter] = useState<HealthFilter>("all");
+  const [query, setQuery] = useState("");
+  const { duplicatesIgnoreFormats, setDuplicatesIgnoreFormats } = useLibraryViewStore();
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   const items = useMemo(
     () =>
       tracks
-        .filter((track) => matchesHealthFilter(track, filter, duplicateIds))
+        .filter((track) => matchesHealthFilter(track, filter, duplicateIds) && matchesQuery(track, query))
         .map((track) => ({ track, issues: getTrackIssues(track, duplicateIds) })),
-    [tracks, duplicateIds, filter]
+    [tracks, duplicateIds, filter, query]
   );
   const range = useVirtualList(scrollRef, items.length, ROW_HEIGHT);
 
@@ -43,6 +47,10 @@ export function FileList({ dirty }: FileListProps) {
       <header className="tag-files__head">
         <h2>Files</h2>
       </header>
+      <label className="tag-files__search">
+        <IconSearch aria-hidden="true" />
+        <TextInput type="search" placeholder="Search files…" aria-label="Search files" value={query} onChange={(event) => setQuery(event.target.value)} />
+      </label>
       <div className="tag-files__filters" role="group" aria-label="Show tracks">
         {CHIPS.map((chip) => (
           <Chip key={chip.value} on={filter === chip.value} count={chip.value === "all" ? undefined : health[chip.value]} onClick={() => setFilter(chip.value)}>
@@ -51,6 +59,10 @@ export function FileList({ dirty }: FileListProps) {
         ))}
         {health.duplicates > 0 ? <Button size="sm" variant="ghost" onClick={() => setDuplicatesOpen(true)}>Review duplicates…</Button> : null}
       </div>
+      <label className="tag-files__option" title="FLAC and MP3 copies of one song are not counted as duplicates">
+        <Switch label="Ignore other formats" checked={duplicatesIgnoreFormats} onChange={setDuplicatesIgnoreFormats} />
+        <span>Ignore other formats</span>
+      </label>
       <div ref={scrollRef} className="tag-files__scroll">
         <ul aria-label="Tracks" style={{ paddingTop: range.offsetTop, paddingBottom: range.offsetBottom }}>
           {items.slice(range.start, range.end).map(({ track, issues }) => {
@@ -70,10 +82,18 @@ export function FileList({ dirty }: FileListProps) {
             );
           })}
         </ul>
-        {items.length === 0 ? <p className="tag-files__empty">{tracks.length ? "No tracks match this filter." : "Open a folder to start."}</p> : null}
+        {items.length === 0 ? <p className="tag-files__empty">{tracks.length ? "No tracks match." : "Open a folder to start."}</p> : null}
       </div>
     </section>
   );
+}
+
+function matchesQuery(track: { title: string; artist: string; album: string; path: string }, query: string): boolean {
+  const needle = query.trim().toLowerCase();
+  if (!needle) {
+    return true;
+  }
+  return [track.title, track.artist, track.album, fileName(track.path)].some((value) => value.toLowerCase().includes(needle));
 }
 
 function fileName(path: string): string {

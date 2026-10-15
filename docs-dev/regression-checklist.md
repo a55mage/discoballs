@@ -5,7 +5,7 @@ Items marked (web) can also be checked with `npm run dev` and the mock adapter.
 Automated: `npm test`, `npx tsc --noEmit`, `cargo test` in `src-tauri/`.
 
 ## Shell and window
-- [ ] The logo sits at the left of the top bar (no app name); clicking it rotates the accent (web)
+- [ ] The logo sits right next to the section title in the top bar (no app name); clicking it rotates the accent (web)
 - [ ] "Open folder" and "Connect server" are two buttons in the top bar and do what they say (web)
 - [ ] The top bar, sidebar and player bar read as one frosted "C" around the content; no seams (web)
 - [ ] macOS: traffic lights sit in the sidebar corner; the header drags the window; double-click toggles maximize
@@ -25,7 +25,7 @@ Automated: `npm test`, `npx tsc --noEmit`, `cargo test` in `src-tauri/`.
 - [ ] The sidebar Favorites shortcut shows a removable "Favorites" chip in the toolbar (web)
 - [ ] Large library (1000+ tracks) scrolls smoothly; list density setting works
 - [ ] Keyboard: arrows and PageUp/PageDown move the cursor, Shift extends, ⌘/Ctrl+A selects all, Enter plays, Home/End (web)
-- [ ] Inspector: details, play, edit tags, queue, add to playlist, rating, favorite (web)
+- [ ] Inspector: details, play, edit tags, queue, add to playlist, favorite; no star rating (web)
 - [ ] Multi-select shows the batch editor; apply writes tags to every selected file; Undo reverts
 - [ ] Auto-number tracks in the batch editor follows list order
 - [ ] "Tags from file name…" previews every file, writes only what you confirm; Undo reverts
@@ -33,6 +33,7 @@ Automated: `npm test`, `npx tsc --noEmit`, `cargo test` in `src-tauri/`.
 - [ ] Review duplicates: suggested copy, "Select the others", "Not duplicates"; nothing is ever deleted
 
 ## Tag editor
+- [ ] File list search (title, artist, album, file name) and the "Ignore other formats" switch: FLAC+MP3 of one song stop counting as duplicates (also in the review dialog)
 - [ ] File list filters: All, Missing cover, Missing tags, Duplicates (with counts) and "Review duplicates…" (web)
 - [ ] Select a file: fields, cover, technical badge (format, bitrate, duration, size) (web)
 - [ ] Edit fields: changed fields are marked, the footer lists unsaved changes
@@ -49,7 +50,7 @@ Automated: `npm test`, `npx tsc --noEmit`, `cargo test` in `src-tauri/`.
 - [ ] Play/pause, next/previous, seek, volume, mute; shuffle and repeat
 - [ ] Cover / Lyrics / Visualizer toggles combine freely; the choice persists
 - [ ] Synced lyrics follow playback; plain lyrics when unsynced; missing-lyrics message
-- [ ] Visualizer presets: Scope, Alchemy, XP Bars, Turntable
+- [ ] Visualizer presets: Wave, Radial, Spectrum, Turntable; no card around them; they idle gently before playback and react to music (radial shockwaves on bass)
 - [ ] Full window mode: Esc or the exit button returns; playback continues
 - [ ] Queue panel: history, upcoming, remove, clear, load more
 - [ ] Equalizer Studio: presets, bands, preamp, wet mix, create/rename/delete/save preset, reset

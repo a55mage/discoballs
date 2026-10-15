@@ -20,6 +20,7 @@ vi.mock("../api", () => ({
 
 import { selectTrack } from "../actions/library";
 import { TagEditorScreen } from "../screens/tagEditor/TagEditorScreen";
+import { useLibraryViewStore } from "../store/libraryViewStore";
 import { useLibraryStore } from "../store/libraryStore";
 import { useSettingsStore } from "../store/settingsStore";
 import { useTagEditorStore } from "../store/tagEditorStore";
@@ -91,6 +92,21 @@ describe("TagEditorScreen", () => {
     expect(within(options[1]).getByRole("img", { name: /No cover, No genre/ })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Missing cover/ }));
     expect(within(screen.getByRole("list", { name: "Tracks" })).getAllByRole("listitem")).toHaveLength(1);
+  });
+
+  it("searches the files by title, artist, album or file name", () => {
+    render(<Harness />);
+    const list = () => within(screen.getByRole("list", { name: "Tracks" }));
+    fireEvent.change(screen.getByLabelText("Search files"), { target: { value: "song 1" } });
+    expect(list().getAllByRole("listitem")).toHaveLength(1);
+    fireEvent.change(screen.getByLabelText("Search files"), { target: { value: "nothing like this" } });
+    expect(screen.getByText("No tracks match.")).toBeTruthy();
+  });
+
+  it("lets you stop counting other formats as duplicates", () => {
+    render(<Harness />);
+    fireEvent.click(screen.getByRole("switch", { name: "Ignore other formats" }));
+    expect(useLibraryViewStore.getState().duplicatesIgnoreFormats).toBe(true);
   });
 
   it("opens a track from the list and fills the form", () => {

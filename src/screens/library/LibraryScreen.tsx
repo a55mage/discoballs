@@ -42,7 +42,6 @@ const SORT_OPTIONS: Array<{ value: SortKey; label: string }> = [
   { value: "year", label: "Year" },
   { value: "genre", label: "Genre" },
   { value: "format", label: "Format" },
-  { value: "rating", label: "Rating" },
 ];
 
 const STYLE_OPTIONS: Array<{ value: ListDensity; label: ReactNode; ariaLabel: string }> = [
@@ -64,7 +63,7 @@ export function LibraryScreen({ onTogglePlayPause }: LibraryScreenProps) {
   const { listDensity, setListDensity } = useSettingsStore();
   const setNavidromePanelOpen = useNavidromeStore((state) => state.setIsNavidromePanelOpen);
   const { tracks, visibleTracks, unscopedTracks, duplicateIds } = useVisibleTracks();
-  const { favorites, ratings, toggleFavorite, setRating } = useFavoritesStore();
+  const { favorites, toggleFavorite } = useFavoritesStore();
   const favoriteIds = useMemo(() => new Set(favorites), [favorites]);
 
   const albums = useMemo(() => summarizeAlbums(unscopedTracks), [unscopedTracks]);
@@ -198,9 +197,7 @@ export function LibraryScreen({ onTogglePlayPause }: LibraryScreenProps) {
             onKeyNavigate={moveSelection}
             onSelectAll={toggleSelectAll}
             favoriteIds={favoriteIds}
-            ratings={ratings}
             onToggleFavorite={(track) => toggleFavorite(track.id)}
-            onRate={(track, rating) => setRating(track.id, rating)}
           />
         ) : null}
         {view.tab === "albums" ? <AlbumGrid albums={albums} onOpen={openAlbum} /> : null}

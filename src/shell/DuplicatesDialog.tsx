@@ -5,7 +5,7 @@ import { findDuplicateGroups, getFormat, suggestKeep } from "../domain/libraryVi
 import { useLibraryStore } from "../store/libraryStore";
 import { useLibraryViewStore } from "../store/libraryViewStore";
 import { useUiStore } from "../store/uiStore";
-import { Badge, Button, Cover, Dialog, IconButton } from "../ui";
+import { Badge, Button, Cover, Dialog, IconButton, Switch } from "../ui";
 
 /**
  * Walks through the tracks that look like the same song. DiscoBalls does not delete files: it suggests which
@@ -18,7 +18,10 @@ export function DuplicatesDialog() {
   const [choices, setChoices] = useState<Record<string, string>>({});
 
   const ignored = useMemo(() => new Set(view.ignoredDuplicates), [view.ignoredDuplicates]);
-  const groups = useMemo(() => findDuplicateGroups(tracks, ignored), [tracks, ignored]);
+  const groups = useMemo(
+    () => findDuplicateGroups(tracks, ignored, { ignoreOtherFormats: view.duplicatesIgnoreFormats }),
+    [tracks, ignored, view.duplicatesIgnoreFormats]
+  );
   const keepOf = (key: string, fallback: string) => choices[key] ?? fallback;
 
   const extrasOf = (group: (typeof groups)[number]) => {
@@ -58,6 +61,13 @@ export function DuplicatesDialog() {
           ? `${groups.length} ${groups.length === 1 ? "song appears" : "songs appear"} more than once. The suggested copy to keep is marked: lossless first, then complete tags and artwork.`
           : "No duplicates found. Songs with the same title and artist would show up here."}
       </p>
+      <label className="dup__option">
+        <Switch label="Ignore the same song in another format" checked={view.duplicatesIgnoreFormats} onChange={view.setDuplicatesIgnoreFormats} />
+        <span>
+          Ignore the same song in another format
+          <small>FLAC and MP3 copies of a song are then not counted as duplicates.</small>
+        </span>
+      </label>
       <div className="dup__groups">
         {groups.map((group) => {
           const keep = keepOf(group.key, suggestKeep(group).id);

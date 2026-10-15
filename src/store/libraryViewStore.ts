@@ -8,6 +8,7 @@ const KEYS = {
   sortKey: "musicmanager-library-sort-key",
   sortDirection: "musicmanager-library-sort-direction",
   ignoredDuplicates: "musicmanager-ignored-duplicates",
+  duplicatesIgnoreFormats: "musicmanager-duplicates-ignore-formats",
 } as const;
 
 const TABS: LibraryTab[] = ["tracks", "albums", "artists", "folders"];
@@ -28,6 +29,8 @@ export type LibraryViewState = {
   folderSegments: string[];
   /** Duplicate groups (see `duplicateKey`) the user marked as "not duplicates". */
   ignoredDuplicates: string[];
+  /** Count only copies in the same format as duplicates (FLAC + MP3 of one song are fine). */
+  duplicatesIgnoreFormats: boolean;
 
   setTab: Setter<LibraryTab>;
   setQuery: Setter<string>;
@@ -35,6 +38,7 @@ export type LibraryViewState = {
   setScope: Setter<LibraryScope>;
   setSelection: (ids: string[], anchorId?: string) => void;
   setFolderSegments: Setter<string[]>;
+  setDuplicatesIgnoreFormats: Setter<boolean>;
   /** Same key again reverses the direction, a new key starts ascending. */
   clickSort: (key: SortKey) => void;
   ignoreDuplicateGroup: (key: string) => void;
@@ -54,6 +58,7 @@ export const useLibraryViewStore = create<LibraryViewState>()((set) => {
     selectedIds: [],
     anchorId: "",
     folderSegments: [],
+    duplicatesIgnoreFormats: readString(KEYS.duplicatesIgnoreFormats) === "true",
     ignoredDuplicates: Array.isArray(readJson(KEYS.ignoredDuplicates)) ? (readJson(KEYS.ignoredDuplicates) as unknown[]).filter((item): item is string => typeof item === "string") : [],
 
     setTab: fieldSetter(set, "tab"),
@@ -62,6 +67,7 @@ export const useLibraryViewStore = create<LibraryViewState>()((set) => {
     setScope: fieldSetter(set, "scope"),
     setSelection: (selectedIds, anchorId) => set((state) => ({ selectedIds, anchorId: anchorId ?? state.anchorId })),
     setFolderSegments: fieldSetter(set, "folderSegments"),
+    setDuplicatesIgnoreFormats: fieldSetter(set, "duplicatesIgnoreFormats"),
     ignoreDuplicateGroup: (key) => set((state) => (state.ignoredDuplicates.includes(key) ? state : { ignoredDuplicates: [...state.ignoredDuplicates, key] })),
     resetIgnoredDuplicates: () => set({ ignoredDuplicates: [] }),
     clickSort: (key) =>
@@ -77,5 +83,6 @@ useLibraryViewStore.subscribe((state, previous) => {
   if (state.tab !== previous.tab) writeString(KEYS.tab, state.tab);
   if (state.sortKey !== previous.sortKey) writeString(KEYS.sortKey, state.sortKey);
   if (state.sortDirection !== previous.sortDirection) writeString(KEYS.sortDirection, state.sortDirection);
+  if (state.duplicatesIgnoreFormats !== previous.duplicatesIgnoreFormats) writeString(KEYS.duplicatesIgnoreFormats, String(state.duplicatesIgnoreFormats));
   if (state.ignoredDuplicates !== previous.ignoredDuplicates) writeJson(KEYS.ignoredDuplicates, state.ignoredDuplicates);
 });

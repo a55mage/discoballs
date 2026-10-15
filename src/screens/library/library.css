@@ -87,7 +87,7 @@
 
 /* ---------- Track table ---------- */
 .lib-table {
-  --lib-cols: 36px minmax(0, 2.4fr) minmax(0, 1.5fr) 60px minmax(0, 1fr) 80px 104px 30px 28px;
+  --lib-cols: 36px minmax(0, 2.4fr) minmax(0, 1.5fr) 60px minmax(0, 1fr) 80px 30px 28px;
   display: flex;
   flex: 1;
   flex-direction: column;
@@ -588,9 +588,6 @@
   }
 }
 
-.lib-cell--rating {
-  overflow: visible;
-}
 .lib-cell--fav {
   display: flex;
   justify-content: center;
