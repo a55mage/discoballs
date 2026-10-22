@@ -4,8 +4,43 @@ import { usePlayerStore } from "../../store/playerStore";
 import { useSettingsStore } from "../../store/settingsStore";
 import { getOrCreateMediaAudioGraph, type MediaAudioGraph } from "../../utils/audioGraph";
 
+import { paletteFromColor, paletteFromPixels } from "../../domain/palette";
 import type { VisualizerPresetId } from "../../domain/visualizer";
-import { VizState, drawRadial, drawSpectrum, drawWave, idleFrameData, withAlpha, type VizFrame } from "./vizEffects";
+import {
+  VizState,
+  analyseFrame,
+  drawBloom,
+  drawRadial,
+  drawRidges,
+  drawSpectrum,
+  drawTunnel,
+  drawWave,
+  idleFrameData,
+  shade,
+  withAlpha,
+  type VizFrame,
+} from "./vizEffects";
+
+/**
+ * The cover's main colours, read from a 32×32 copy; null when it is dull or cannot be read. Remote covers
+ * (Navidrome) usually come without CORS headers, so they taint the canvas and fall back to the accent: asking for
+ * CORS would stop them loading at all.
+ */
+function readCoverPalette(image: HTMLImageElement): string[] | null {
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = 32;
+    canvas.height = 32;
+    const context = canvas.getContext("2d");
+    if (!context) {
+      return null;
+    }
+    context.drawImage(image, 0, 0, 32, 32);
+    return paletteFromPixels(context.getImageData(0, 0, 32, 32).data);
+  } catch {
+    return null;
+  }
+}
 
 type VisualizerProps = {
   preset: VisualizerPresetId;
@@ -28,6 +63,7 @@ export function Visualizer({ preset, coverUrl }: VisualizerProps) {
   const frameRef = useRef<number | null>(null);
   const coverImageRef = useRef<HTMLImageElement | null>(null);
   const coverImageUrlRef = useRef<string>("");
+  const coverPaletteRef = useRef<string[] | null>(null);
   const currentTimeRef = useRef(0);
   const durationRef = useRef(0);
   const vizStateRef = useRef(new VizState());
@@ -59,6 +95,7 @@ export function Visualizer({ preset, coverUrl }: VisualizerProps) {
     if (!coverUrl) {
       coverImageRef.current = null;
       coverImageUrlRef.current = "";
+      coverPaletteRef.current = null;
       return;
     }
     if (coverImageUrlRef.current === coverUrl && coverImageRef.current) {
@@ -69,10 +106,12 @@ export function Visualizer({ preset, coverUrl }: VisualizerProps) {
     img.onload = () => {
       coverImageRef.current = img;
       coverImageUrlRef.current = coverUrl;
+      coverPaletteRef.current = readCoverPalette(img);
     };
     img.onerror = () => {
       if (coverImageUrlRef.current === coverUrl) {
         coverImageRef.current = null;
+        coverPaletteRef.current = null;
       }
     };
     img.src = coverUrl;
@@ -108,6 +147,7 @@ export function Visualizer({ preset, coverUrl }: VisualizerProps) {
       window.addEventListener("resize", resize);
     }
 
+    const accentPalette = paletteFromColor(accentColor);
     const drawFrame = () => {
       const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
       const width = canvas.width / dpr;
@@ -126,8 +166,9 @@ export function Visualizer({ preset, coverUrl }: VisualizerProps) {
       } else {
         idleFrameData(t, freq, time);
       }
-      const frame: VizFrame = { freq, time, isPlaying: isPlaying && hasAudio, accent: accentColor, isDark: isDarkMode, t };
       const state = vizStateRef.current;
+      const palette = coverPaletteRef.current ?? accentPalette;
+      const frame: VizFrame = analyseFrame(state, { freq, time, isPlaying: isPlaying && hasAudio, palette, isDark: isDarkMode, t });
 
       switch (preset) {
         case "alchemy":
@@ -136,8 +177,17 @@ export function Visualizer({ preset, coverUrl }: VisualizerProps) {
         case "scope":
           drawWave(ctx, width, height, frame, state);
           break;
+        case "ridges":
+          drawRidges(ctx, width, height, frame, state);
+          break;
+        case "bloom":
+          drawBloom(ctx, width, height, frame, state);
+          break;
+        case "tunnel":
+          drawTunnel(ctx, width, height, frame, state);
+          break;
         case "turntable":
-          drawTurntable(ctx, width, height, coverImageRef.current, accentColor, isDarkMode, isPlaying, currentTimeRef.current, durationRef.current);
+          drawTurntable(ctx, width, height, coverImageRef.current, frame, currentTimeRef.current, durationRef.current);
           break;
         case "xp-bars":
         default:
@@ -175,13 +225,12 @@ function drawTurntable(
   width: number,
   height: number,
   coverImage: HTMLImageElement | null,
-  accentColor: string,
-  isDarkMode: boolean,
-  isPlaying: boolean,
+  frame: VizFrame,
   currentTime: number,
   duration: number
 ) {
-  const t = performance.now() * 0.001;
+  const { t, isPlaying, isDark: isDarkMode } = frame;
+  const accentColor = frame.palette[0];
   const progress = duration > 0 ? Math.max(0, Math.min(1, currentTime / duration)) : 0;
   const cx = width * 0.47;
   const cy = height * 0.56;
@@ -189,6 +238,15 @@ function drawTurntable(
   const discRadius = platterRadius * 0.9;
   const labelRadius = discRadius * 0.36;
   const spindleRadius = discRadius * 0.03;
+
+  // A light ring under the platter that pulses with the bass.
+  const ring = ctx.createRadialGradient(cx, cy, platterRadius * 0.95, cx, cy, platterRadius * (1.12 + frame.bass * 0.12));
+  ring.addColorStop(0, withAlpha(frame.palette[1], 0.35 + frame.bass * 0.45));
+  ring.addColorStop(1, withAlpha(frame.palette[1], 0));
+  ctx.fillStyle = ring;
+  ctx.beginPath();
+  ctx.arc(cx, cy, platterRadius * (1.12 + frame.bass * 0.12), 0, Math.PI * 2);
+  ctx.fill();
 
   const platter = ctx.createRadialGradient(cx, cy, platterRadius * 0.15, cx, cy, platterRadius);
   platter.addColorStop(0, isDarkMode ? "#3a4352" : "#7f8c9f");
@@ -215,6 +273,21 @@ function drawTurntable(
     ctx.beginPath();
     ctx.arc(0, 0, rr, 0, Math.PI * 2);
     ctx.stroke();
+  }
+
+  // Light catching the grooves: two opposite sheens tinted by the cover.
+  for (const start of [-0.5, Math.PI - 0.5]) {
+    const sheen = ctx.createConicGradient?.(start - rotation, 0, 0);
+    if (!sheen) break;
+    sheen.addColorStop(0, "rgba(255,255,255,0)");
+    sheen.addColorStop(0.06, withAlpha(shade(frame.palette[2], 0.4), 0.18 + frame.treble * 0.2));
+    sheen.addColorStop(0.12, "rgba(255,255,255,0)");
+    sheen.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = sheen;
+    ctx.beginPath();
+    ctx.arc(0, 0, discRadius, 0, Math.PI * 2);
+    ctx.arc(0, 0, labelRadius, 0, Math.PI * 2, true);
+    ctx.fill();
   }
 
   ctx.save();

@@ -6,7 +6,8 @@ import { averageGain, buildEqCurvePath, formatBandFrequency, formatGain } from "
 import { useEqualizerStore } from "../../store/equalizerStore";
 import { useSettingsStore } from "../../store/settingsStore";
 import { EQUALIZER_FREQUENCIES, getOrCreateMediaAudioGraph } from "../../utils/audioGraph";
-import { VizState, drawSpectrum } from "../nowPlaying/vizEffects";
+import { paletteFromColor } from "../../domain/palette";
+import { VizState, analyseFrame, drawSpectrum } from "../nowPlaying/vizEffects";
 import { Button, Field, IconButton, Select, Slider, TextInput } from "../../ui";
 
 /** Live spectrum behind the tone curve, so the effect of a change is visible while music plays. */
@@ -22,6 +23,7 @@ function Spectrum() {
     }
     let frame = 0;
     const state = new VizState();
+    const palette = paletteFromColor(accent);
     const draw = () => {
       const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
       const width = canvas.clientWidth;
@@ -37,7 +39,8 @@ function Spectrum() {
       if (graph) {
         graph.analyser.getByteFrequencyData(graph.frequencyData);
         graph.analyser.getByteTimeDomainData(graph.timeData);
-        drawSpectrum(ctx, width, height, { freq: graph.frequencyData, time: graph.timeData, isPlaying: true, accent, isDark: false, t: performance.now() * 0.001 }, state);
+        const vizFrame = analyseFrame(state, { freq: graph.frequencyData, time: graph.timeData, isPlaying: true, palette, isDark: false, t: performance.now() * 0.001 });
+        drawSpectrum(ctx, width, height, vizFrame, state);
       }
       frame = requestAnimationFrame(draw);
     };

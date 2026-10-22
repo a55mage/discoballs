@@ -86,8 +86,8 @@ describe("NowPlayingScreen", () => {
     useSettingsStore.setState({ nowPlayingShow: ["viz"] });
     render(<NowPlayingScreen onTogglePlayPause={() => undefined} />);
     expect(screen.getByTestId("visualizer").textContent).toBe("scope");
-    fireEvent.click(screen.getByRole("radio", { name: "Turntable" }));
-    expect(screen.getByTestId("visualizer").textContent).toBe("turntable");
+    fireEvent.change(screen.getByRole("combobox", { name: "Visualizer type" }), { target: { value: "tunnel" } });
+    expect(screen.getByTestId("visualizer").textContent).toBe("tunnel");
   });
 
   it("shows and hides the queue", () => {

@@ -8,7 +8,7 @@ import { usePlayerStore } from "../../store/playerStore";
 import { useSettingsStore } from "../../store/settingsStore";
 import { useUiStore } from "../../store/uiStore";
 import { SeekBar, TransportControls } from "../../shell/Transport";
-import { Badge, Button, Cover, IconButton, Segmented, ToggleGroup, cx } from "../../ui";
+import { Badge, Button, Cover, IconButton, Select, ToggleGroup, cx } from "../../ui";
 import { getActiveLyricIndex } from "../../utils/lyrics";
 import { LyricsView } from "./LyricsView";
 import { QueuePane } from "./QueuePane";
@@ -73,12 +73,16 @@ export function NowPlayingScreen({ onTogglePlayPause }: NowPlayingScreenProps) {
         <div className="np__toolbar" role="toolbar" aria-label="Now Playing options">
           <ToggleGroup label="Show in Now Playing" value={parts} options={PART_OPTIONS} onChange={setNowPlayingShow} />
           {showViz ? (
-            <Segmented
-              label="Visualizer type"
+            <Select
+              className="np__viz-select"
+              aria-label="Visualizer type"
               value={playerVisualizerPresetId}
-              options={VISUALIZER_PRESETS.map((preset) => ({ value: preset.id, label: preset.label }))}
-              onChange={(value) => setPlayerVisualizerPresetId(value as VisualizerPresetId)}
-            />
+              onChange={(event) => setPlayerVisualizerPresetId(event.target.value as VisualizerPresetId)}
+            >
+              {VISUALIZER_PRESETS.map((preset) => (
+                <option key={preset.id} value={preset.id}>{preset.label}</option>
+              ))}
+            </Select>
           ) : null}
           <div className="np__toolbar-end">
             {!isImmersive ? (

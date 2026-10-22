@@ -11,7 +11,7 @@ Automated: `npm test`, `npx tsc --noEmit`, `cargo test` in `src-tauri/`.
 - [ ] The sidebar collapses to icons (button at its foot, or the palette) and the choice persists; playlists keep their covers (web)
 - [ ] Below 960px the sidebar is always icons-only and its toggle is hidden (web)
 - [ ] The top bar, sidebar and player bar read as one frosted "C" around the content; no seams (web)
-- [ ] macOS: traffic lights sit in the sidebar corner; the header drags the window; double-click toggles maximize
+- [ ] macOS: traffic lights sit on the header row, centred on it, before the logo; the header drags the window; double-click toggles maximize
 - [ ] Windows/Linux: the glass blur renders (WebView2 / WebKitGTK); text stays readable without it
 - [ ] Minimum window size (900×600) keeps everything usable
 - [ ] ⌘/Ctrl+K opens the command palette; commands, track search and Esc work (web)
@@ -54,9 +54,13 @@ Automated: `npm test`, `npx tsc --noEmit`, `cargo test` in `src-tauri/`.
 
 ## Now Playing and playback
 - [ ] Play/pause, next/previous, seek, volume, mute; shuffle and repeat
+- [ ] Synced lyrics: the current line is the largest; changing line glides up without lines overlapping; another track jumps straight to its line
 - [ ] Cover / Lyrics / Visualizer toggles combine freely; the choice persists
 - [ ] Synced lyrics follow playback; plain lyrics when unsynced; missing-lyrics message
-- [ ] Visualizer presets: Wave, Radial, Spectrum, Turntable; no card around them; they idle gently before playback and react to music (radial shockwaves on bass)
+- [ ] Visualizer dropdown: Wave, Radial, Spectrum, Ridges, Bloom, Tunnel, Turntable; no card around them; they idle gently before playback and react to music
+- [ ] Visualizer colours come from the cover (accent shades when the cover is dull, missing or a remote Navidrome cover); beats flash Spectrum, Radial, Bloom and Tunnel
+- [ ] Visualizers read well in light and dark mode
+- [ ] The visualizer fills the free space (the whole stage when shown alone) and its edges fade out, with no hard cut
 - [ ] Full window mode: Esc or the exit button returns; playback continues
 - [ ] Queue panel: history, upcoming, remove, clear, load more
 - [ ] Equalizer Studio: presets, bands, preamp, wet mix, create/rename/delete/save preset, reset
@@ -73,6 +77,7 @@ Automated: `npm test`, `npx tsc --noEmit`, `cargo test` in `src-tauri/`.
 
 ## Navidrome
 - [ ] Save a server bookmark; connect; library loads; connect on open; delete bookmark
+- [ ] The first connection after launching the app succeeds (connection errors are retried twice; wrong credentials are not)
 - [ ] Remote tracks play; remote covers load lazily; writing tags to remote tracks is refused politely
 
 ## Settings and persistence

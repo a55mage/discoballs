@@ -16,6 +16,7 @@ type LyricsViewProps = {
 /** Karaoke-style lyrics: the current line is centered and emphasized; click a line to jump to it. */
 export function LyricsView({ lines, activeIndex, synced, status, large, onSeek }: LyricsViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const shownLinesRef = useRef<LyricLine[] | null>(null);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -23,9 +24,13 @@ export function LyricsView({ lines, activeIndex, synced, status, large, onSeek }
     if (!container || !active) {
       return;
     }
-    const top = active.offsetTop - container.clientHeight / 2 + active.clientHeight / 2;
+    // offsetTop ignores the scale of the current line, so the target does not move while it grows.
+    const top = active.offsetTop - container.clientHeight / 2 + active.offsetHeight / 2;
     const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    container.scrollTo?.({ top: Math.max(0, top), behavior: reduceMotion ? "auto" : "smooth" });
+    // New lyrics (another track) jump into place; within a song the next line glides up.
+    const isNewText = shownLinesRef.current !== lines;
+    shownLinesRef.current = lines;
+    container.scrollTo?.({ top: Math.max(0, top), behavior: reduceMotion || isNewText ? "auto" : "smooth" });
   }, [activeIndex, lines]);
 
   if (!lines.length) {

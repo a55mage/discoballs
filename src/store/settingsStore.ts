@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { normalizeNowPlayingParts, type NowPlayingPart, type VisualizerPresetId } from "../domain/visualizer";
+import { VISUALIZER_PRESETS, normalizeNowPlayingParts, type NowPlayingPart, type VisualizerPresetId } from "../domain/visualizer";
 import { ACCENT_THEMES, buildSoftAccent, buildStrongAccent, type AccentTheme } from "../domain/theme";
 import { RENAME_FIELD_KEYS } from "../domain/rename";
 import type { RenameField, StartupScreen } from "../types";
@@ -48,7 +48,7 @@ function readBounded(value: string | null, limits: { min: number; max: number; d
   return value !== null && Number.isFinite(number) ? Math.min(limits.max, Math.max(limits.min, number)) : limits.default;
 }
 
-const VISUALIZER_IDS: VisualizerPresetId[] = ["scope", "alchemy", "xp-bars", "turntable"];
+const VISUALIZER_IDS: VisualizerPresetId[] = VISUALIZER_PRESETS.map((preset) => preset.id);
 const STARTUP_SCREENS: StartupScreen[] = ["tagging", "library", "dashboard", "player"];
 
 function readListDensity(value: string | null): ListDensity {

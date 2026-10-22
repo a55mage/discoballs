@@ -269,18 +269,16 @@ async fn navidrome_ping(input: NavidromeConnectInput) -> Result<NavidromeConnect
         .timeout(Duration::from_secs(12))
         .build()
         .map_err(|e| e.to_string())?;
-    let response = client
-        .get(format!("{base_url}/rest/ping.view"))
-        .query(&[
-            ("u", username.to_string()),
-            ("p", format!("enc:{}", hex_encode(&input.password))),
-            ("v", "1.16.1".to_string()),
-            ("c", "DiscoBalls".to_string()),
-            ("f", "json".to_string()),
-        ])
-        .send()
+    let request = client.get(format!("{base_url}/rest/ping.view")).query(&[
+        ("u", username.to_string()),
+        ("p", format!("enc:{}", hex_encode(&input.password))),
+        ("v", "1.16.1".to_string()),
+        ("c", "DiscoBalls".to_string()),
+        ("f", "json".to_string()),
+    ]);
+    let response = send_with_connect_retry(request)
         .await
-        .map_err(|e| format!("Navidrome connection failed: {e}"))?;
+        .map_err(|e| format!("Navidrome connection failed: {}", describe_request_error(&e)))?;
 
     if !response.status().is_success() {
         return Err(format!("Navidrome returned HTTP {}", response.status()));
@@ -1045,6 +1043,40 @@ fn hex_encode(input: &str) -> String {
         .collect::<String>()
 }
 
+/// Pauses before each new attempt when the server could not be reached at all.
+const CONNECT_RETRY_DELAYS_MS: [u64; 2] = [400, 1200];
+
+/// Sends a request, trying again when the connection itself fails (never on HTTP or login errors).
+///
+/// On recent macOS the first connection of a freshly launched app to a server on the local network can fail
+/// while the system checks the Local Network permission, so the first try of every session used to fail.
+async fn send_with_connect_retry(request: reqwest::RequestBuilder) -> Result<reqwest::Response, reqwest::Error> {
+    let mut attempt = 0;
+    loop {
+        // GET requests have no streaming body, so they can always be cloned.
+        let current = request.try_clone().expect("Navidrome requests are clonable GET requests");
+        match current.send().await {
+            Err(error) if error.is_connect() && attempt < CONNECT_RETRY_DELAYS_MS.len() => {
+                tokio::time::sleep(Duration::from_millis(CONNECT_RETRY_DELAYS_MS[attempt])).await;
+                attempt += 1;
+            }
+            result => return result,
+        }
+    }
+}
+
+/// The request error with its causes ("error sending request" alone does not say why).
+fn describe_request_error(error: &reqwest::Error) -> String {
+    let mut message = error.to_string();
+    let mut source = std::error::Error::source(error);
+    while let Some(cause) = source {
+        message.push_str(": ");
+        message.push_str(&cause.to_string());
+        source = cause.source();
+    }
+    message
+}
+
 fn normalize_navidrome_base_url(url: &str) -> Result<String, String> {
     let trimmed = url.trim().trim_end_matches('/');
     if trimmed.is_empty() {
@@ -1071,12 +1103,9 @@ async fn navidrome_get(
         ("c".to_string(), "DiscoBalls".to_string()),
         ("f".to_string(), "json".to_string()),
     ]);
-    let response = client
-        .get(format!("{base_url}/rest/{endpoint}.view"))
-        .query(&params)
-        .send()
+    let response = send_with_connect_retry(client.get(format!("{base_url}/rest/{endpoint}.view")).query(&params))
         .await
-        .map_err(|e| format!("Navidrome request failed: {e}"))?;
+        .map_err(|e| format!("Navidrome request failed: {}", describe_request_error(&e)))?;
 
     if !response.status().is_success() {
         return Err(format!("Navidrome returned HTTP {}", response.status()));
@@ -1119,12 +1148,9 @@ async fn navidrome_get_bytes(
         ("v".to_string(), "1.16.1".to_string()),
         ("c".to_string(), "DiscoBalls".to_string()),
     ]);
-    let response = client
-        .get(format!("{base_url}/rest/{endpoint}.view"))
-        .query(&params)
-        .send()
+    let response = send_with_connect_retry(client.get(format!("{base_url}/rest/{endpoint}.view")).query(&params))
         .await
-        .map_err(|e| format!("Navidrome media request failed: {e}"))?;
+        .map_err(|e| format!("Navidrome media request failed: {}", describe_request_error(&e)))?;
 
     if !response.status().is_success() {
         return Err(format!("Navidrome returned HTTP {}", response.status()));
@@ -1803,6 +1829,26 @@ mod tests {
         assert_eq!(parse_replaygain("loud"), None);
         assert_eq!(parse_replaygain("999 dB"), None);
         assert_eq!(parse_replaygain(""), None);
+    }
+
+    #[tokio::test]
+    async fn requests_retry_when_the_server_is_not_reachable_yet() {
+        use std::io::{Read, Write};
+        // A free port with nothing listening on it: the first attempt is refused.
+        let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+        let server = std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(150));
+            let listener = std::net::TcpListener::bind(("127.0.0.1", port)).unwrap();
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut buffer = [0u8; 1024];
+            let _ = stream.read(&mut buffer);
+            stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok").unwrap();
+        });
+
+        let client = Client::new();
+        let response = send_with_connect_retry(client.get(format!("http://127.0.0.1:{port}/rest/ping.view"))).await.unwrap();
+        assert!(response.status().is_success());
+        server.join().unwrap();
     }
 
     #[test]

@@ -109,10 +109,10 @@ body {
   min-height: 0;
   padding: 2px 8px 8px;
 }
-/* macOS overlay title bar: the window buttons get their own strip above the header, so the logo lines up
-   with the sidebar instead of being pushed aside by them. */
+/* macOS overlay title bar: the window buttons sit on the header row, vertically centred on it
+   (`trafficLightPosition` in tauri.conf.json); the logo starts right after them. */
 .shell--overlay-titlebar .shell__header {
-  padding-top: 28px;
+  padding-left: 84px;
 }
 .shell__brand {
   display: flex;

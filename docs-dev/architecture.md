@@ -84,8 +84,9 @@ cover. The screen is passed as `children`; an optional `inspector` slot sits ins
   and the 0–100 intensity (`dynamicBackground`, `backgroundIntensity` in `settingsStore`).
 - `CommandPalette`: ⌘K / Ctrl+K (`useShellShortcuts`), combobox/listbox semantics, screens + commands + tracks.
 - Immersive mode (`uiStore.isImmersive`): hides sidebar, header and player bar; the `<audio>` element stays mounted.
-- Window chrome: on macOS the Tauri window uses `titleBarStyle: Overlay` (see `tauri.conf.json`), the sidebar leaves
-  room for the traffic lights and the header is a drag region (`core:window:allow-start-dragging`).
+- Window chrome: on macOS the Tauri window uses `titleBarStyle: Overlay` with `trafficLightPosition` (see
+  `tauri.conf.json`): the traffic lights sit on the header row, which leaves room for them before the logo, and the
+  header is a drag region (`core:window:allow-start-dragging`).
   Windows and Linux keep their native title bar.
 
 ## Screens (`src/screens`)
