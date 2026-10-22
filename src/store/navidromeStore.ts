@@ -6,6 +6,9 @@ import { fieldSetter, type Setter } from "./util";
 
 const BOOKMARKS_KEY = "musicmanager-navidrome-bookmarks";
 
+/** The server whose library is loaded, bookmarked or not. */
+export type ConnectedNavidromeServer = { name: string; baseUrl: string; username: string };
+
 export type NavidromeState = {
   isNavidromePanelOpen: boolean;
   navidromeName: string;
@@ -15,6 +18,7 @@ export type NavidromeState = {
   navidromeConnectOnOpen: boolean;
   navidromeBookmarks: NavidromeBookmark[];
   connectedNavidromeBookmarkId: string;
+  connectedNavidromeServer: ConnectedNavidromeServer | null;
   navidromeStatus: string;
   isConnectingNavidrome: boolean;
   setIsNavidromePanelOpen: Setter<boolean>;
@@ -25,6 +29,7 @@ export type NavidromeState = {
   setNavidromeConnectOnOpen: Setter<boolean>;
   setNavidromeBookmarks: Setter<NavidromeBookmark[]>;
   setConnectedNavidromeBookmarkId: Setter<string>;
+  setConnectedNavidromeServer: Setter<ConnectedNavidromeServer | null>;
   setNavidromeStatus: Setter<string>;
   setIsConnectingNavidrome: Setter<boolean>;
 };
@@ -63,6 +68,7 @@ export const useNavidromeStore = create<NavidromeState>()((set) => ({
   navidromeConnectOnOpen: initial.form?.connectOnOpen ?? false,
   navidromeBookmarks: initial.bookmarks,
   connectedNavidromeBookmarkId: "",
+  connectedNavidromeServer: null,
   navidromeStatus: "Navidrome not connected.",
   isConnectingNavidrome: false,
   setIsNavidromePanelOpen: fieldSetter(set, "isNavidromePanelOpen"),
@@ -73,6 +79,7 @@ export const useNavidromeStore = create<NavidromeState>()((set) => ({
   setNavidromeConnectOnOpen: fieldSetter(set, "navidromeConnectOnOpen"),
   setNavidromeBookmarks: fieldSetter(set, "navidromeBookmarks"),
   setConnectedNavidromeBookmarkId: fieldSetter(set, "connectedNavidromeBookmarkId"),
+  setConnectedNavidromeServer: fieldSetter(set, "connectedNavidromeServer"),
   setNavidromeStatus: fieldSetter(set, "navidromeStatus"),
   setIsConnectingNavidrome: fieldSetter(set, "isConnectingNavidrome"),
 }));

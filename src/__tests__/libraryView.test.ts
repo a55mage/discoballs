@@ -103,6 +103,12 @@ describe("sortTracks", () => {
     expect(sortTracks(tracks, "year", "asc").map((t) => t.id)).toEqual(["3", "2", "1"]);
   });
 
+  it("sorts by date added, undated tracks last", () => {
+    const tracks = [track("1"), track("2", { addedAt: 300 }), track("3", { addedAt: 100 }), track("4"), track("5", { addedAt: 200 })];
+    expect(sortTracks(tracks, "added", "asc").map((t) => t.id)).toEqual(["3", "5", "2", "1", "4"]);
+    expect(sortTracks(tracks, "added", "desc").map((t) => t.id)).toEqual(["2", "5", "3", "4", "1"]);
+  });
+
   it("sorts by file format", () => {
     const tracks = [track("1", { path: "/a.mp3" }), track("2", { path: "/b.flac" })];
     expect(sortTracks(tracks, "format", "asc").map((t) => t.id)).toEqual(["2", "1"]);

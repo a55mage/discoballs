@@ -5,14 +5,16 @@ import { useVirtualList } from "../../hooks/useVirtualList";
 import { Cover, cx } from "../../ui";
 import type { Track } from "../../types";
 
-const MIN_CARD = 168;
-const GAP = 16;
-const PAD = 18;
+// Keep in step with .lib-grid__row (column-gap) and .lib-grid__scroll (padding) in library.css.
+const GAP = 12;
+const PAD = 14;
 /** Card padding, cover margin and the two text lines, plus a little air between rows. */
 const META_HEIGHT = 56;
 
 type TrackGridProps = {
   tracks: Track[];
+  /** Smallest card width in pixels: the zoom of the grid. */
+  cardSize: number;
   duplicateIds: Set<string>;
   selectedIds: string[];
   cursorId: string;
@@ -30,6 +32,7 @@ type TrackGridProps = {
 /** The tracks as a wall of covers. Virtualized by rows; the column count follows the width. */
 export function TrackGrid({
   tracks,
+  cardSize,
   duplicateIds,
   selectedIds,
   cursorId,
@@ -58,8 +61,8 @@ export function TrackGrid({
     return () => observer?.disconnect();
   }, []);
 
-  const inner = Math.max(MIN_CARD, width - PAD * 2);
-  const columns = Math.max(1, Math.floor((inner + GAP) / (MIN_CARD + GAP)));
+  const inner = Math.max(cardSize, width - PAD * 2);
+  const columns = Math.max(1, Math.floor((inner + GAP) / (cardSize + GAP)));
   const cardWidth = (inner - GAP * (columns - 1)) / columns;
   const rowHeight = Math.round(cardWidth + META_HEIGHT);
   const rowCount = Math.ceil(tracks.length / columns);

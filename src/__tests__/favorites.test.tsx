@@ -140,7 +140,7 @@ describe("elsewhere", () => {
     useFavoritesStore.setState({ favorites: ["1"], ratings: {} });
     useUiStore.setState({ activeScreen: "player" });
     useLibraryViewStore.setState({ scope: { kind: "artist", artist: "x" }, tab: "albums" });
-    render(<Sidebar />);
+    render(<Sidebar collapsed={false} canExpand />);
     fireEvent.click(screen.getByRole("button", { name: /Favorites/ }));
     expect(useUiStore.getState().activeScreen).toBe("library");
     expect(useLibraryViewStore.getState()).toMatchObject({ filter: "favorites", scope: null, tab: "tracks" });

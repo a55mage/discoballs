@@ -21,10 +21,10 @@ src/
 
 | Store | Holds | Persisted in localStorage |
 |-------|-------|---------------------------|
-| `settingsStore` | theme, accents, startup screen, default folder, rename pattern, player layout, audio flags | yes (same keys as v1.x) |
+| `settingsStore` | theme, accents, startup screen, default folder, rename pattern, player layout, audio flags, list style, collapsed sidebar | yes (same keys as v1.x) |
 | `playlistStore` | playlists, active playlist, rename draft | yes |
 | `equalizerStore` | presets, current EQ values, genre → preset map | yes |
-| `navidromeStore` | server form, bookmarks, connection status | bookmarks |
+| `navidromeStore` | server form, bookmarks, connected server, connection status | bookmarks |
 | `libraryStore` | tracks, folder, selected track, scan flag | snapshot via `useLibrarySession` |
 | `tagEditorStore` | draft track, online search state | no |
 | `playerStore` | playback track, queue, history, clock, volume, audio status | shuffle, repeat |

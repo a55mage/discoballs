@@ -390,3 +390,27 @@ export const IconStar = (props: SVGProps<SVGSVGElement>) => (
     <path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.9L12 16.9 6.8 19.7l1-5.9L3.5 9.7l5.9-.8z" />
   </IconBase>
 );
+
+export const IconSidebar = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <line x1="9" y1="4" x2="9" y2="20" />
+  </IconBase>
+);
+
+export const IconZoomIn = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <circle cx="11" cy="11" r="6.5" />
+    <line x1="16" y1="16" x2="20.5" y2="20.5" />
+    <line x1="8" y1="11" x2="14" y2="11" />
+    <line x1="11" y1="8" x2="11" y2="14" />
+  </IconBase>
+);
+
+export const IconZoomOut = (props: SVGProps<SVGSVGElement>) => (
+  <IconBase {...props}>
+    <circle cx="11" cy="11" r="6.5" />
+    <line x1="16" y1="16" x2="20.5" y2="20.5" />
+    <line x1="8" y1="11" x2="14" y2="11" />
+  </IconBase>
+);

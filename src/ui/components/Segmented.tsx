@@ -39,6 +39,7 @@ export function Segmented<T extends string>({ label, options, value, onChange }:
             role="radio"
             aria-checked={checked}
             aria-label={option.ariaLabel}
+            title={option.ariaLabel}
             tabIndex={checked ? 0 : -1}
             className="db-seg-btn"
             onClick={() => onChange(option.value)}
@@ -79,6 +80,7 @@ export function ToggleGroup<T extends string>({ label, options, value, onChange,
           className="db-seg-btn"
           aria-pressed={value.includes(option.value)}
           aria-label={option.ariaLabel}
+          title={option.ariaLabel}
           onClick={() => toggle(option.value)}
         >
           {option.label}

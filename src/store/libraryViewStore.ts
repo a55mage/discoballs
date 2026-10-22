@@ -74,7 +74,8 @@ export const useLibraryViewStore = create<LibraryViewState>()((set) => {
       set((state) =>
         state.sortKey === key
           ? { sortDirection: state.sortDirection === "asc" ? "desc" : "asc" }
-          : { sortKey: key, sortDirection: "asc" }
+          : // Newest first is the useful start for dates.
+            { sortKey: key, sortDirection: key === "added" ? "desc" : "asc" }
       ),
   };
 });

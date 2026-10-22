@@ -1,7 +1,9 @@
 import { type ReactNode, type RefObject } from "react";
 import { audioRef } from "../audio/audioRef";
+import { useMediaQuery } from "../hooks/useMediaQuery";
 import { useLibraryStore } from "../store/libraryStore";
 import { usePlayerStore } from "../store/playerStore";
+import { useSettingsStore } from "../store/settingsStore";
 import { useUiStore } from "../store/uiStore";
 import { cx } from "../ui";
 import { Backdrop } from "./Backdrop";
@@ -40,15 +42,25 @@ export function AppShell({ children, inspector, onBrandClick, onTogglePlayPause 
   const audioSrc = usePlayerStore((state) => state.audioSrc);
   const tracks = useLibraryStore((state) => state.tracks);
   const selectedTrackId = useLibraryStore((state) => state.selectedTrackId);
+  // Narrow windows always get the icon sidebar; wider ones follow the user's choice.
+  const isNarrow = useMediaQuery("(max-width: 960px)");
+  const isSideCollapsed = useSettingsStore((state) => state.sidebarCollapsed) || isNarrow;
   const infoTrack = tracks.find((track) => track.id === playbackTrackId) ?? tracks.find((track) => track.id === selectedTrackId);
 
   return (
-    <div className={cx("shell", isImmersive && "shell--immersive", usesOverlayTitleBar() && "shell--overlay-titlebar")}>
+    <div
+      className={cx(
+        "shell",
+        isImmersive && "shell--immersive",
+        isSideCollapsed && "shell--side-collapsed",
+        usesOverlayTitleBar() && "shell--overlay-titlebar"
+      )}
+    >
       <Backdrop coverUrl={infoTrack?.coverUrl} />
       <div className="shell__veil" aria-hidden="true" />
       {!isImmersive ? <div className="db-glass shell__frame" aria-hidden="true" /> : null}
 
-      {!isImmersive ? <Sidebar /> : null}
+      {!isImmersive ? <Sidebar collapsed={isSideCollapsed} canExpand={!isNarrow} /> : null}
       {!isImmersive ? <Header onBrandClick={onBrandClick} /> : null}
 
       <main className="shell__content">

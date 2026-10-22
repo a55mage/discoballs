@@ -1,5 +1,19 @@
 import { type MouseEvent, type ReactNode, useMemo } from "react";
-import { IconClose, IconFolder, IconGlobe, IconGrid, IconListCompact, IconRows, IconSearch, IconArrowUp, IconArrowDown } from "../../components/icons";
+import {
+  IconArrowDown,
+  IconArrowUp,
+  IconClose,
+  IconDisc,
+  IconFolder,
+  IconGlobe,
+  IconGrid,
+  IconMusicNote,
+  IconRows,
+  IconSearch,
+  IconUser,
+  IconZoomIn,
+  IconZoomOut,
+} from "../../components/icons";
 import { scanLibraryWithPicker } from "../../actions/library";
 import { moveSelection, selectOnly, selectRangeTo, toggleSelectAll, toggleSelected } from "../../actions/librarySelection";
 import { playFromLibraryCover } from "../../actions/playback";
@@ -11,7 +25,7 @@ import { useLibraryStore } from "../../store/libraryStore";
 import { useLibraryViewStore } from "../../store/libraryViewStore";
 import { useNavidromeStore } from "../../store/navidromeStore";
 import { usePlayerStore } from "../../store/playerStore";
-import { useSettingsStore, type ListDensity } from "../../store/settingsStore";
+import { GRID_CARD_SIZE, LIST_SCALE, useSettingsStore, type ListDensity } from "../../store/settingsStore";
 import type { Track } from "../../types";
 import { Button, Chip, IconButton, Segmented, Select, TextInput } from "../../ui";
 import { AlbumGrid, ArtistList, FolderBrowser } from "./CollectionViews";
@@ -19,11 +33,12 @@ import { TrackGrid } from "./TrackGrid";
 import { TrackTable } from "./TrackTable";
 import "./library.css";
 
-const TAB_OPTIONS: Array<{ value: LibraryTab; label: string }> = [
-  { value: "tracks", label: "Tracks" },
-  { value: "albums", label: "Albums" },
-  { value: "artists", label: "Artists" },
-  { value: "folders", label: "Folders" },
+// Icons only, to leave the toolbar room; the names are the accessible labels and tooltips.
+const TAB_OPTIONS: Array<{ value: LibraryTab; label: ReactNode; ariaLabel: string }> = [
+  { value: "tracks", label: <IconMusicNote aria-hidden="true" />, ariaLabel: "Tracks" },
+  { value: "albums", label: <IconDisc aria-hidden="true" />, ariaLabel: "Albums" },
+  { value: "artists", label: <IconUser aria-hidden="true" />, ariaLabel: "Artists" },
+  { value: "folders", label: <IconFolder aria-hidden="true" />, ariaLabel: "Folders" },
 ];
 
 const FILTER_LABELS: Record<HealthFilter, string> = {
@@ -45,8 +60,7 @@ const SORT_OPTIONS: Array<{ value: SortKey; label: string }> = [
 ];
 
 const STYLE_OPTIONS: Array<{ value: ListDensity; label: ReactNode; ariaLabel: string }> = [
-  { value: "comfortable", label: <IconRows aria-hidden="true" />, ariaLabel: "Comfortable rows" },
-  { value: "compact", label: <IconListCompact aria-hidden="true" />, ariaLabel: "Compact rows" },
+  { value: "list", label: <IconRows aria-hidden="true" />, ariaLabel: "List" },
   { value: "grid", label: <IconGrid aria-hidden="true" />, ariaLabel: "Grid of covers" },
 ];
 
@@ -60,7 +74,7 @@ export function LibraryScreen({ onTogglePlayPause }: LibraryScreenProps) {
   const folderPath = useLibraryStore((state) => state.folderPath);
   const isLoadingScan = useLibraryStore((state) => state.isLoadingScan);
   const { playbackTrackId, isPlaying } = usePlayerStore();
-  const { listDensity, setListDensity } = useSettingsStore();
+  const { listDensity, setListDensity, listScale, setListScale, gridCardSize, setGridCardSize } = useSettingsStore();
   const setNavidromePanelOpen = useNavidromeStore((state) => state.setIsNavidromePanelOpen);
   const { tracks, visibleTracks, unscopedTracks, duplicateIds } = useVisibleTracks();
   const { favorites, toggleFavorite } = useFavoritesStore();
@@ -140,21 +154,22 @@ export function LibraryScreen({ onTogglePlayPause }: LibraryScreenProps) {
         ) : null}
         {view.tab === "tracks" ? (
           <div className="lib-toolbar__end">
+            <Select className="lib-sortselect" aria-label="Sort by" value={view.sortKey} onChange={(event) => view.clickSort(event.target.value as SortKey)}>
+              {SORT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </Select>
+            <IconButton
+              label={view.sortDirection === "asc" ? "Ascending: switch to descending" : "Descending: switch to ascending"}
+              onClick={() => view.clickSort(view.sortKey)}
+            >
+              {view.sortDirection === "asc" ? <IconArrowUp /> : <IconArrowDown />}
+            </IconButton>
             {listDensity === "grid" ? (
-              <>
-                <Select className="lib-sortselect" aria-label="Sort by" value={view.sortKey} onChange={(event) => view.clickSort(event.target.value as SortKey)}>
-                  {SORT_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-                </Select>
-                <IconButton
-                  label={view.sortDirection === "asc" ? "Ascending: switch to descending" : "Descending: switch to ascending"}
-                  onClick={() => view.clickSort(view.sortKey)}
-                >
-                  {view.sortDirection === "asc" ? <IconArrowUp /> : <IconArrowDown />}
-                </IconButton>
-              </>
-            ) : null}
+              <ZoomButtons noun="covers" value={gridCardSize} limits={GRID_CARD_SIZE} onChange={setGridCardSize} />
+            ) : (
+              <ZoomButtons noun="rows" value={listScale} limits={LIST_SCALE} onChange={setListScale} />
+            )}
             <Segmented label="Track list style" value={listDensity} onChange={setListDensity} options={STYLE_OPTIONS} />
           </div>
         ) : null}
@@ -164,6 +179,7 @@ export function LibraryScreen({ onTogglePlayPause }: LibraryScreenProps) {
         {view.tab === "tracks" && listDensity === "grid" ? (
           <TrackGrid
             tracks={visibleTracks}
+            cardSize={gridCardSize}
             duplicateIds={duplicateIds}
             selectedIds={view.selectedIds}
             cursorId={view.anchorId}
@@ -182,7 +198,7 @@ export function LibraryScreen({ onTogglePlayPause }: LibraryScreenProps) {
           <TrackTable
             tracks={visibleTracks}
             duplicateIds={duplicateIds}
-            density={listDensity === "compact" ? "compact" : "comfortable"}
+            scale={listScale}
             selectedIds={view.selectedIds}
             cursorId={view.anchorId}
             playingTrackId={playbackTrackId}
@@ -215,6 +231,28 @@ export function LibraryScreen({ onTogglePlayPause }: LibraryScreenProps) {
           />
         ) : null}
       </div>
+    </div>
+  );
+}
+
+type ZoomButtonsProps = {
+  /** What gets bigger or smaller, for the button names ("rows", "covers"). */
+  noun: string;
+  value: number;
+  limits: { min: number; max: number; step: number };
+  onChange: (value: number) => void;
+};
+
+/** Zoom out / zoom in, one step at a time; each button switches off at its limit. */
+function ZoomButtons({ noun, value, limits, onChange }: ZoomButtonsProps) {
+  return (
+    <div className="lib-zoom" role="group" aria-label={`Size of the ${noun}`}>
+      <IconButton label={`Smaller ${noun}`} size="sm" disabled={value <= limits.min} onClick={() => onChange(value - limits.step)}>
+        <IconZoomOut />
+      </IconButton>
+      <IconButton label={`Larger ${noun}`} size="sm" disabled={value >= limits.max} onClick={() => onChange(value + limits.step)}>
+        <IconZoomIn />
+      </IconButton>
     </div>
   );
 }

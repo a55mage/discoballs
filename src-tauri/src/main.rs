@@ -30,6 +30,8 @@ struct Track {
     has_cover: bool,
     cover_data_url: Option<String>,
     navidrome_source: Option<NavidromeTrackSource>,
+    /// When the track entered the library, in milliseconds since the Unix epoch.
+    added_at: Option<i64>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -786,7 +788,60 @@ fn read_track(path: &Path) -> Track {
         has_cover: cover_data_url.is_some(),
         cover_data_url,
         navidrome_source: None,
+        added_at: file_added_at(path),
     }
+}
+
+/// The file's creation time, or its last modification where the file system has no creation time.
+fn file_added_at(path: &Path) -> Option<i64> {
+    let metadata = fs::metadata(path).ok()?;
+    let time = metadata.created().or_else(|_| metadata.modified()).ok()?;
+    let millis = time.duration_since(std::time::UNIX_EPOCH).ok()?.as_millis();
+    i64::try_from(millis).ok()
+}
+
+/// Reads the ISO 8601 timestamps of the Subsonic API ("2023-04-01T10:20:30.123Z", offsets allowed).
+fn parse_iso_timestamp_millis(value: &str) -> Option<i64> {
+    let value = value.trim();
+    let number = |range: std::ops::Range<usize>| value.get(range)?.parse::<i64>().ok();
+    let (year, month, day) = (number(0..4)?, number(5..7)?, number(8..10)?);
+    if value.get(4..5)? != "-" || value.get(7..8)? != "-" || !(1..=12).contains(&month) || !(1..=31).contains(&day) {
+        return None;
+    }
+    let (mut hour, mut minute, mut second, mut millis) = (0, 0, 0, 0);
+    let mut rest = value.get(10..).unwrap_or_default();
+    if rest.starts_with('T') || rest.starts_with(' ') {
+        hour = rest.get(1..3)?.parse::<i64>().ok()?;
+        minute = rest.get(4..6)?.parse::<i64>().ok()?;
+        second = rest.get(7..9)?.parse::<i64>().ok()?;
+        rest = rest.get(9..).unwrap_or_default();
+        if let Some(fraction) = rest.strip_prefix('.') {
+            let digits: String = fraction.chars().take_while(char::is_ascii_digit).collect();
+            millis = format!("{digits:0<3}").get(0..3)?.parse::<i64>().ok()?;
+            rest = &fraction[digits.len()..];
+        }
+    }
+    let offset_minutes = match rest {
+        "" | "Z" => 0,
+        _ => {
+            let sign = match rest.get(0..1)? {
+                "+" => 1,
+                "-" => -1,
+                _ => return None,
+            };
+            let digits = rest[1..].replace(':', "");
+            sign * (digits.get(0..2)?.parse::<i64>().ok()? * 60 + digits.get(2..4).unwrap_or("0").parse::<i64>().ok()?)
+        }
+    };
+    // Days from 1970-01-01 to the civil date (Howard Hinnant's algorithm).
+    let shifted_year = if month <= 2 { year - 1 } else { year };
+    let era = shifted_year.div_euclid(400);
+    let year_of_era = shifted_year - era * 400;
+    let day_of_year = (153 * ((month + 9) % 12) + 2) / 5 + day - 1;
+    let day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
+    let days = era * 146_097 + day_of_era - 719_468;
+    let seconds = days * 86_400 + hour * 3_600 + minute * 60 + second - offset_minutes * 60;
+    Some(seconds * 1_000 + millis)
 }
 
 fn write_metadata_and_cover(path: &Path, input: &SaveTrackInput) -> Result<(), String> {
@@ -1150,6 +1205,7 @@ fn navidrome_song_to_track(
     let suffix = json_text(song, "suffix").unwrap_or_else(|| "mp3".to_string());
     let cover_art_id = json_text(song, "coverArt");
     let content_type = json_text(song, "contentType");
+    let added_at = json_text(song, "created").and_then(|created| parse_iso_timestamp_millis(&created));
     let filename_prefix = if tracknumber.is_empty() {
         String::new()
     } else {
@@ -1185,6 +1241,7 @@ fn navidrome_song_to_track(
             suffix: Some(suffix),
             content_type,
         }),
+        added_at,
     })
 }
 
@@ -1746,6 +1803,16 @@ mod tests {
         assert_eq!(parse_replaygain("loud"), None);
         assert_eq!(parse_replaygain("999 dB"), None);
         assert_eq!(parse_replaygain(""), None);
+    }
+
+    #[test]
+    fn subsonic_timestamps_become_epoch_millis() {
+        assert_eq!(parse_iso_timestamp_millis("1970-01-01T00:00:00Z"), Some(0));
+        assert_eq!(parse_iso_timestamp_millis("2023-04-01T10:20:30.123Z"), Some(1_680_344_430_123));
+        assert_eq!(parse_iso_timestamp_millis("2023-04-01T12:20:30.123456+02:00"), Some(1_680_344_430_123));
+        assert_eq!(parse_iso_timestamp_millis("2000-02-29"), Some(951_782_400_000));
+        assert_eq!(parse_iso_timestamp_millis("yesterday"), None);
+        assert_eq!(parse_iso_timestamp_millis("2023-13-01T00:00:00Z"), None);
     }
 
     #[test]

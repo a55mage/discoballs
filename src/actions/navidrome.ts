@@ -33,19 +33,21 @@ export async function connectToNavidrome(input: NavidromeConnectionInput, bookma
     const result = await adapter.connectNavidrome(input);
     if (!result.ok) {
       store.setConnectedNavidromeBookmarkId("");
+      store.setConnectedNavidromeServer(null);
       store.setNavidromeStatus(result.message || "Navidrome connection rejected.");
       return;
     }
 
     const library = await adapter.scanNavidromeLibrary(input);
     const connectedAt = new Date().toLocaleString(getUserLocale(), { dateStyle: "short", timeStyle: "short" });
-    store.setConnectedNavidromeBookmarkId(bookmarkId);
     if (bookmarkId) {
       store.setNavidromeBookmarks((prev) =>
         prev.map((bookmark) => (bookmark.id === bookmarkId ? { ...bookmark, lastConnectedAt: connectedAt } : bookmark))
       );
     }
     applyLoadedLibrary(library.folderPath, library.tracks);
+    store.setConnectedNavidromeBookmarkId(bookmarkId);
+    store.setConnectedNavidromeServer({ name: input.name || input.baseUrl, baseUrl: input.baseUrl, username: input.username });
     store.setIsNavidromePanelOpen(false);
     store.setNavidromeStatus(
       `Connected to ${input.name || input.baseUrl} · loaded ${library.tracks.length} tracks${result.serverVersion ? ` · server ${result.serverVersion}` : ""}${result.apiVersion ? ` · API ${result.apiVersion}` : ""}`
@@ -53,6 +55,7 @@ export async function connectToNavidrome(input: NavidromeConnectionInput, bookma
     editor.setSearchStatus(`Navidrome library loaded: ${library.tracks.length} tracks.`);
   } catch (error) {
     store.setConnectedNavidromeBookmarkId("");
+    store.setConnectedNavidromeServer(null);
     store.setNavidromeStatus(`Navidrome connection error: ${formatError(error)}`);
   } finally {
     store.setIsConnectingNavidrome(false);

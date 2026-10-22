@@ -46,7 +46,7 @@ beforeEach(() => {
   useSettingsStore.setState({
     colorMode: "light",
     startupScreen: "library",
-    listDensity: "comfortable",
+    listDensity: "list",
     dynamicBackground: true,
     backgroundIntensity: 70,
     autoOpenDefaultFolder: false,
@@ -100,8 +100,8 @@ describe("Appearance", () => {
     render(<SettingsScreen />);
     fireEvent.click(screen.getByRole("radio", { name: "Dark" }));
     expect(useSettingsStore.getState().colorMode).toBe("dark");
-    fireEvent.click(screen.getByRole("radio", { name: "Compact" }));
-    expect(useSettingsStore.getState().listDensity).toBe("compact");
+    fireEvent.click(screen.getByRole("radio", { name: "Grid" }));
+    expect(useSettingsStore.getState().listDensity).toBe("grid");
   });
 
   it("turns the dynamic background off, which disables its intensity", () => {

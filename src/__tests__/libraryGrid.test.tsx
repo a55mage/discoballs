@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../api", () => ({
@@ -73,13 +73,20 @@ describe("grid view of the library", () => {
     expect(useLibraryViewStore.getState().selectedIds).toHaveLength(1);
   });
 
-  it("switches between the three list styles and offers sorting only for the grid", () => {
+  it("switches between list and grid, with sorting and zoom buttons in both", () => {
     render(<LibraryScreen onTogglePlayPause={() => undefined} />);
     expect(screen.getByLabelText("Sort by")).toBeTruthy();
-    fireEvent.click(screen.getByRole("radio", { name: "Compact rows" }));
-    expect(useSettingsStore.getState().listDensity).toBe("compact");
-    expect(screen.queryByLabelText("Sort by")).toBeNull();
+    const coverSize = useSettingsStore.getState().gridCardSize;
+    fireEvent.click(screen.getByRole("button", { name: "Larger covers" }));
+    expect(useSettingsStore.getState().gridCardSize).toBe(coverSize + 20);
+    fireEvent.click(screen.getByRole("radio", { name: "List" }));
+    expect(useSettingsStore.getState().listDensity).toBe("list");
+    expect(screen.getByLabelText("Sort by")).toBeTruthy();
     expect(document.querySelector(".lib-grid")).toBeNull();
+    act(() => useSettingsStore.setState({ listScale: 80 }));
+    fireEvent.click(screen.getByRole("button", { name: "Smaller rows" }));
+    expect(useSettingsStore.getState().listScale).toBe(70);
+    expect(screen.getByRole("button", { name: "Smaller rows" }).hasAttribute("disabled")).toBe(true);
     fireEvent.click(screen.getByRole("radio", { name: "Grid of covers" }));
     expect(document.querySelector(".lib-grid")).toBeTruthy();
   });

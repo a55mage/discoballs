@@ -1,5 +1,6 @@
 import { adapter } from "../api";
 import { useLibraryStore } from "../store/libraryStore";
+import { useNavidromeStore } from "../store/navidromeStore";
 import { usePlayerStore } from "../store/playerStore";
 import { useSettingsStore } from "../store/settingsStore";
 import { useTagEditorStore } from "../store/tagEditorStore";
@@ -31,6 +32,12 @@ export function selectTrack(track: Track): void {
 export function applyLoadedLibrary(folderPath: string, tracks: Track[], preferredSelectedTrackId = ""): void {
   const library = useLibraryStore.getState();
   const editor = useTagEditorStore.getState();
+  if (!folderPath.startsWith("Navidrome/")) {
+    // A local library replaces the server's: the header no longer shows it as connected.
+    const navidrome = useNavidromeStore.getState();
+    navidrome.setConnectedNavidromeBookmarkId("");
+    navidrome.setConnectedNavidromeServer(null);
+  }
   library.setFolderPath(folderPath);
   library.setTracks(tracks);
   const selectedId = tracks.some((track) => track.id === preferredSelectedTrackId)

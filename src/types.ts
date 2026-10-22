@@ -21,6 +21,8 @@ export type Track = {
   hasCover: boolean;
   coverUrl?: string;
   source?: NavidromeTrackSource;
+  /** When the track entered the library (file creation time, or the server's date), ms since the epoch. */
+  addedAt?: number;
 };
 
 export type TrackTechnicalInfo = {

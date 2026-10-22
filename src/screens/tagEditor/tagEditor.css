@@ -22,7 +22,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--db-space-2);
-  padding: 14px 14px 8px 18px;
+  padding: 10px 10px 8px 14px;
 }
 .tag-files__head h2,
 .tag-matches__head h2 {
@@ -38,7 +38,7 @@
 .tag-files__search {
   position: relative;
   display: block;
-  padding: 0 14px 8px;
+  padding: 0 10px 8px;
 }
 .tag-files__search svg {
   position: absolute;
@@ -51,13 +51,13 @@
 }
 .tag-files__search .db-input {
   height: 34px;
-  padding-left: 32px;
+  padding-left: 24px;
 }
 .tag-files__option {
   display: flex;
   align-items: center;
   gap: var(--db-space-2);
-  padding: 0 14px 10px;
+  padding: 0 10px 8px;
   color: var(--db-ink-2);
   font-size: var(--db-text-sm);
   font-weight: 700;
@@ -67,7 +67,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  padding: 0 14px 10px;
+  padding: 0 10px 8px;
 }
 .tag-files__scroll {
   flex: 1;
@@ -84,7 +84,7 @@
 .tag-file {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   width: 100%;
   padding: 0 8px;
   border: 0;
@@ -145,7 +145,7 @@
   font-weight: 800;
 }
 .tag-files__empty {
-  padding: 24px 12px;
+  padding: 18px 8px;
   color: var(--db-ink-2);
   font-size: var(--db-text-sm);
   text-align: center;
@@ -162,7 +162,7 @@
 .tag-empty {
   margin: auto;
   max-width: 420px;
-  padding: 24px;
+  padding: 18px;
   text-align: center;
 }
 .tag-empty h2 {
@@ -183,12 +183,12 @@
 .tag-editor__scroll {
   flex: 1;
   min-height: 0;
-  padding: 24px 28px;
+  padding: 18px 20px;
   overflow: auto;
 }
 .tag-editor__top {
   display: flex;
-  gap: 28px;
+  gap: 20px;
   flex-wrap: wrap;
 }
 .tag-cover {
@@ -196,7 +196,7 @@
   flex: none;
   flex-direction: column;
   align-items: flex-start;
-  gap: 12px;
+  gap: 8px;
   width: 240px;
 }
 .tag-cover .db-cover {
@@ -215,7 +215,7 @@
 .tag-tech {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
   color: var(--db-ink-2);
   font-size: var(--db-text-sm);
@@ -223,7 +223,7 @@
 .tag-path {
   display: block;
   max-width: 100%;
-  margin: 4px 0 16px;
+  margin: 4px 0 12px;
   padding: 0;
   overflow: hidden;
   border: 0;
@@ -243,10 +243,10 @@
 .tag-fields {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 14px;
+  gap: 10px;
 }
 .tag-note {
-  margin: 12px 0 0;
+  margin: 8px 0 0;
   color: var(--db-ink-2);
   font-size: var(--db-text-sm);
 }
@@ -254,9 +254,9 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 12px;
-  margin-top: 26px;
-  padding: 16px 18px;
+  gap: 8px;
+  margin-top: 20px;
+  padding: 12px 14px;
   border: 1px solid var(--db-line);
   border-radius: var(--db-radius-lg);
   background: var(--db-surface-2);
@@ -285,7 +285,7 @@
 .tag-rename__names {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
   max-width: 100%;
 }
@@ -299,9 +299,9 @@
 .tag-editor__bar {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
-  padding: 10px 20px;
+  padding: 8px 16px;
   border-top: 1px solid var(--db-line);
 }
 .tag-editor__status {
@@ -325,15 +325,15 @@
 .tag-matches__query {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  padding: 4px 14px 0;
+  gap: 8px;
+  padding: 4px 10px 0;
 }
 .tag-matches__query .db-field:first-child,
 .tag-matches__query .db-btn {
   grid-column: 1 / -1;
 }
 .tag-matches__status {
-  margin: 8px 18px 4px;
+  margin: 8px 14px 4px;
   color: var(--db-ink-2);
   font-size: var(--db-text-xs);
 }
@@ -341,21 +341,21 @@
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
   min-height: 0;
   margin: 0;
-  padding: 4px 12px 14px;
+  padding: 4px 8px 10px;
   overflow: auto;
   list-style: none;
 }
 .tag-matches__empty {
-  padding: 24px 12px;
+  padding: 18px 8px;
   color: var(--db-ink-2);
   font-size: var(--db-text-sm);
   text-align: center;
 }
 .tag-match {
-  padding: 14px;
+  padding: 10px;
   border: 1.5px solid var(--db-line);
   border-radius: var(--db-radius-lg);
   background: var(--db-surface-2);
@@ -368,7 +368,7 @@
 }
 .tag-match__top {
   display: flex;
-  gap: 12px;
+  gap: 8px;
 }
 .tag-match__text {
   display: flex;
@@ -396,7 +396,7 @@
   display: flex;
   flex-direction: column;
   gap: 5px;
-  margin: 10px 0 0;
+  margin: 8px 0 0;
   padding: 0;
   list-style: none;
 }
@@ -428,7 +428,7 @@
   white-space: nowrap;
 }
 .tag-match__same {
-  margin: 10px 0 0;
+  margin: 8px 0 0;
   color: var(--db-ok);
   font-size: 12.5px;
   font-weight: 800;
@@ -437,7 +437,7 @@
   display: flex;
   align-items: center;
   gap: var(--db-space-2);
-  margin-top: 12px;
+  margin-top: 8px;
 }
 .tag-match__actions .db-btn {
   flex: 1;
@@ -455,5 +455,5 @@
 }
 
 .tag-fromname {
-  margin-top: 12px;
+  margin-top: 8px;
 }

@@ -4,7 +4,7 @@ import { scanLibraryWithPicker } from "../actions/library";
 import { useSettingsStore } from "../store/settingsStore";
 import { useNavidromeStore } from "../store/navidromeStore";
 import { useUiStore } from "../store/uiStore";
-import { Button, IconButton } from "../ui";
+import { Button, IconButton, cx } from "../ui";
 import { COMMAND_KEY_LABEL } from "./platform";
 
 type HeaderProps = {
@@ -16,7 +16,10 @@ export function Header({ onBrandClick }: HeaderProps) {
   const { setPaletteOpen } = useUiStore();
   const { colorMode, setColorMode } = useSettingsStore();
   const setNavidromePanelOpen = useNavidromeStore((state) => state.setIsNavidromePanelOpen);
+  const isConnecting = useNavidromeStore((state) => state.isConnectingNavidrome);
+  const connected = useNavidromeStore((state) => state.connectedNavidromeServer);
   const isDark = colorMode === "dark";
+  const serverLabel = isConnecting ? "Connecting…" : connected ? connected.name : "Connect server";
 
   return (
     <header className="shell__header" data-tauri-drag-region>
@@ -38,8 +41,16 @@ export function Header({ onBrandClick }: HeaderProps) {
         <IconButton label={isDark ? "Switch to light mode" : "Switch to dark mode"} onClick={() => setColorMode(isDark ? "light" : "dark")}>
           {isDark ? <IconSun /> : <IconMoon />}
         </IconButton>
-        <Button icon={<IconGlobe />} onClick={() => setNavidromePanelOpen(true)}>
-          Connect server
+        {/* The server button doubles as the connection status: name and green dot once connected. */}
+        <Button
+          className={cx("shell__server", connected && "is-connected")}
+          icon={<IconGlobe />}
+          title={connected ? `Navidrome · ${connected.name} (${connected.username} · ${connected.baseUrl})` : "Connect to a Navidrome server"}
+          aria-label={connected ? `Navidrome server ${connected.name}, connected` : undefined}
+          onClick={() => setNavidromePanelOpen(true)}
+        >
+          <span className="shell__server-name">{serverLabel}</span>
+          <span className={cx("shell__dot", connected && "is-on", isConnecting && "is-busy")} aria-hidden="true" />
         </Button>
         <Button variant="primary" icon={<IconFolder />} onClick={() => void scanLibraryWithPicker()}>
           Open folder

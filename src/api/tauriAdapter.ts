@@ -48,6 +48,7 @@ type TauriTrack = {
   has_cover: boolean;
   cover_data_url?: string | null;
   navidrome_source?: TauriNavidromeTrackSource | null;
+  added_at?: number | null;
 };
 
 type TauriNavidromeTrackSource = {
@@ -165,6 +166,7 @@ function mapTrack(t: TauriTrack): Track {
       ? buildNavidromeRestUrl(t.navidrome_source, "getCoverArt", { id: t.navidrome_source.cover_art_id, size: "300" })
       : undefined),
     source: navidromeSource,
+    addedAt: t.added_at ?? undefined,
   };
 }
 

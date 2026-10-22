@@ -2,16 +2,19 @@ import { type KeyboardEvent, type MouseEvent, useRef } from "react";
 import { IconCheck, IconHeart, IconPause, IconPlay } from "../../components/icons";
 import { getFormat, getTrackIssues, type SortKey } from "../../domain/libraryView";
 import { useVirtualList } from "../../hooks/useVirtualList";
+import { LIST_SCALE_SINGLE_LINE } from "../../store/settingsStore";
 import { Badge, Cover, cx } from "../../ui";
 import type { Track } from "../../types";
 
-const ROW_HEIGHT = { comfortable: 60, compact: 40 } as const;
-const COVER_SIZE = { comfortable: 44, compact: 28 } as const;
+// Sizes at 100%; single-line rows (small zoom) are shorter, so 70% matches the old compact rows.
+const ROW_HEIGHT = { double: 52, single: 48 } as const;
+const COVER_SIZE = { double: 38, single: 34 } as const;
 
 type TrackTableProps = {
   tracks: Track[];
   duplicateIds: Set<string>;
-  density: "comfortable" | "compact";
+  /** Row zoom in percent of the default size; small rows drop the artist line. */
+  scale: number;
   selectedIds: string[];
   cursorId: string;
   playingTrackId: string;
@@ -34,14 +37,17 @@ const COLUMNS: Array<{ key: SortKey; label: string }> = [
   { key: "album", label: "Album" },
   { key: "year", label: "Year" },
   { key: "genre", label: "Genre" },
+  { key: "added", label: "Added" },
   { key: "format", label: "Format" },
 ];
+
+const addedFormat = new Intl.DateTimeFormat(undefined, { day: "2-digit", month: "short", year: "numeric" });
 
 /** Virtualized, sortable, multi-select track list (ARIA grid). */
 export function TrackTable({
   tracks,
   duplicateIds,
-  density,
+  scale,
   selectedIds,
   cursorId,
   playingTrackId,
@@ -59,7 +65,10 @@ export function TrackTable({
   onToggleFavorite,
 }: TrackTableProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  const rowHeight = ROW_HEIGHT[density];
+  const singleLine = scale < LIST_SCALE_SINGLE_LINE;
+  const lines = singleLine ? "single" : "double";
+  const rowHeight = Math.round((ROW_HEIGHT[lines] * scale) / 100);
+  const coverSize = Math.round((COVER_SIZE[lines] * scale) / 100);
   const range = useVirtualList(scrollRef, tracks.length, rowHeight);
   const selected = new Set(selectedIds);
   const allSelected = tracks.length > 0 && tracks.every((track) => selected.has(track.id));
@@ -107,7 +116,7 @@ export function TrackTable({
 
   return (
     <div
-      className={cx("lib-table", `lib-table--${density}`)}
+      className={cx("lib-table", singleLine && "lib-table--single-line")}
       role="grid"
       aria-label="Tracks"
       aria-multiselectable="true"
@@ -178,7 +187,7 @@ export function TrackTable({
               </div>
               <div role="gridcell" className="lib-cell lib-cell--title">
                 <span className="lib-cover">
-                  <Cover size={COVER_SIZE[density]} radius={density === "compact" ? 6 : 8} src={track.coverUrl} />
+                  <Cover size={coverSize} radius={singleLine ? 6 : 8} src={track.coverUrl} />
                   <button
                     type="button"
                     className={cx("lib-play", isCurrent && isPlaying && "is-playing")}
@@ -194,7 +203,7 @@ export function TrackTable({
                 </span>
                 <span className="lib-title-text">
                   <span className={cx("lib-title", !track.title && "is-missing")}>{track.title || fileLabel(track)}</span>
-                  {density === "comfortable" ? (
+                  {!singleLine ? (
                     <span className={cx("lib-artist", !track.artist && "is-missing")}>{track.artist || "Unknown artist"}</span>
                   ) : null}
                 </span>
@@ -202,6 +211,9 @@ export function TrackTable({
               <div role="gridcell" className={cx("lib-cell", "lib-cell--album", !track.album && "is-missing")}>{track.album || "—"}</div>
               <div role="gridcell" className={cx("lib-cell", "lib-cell--year", !track.year && "is-missing")}>{track.year || "—"}</div>
               <div role="gridcell" className={cx("lib-cell", "lib-cell--genre", !track.genre && "is-missing")}>{track.genre || "—"}</div>
+              <div role="gridcell" className="lib-cell lib-cell--added" title={track.addedAt === undefined ? undefined : new Date(track.addedAt).toLocaleString()}>
+                {track.addedAt === undefined ? "—" : addedFormat.format(track.addedAt)}
+              </div>
               <div role="gridcell" className="lib-cell lib-cell--format"><Badge tone="neutral">{getFormat(track) || "?"}</Badge></div>
               <div role="gridcell" className="lib-cell lib-cell--fav">
                 <button

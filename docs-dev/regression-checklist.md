@@ -7,6 +7,9 @@ Automated: `npm test`, `npx tsc --noEmit`, `cargo test` in `src-tauri/`.
 ## Shell and window
 - [ ] The logo sits right next to the section title in the top bar (app name, no section title); clicking it rotates the accent (web)
 - [ ] "Open folder" and "Connect server" are two buttons in the top bar and do what they say (web)
+- [ ] Once a server is connected, the server button shows its name and a green dot; a local folder resets it (web)
+- [ ] The sidebar collapses to icons (button at its foot, or the palette) and the choice persists; playlists keep their covers (web)
+- [ ] Below 960px the sidebar is always icons-only and its toggle is hidden (web)
 - [ ] The top bar, sidebar and player bar read as one frosted "C" around the content; no seams (web)
 - [ ] macOS: traffic lights sit in the sidebar corner; the header drags the window; double-click toggles maximize
 - [ ] Windows/Linux: the glass blur renders (WebView2 / WebKitGTK); text stays readable without it
@@ -18,9 +21,12 @@ Automated: `npm test`, `npx tsc --noEmit`, `cargo test` in `src-tauri/`.
 ## Library
 - [ ] Open folder via picker; tracks, covers and counts appear
 - [ ] Auto-open default folder on launch (setting on/off)
-- [ ] Tabs Tracks / Albums / Artists / Folders and the filter box share one toolbar row (web)
-- [ ] Three list styles (comfortable rows, compact rows, grid of covers); the choice persists (web)
-- [ ] Table: sort by every column header, both directions; grid: sort from the toolbar select and arrow (web)
+- [ ] The view switch and the filter box share one toolbar row (web)
+- [ ] Two list styles (list, grid of covers); the choice persists (web)
+- [ ] Table: sort by every column header, both directions; both styles also sort from the toolbar select and arrow (web)
+- [ ] The zoom-out / zoom-in buttons resize rows (list) or covers (grid), switch off at their limits, and persist; the smallest rows drop the artist line (web)
+- [ ] Tracks / Albums / Artists / Folders are icon buttons with tooltips and accessible names (web)
+- [ ] "Added" column shows the file creation date (server date for Navidrome); sorting by it starts newest first
 - [ ] Grid: hover play/select/favorite, arrow keys move by card, Enter plays, selection and inspector work (web)
 - [ ] The sidebar Favorites shortcut shows a removable "Favorites" chip in the toolbar (web)
 - [ ] Large library (1000+ tracks) scrolls smoothly; list density setting works

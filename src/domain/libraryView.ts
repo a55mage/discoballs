@@ -174,7 +174,17 @@ const collator = new Intl.Collator(undefined, { sensitivity: "base", numeric: tr
 
 export function sortTracks(tracks: Track[], key: SortKey, direction: SortDirection, ratings: Readonly<Record<string, number>> = {}): Track[] {
   if (key === "added") {
-    return direction === "desc" ? [...tracks].reverse() : [...tracks];
+    // Undated tracks (old snapshots) go last; ties keep the scan order, reversed with the direction.
+    const order = new Map(tracks.map((track, index) => [track.id, index]));
+    const sign = direction === "desc" ? -1 : 1;
+    return [...tracks].sort((a, b) => {
+      if (a.addedAt === undefined || b.addedAt === undefined) {
+        if (a.addedAt !== b.addedAt) return a.addedAt === undefined ? 1 : -1;
+      } else if (a.addedAt !== b.addedAt) {
+        return sign * (a.addedAt - b.addedAt);
+      }
+      return sign * ((order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+    });
   }
   const value = (track: Track): string => {
     switch (key) {

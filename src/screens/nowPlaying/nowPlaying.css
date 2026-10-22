@@ -27,7 +27,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: 18px;
   text-align: center;
 }
 .np--empty h2 {
@@ -47,7 +47,7 @@
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  padding: 16px 28px 20px;
+  padding: 12px 20px 16px;
 }
 .np__toolbar {
   display: flex;
@@ -66,7 +66,7 @@
   flex: 1;
   align-items: center;
   justify-content: center;
-  gap: 36px;
+  gap: 28px;
   min-height: 0;
   padding-top: 8px;
 }
@@ -115,7 +115,7 @@
   list-style: none;
 }
 .np-lyrics li {
-  margin: 0 0 14px;
+  margin: 0 0 10px;
   color: var(--db-ink-2);
   font: 700 22px / 1.25 var(--db-font-display);
   letter-spacing: -0.01em;
@@ -166,7 +166,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: 18px;
   color: var(--db-ink-2);
   text-align: center;
   -webkit-mask-image: none;
@@ -202,7 +202,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   padding-top: 8px;
 }
 .np__dock-info {
@@ -235,7 +235,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 16px 8px 18px;
+  padding: 12px 12px 8px 14px;
 }
 .np-queue__head h2 {
   margin: 0;
@@ -245,7 +245,7 @@
 .np-queue__scroll {
   flex: 1;
   min-height: 0;
-  padding: 4px 10px 14px;
+  padding: 4px 8px 10px;
   overflow: auto;
 }
 .np-queue__scroll ul {
@@ -273,7 +273,7 @@
   display: flex;
   align-items: center;
   flex: 1;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
   padding: 6px 8px;
   border: 0;
@@ -307,7 +307,7 @@
   font-size: var(--db-text-xs);
 }
 .np-queue__empty {
-  padding: 24px 12px;
+  padding: 18px 8px;
   color: var(--db-ink-2);
   text-align: center;
 }

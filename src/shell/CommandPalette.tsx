@@ -96,6 +96,9 @@ export function CommandPalette({ onTogglePlayPause }: CommandPaletteProps) {
       command("dynbg", settings.dynamicBackground ? "Turn off dynamic background" : "Turn on dynamic background", () =>
         settings.setDynamicBackground(!settings.dynamicBackground)
       ),
+      command("sidebar", settings.sidebarCollapsed ? "Expand the sidebar" : "Collapse the sidebar to icons", () =>
+        settings.setSidebarCollapsed(!settings.sidebarCollapsed)
+      ),
       command("autoeq", settings.audioAutoEq ? "Turn off Auto EQ" : "Turn on Auto EQ", () => settings.setAudioAutoEq(!settings.audioAutoEq)),
       command("open", "Open music folder…", () => void scanLibraryWithPicker()),
     ];

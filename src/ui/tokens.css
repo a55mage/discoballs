@@ -24,13 +24,18 @@
   --db-text-2xl: 24px;
   --db-text-3xl: 32px;
 
-  /* Spacing (4px grid) */
+  /* Spacing (compact scale) */
   --db-space-1: 4px;
-  --db-space-2: 8px;
-  --db-space-3: 12px;
-  --db-space-4: 16px;
-  --db-space-5: 24px;
-  --db-space-6: 32px;
+  --db-space-2: 6px;
+  --db-space-3: 10px;
+  --db-space-4: 12px;
+  --db-space-5: 18px;
+  --db-space-6: 24px;
+
+  /* Control heights */
+  --db-control-sm: 28px;
+  --db-control: 34px;
+  --db-control-lg: 40px;
 
   /* Shape */
   --db-radius-sm: 8px;

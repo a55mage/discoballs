@@ -68,6 +68,8 @@ let tracks: Track[] = SAMPLE_TRACKS.map(([title, artist, album, year, genre, tra
     genre,
     hasCover: cover >= 0,
     coverUrl: cover >= 0 ? COVERS[cover] : undefined,
+    // One sample track a day, the most recent ones last, so "Date added" has something to sort.
+    addedAt: Date.UTC(2026, 0, 1) + ((index * 7) % SAMPLE_TRACKS.length) * 86_400_000,
   };
 });
 

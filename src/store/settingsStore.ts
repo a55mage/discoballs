@@ -8,8 +8,8 @@ type PlayerColumnVisibility = { library: boolean; visualizer: boolean; queue: bo
 import { readJson, readString, writeJson, writeString } from "./storage";
 
 export type ColorMode = "light" | "dark";
-/** How the library lists tracks: two table densities, or a wall of covers. */
-export type ListDensity = "comfortable" | "compact" | "grid";
+/** How the library lists tracks: a table (its row size is `listScale`), or a wall of covers. */
+export type ListDensity = "list" | "grid";
 
 const KEYS = {
   colorMode: "musicmanager-color-mode",
@@ -32,13 +32,28 @@ const KEYS = {
   dynamicBackground: "musicmanager-dynamic-background",
   backgroundIntensity: "musicmanager-background-intensity",
   listDensity: "musicmanager-list-density",
+  sidebarCollapsed: "musicmanager-sidebar-collapsed",
+  listScale: "musicmanager-library-list-scale",
+  gridCardSize: "musicmanager-library-grid-card-size",
 } as const;
+
+/** Zoom limits of the library: rows in percent of the default size, covers in pixels. */
+export const LIST_SCALE = { min: 70, max: 150, step: 10, default: 100 } as const;
+/** Below this row size the list drops the artist line, like the old compact rows. */
+export const LIST_SCALE_SINGLE_LINE = 80;
+export const GRID_CARD_SIZE = { min: 120, max: 280, step: 20, default: 160 } as const;
+
+function readBounded(value: string | null, limits: { min: number; max: number; default: number }): number {
+  const number = Number(value);
+  return value !== null && Number.isFinite(number) ? Math.min(limits.max, Math.max(limits.min, number)) : limits.default;
+}
 
 const VISUALIZER_IDS: VisualizerPresetId[] = ["scope", "alchemy", "xp-bars", "turntable"];
 const STARTUP_SCREENS: StartupScreen[] = ["tagging", "library", "dashboard", "player"];
 
 function readListDensity(value: string | null): ListDensity {
-  return value === "compact" || value === "grid" ? value : "comfortable";
+  // "comfortable" and "compact" (before 2.1) are both the list now; compact became a smaller row size.
+  return value === "grid" ? "grid" : "list";
 }
 
 export const DEFAULT_RENAME_FIELDS: RenameField[] = ["tracknumber", "artist", "title"];
@@ -136,6 +151,12 @@ export type SettingsState = {
   /** 0-100: how strongly the cover tints the interface. */
   backgroundIntensity: number;
   listDensity: ListDensity;
+  /** Sidebar reduced to icons, leaving more room to the screen. */
+  sidebarCollapsed: boolean;
+  /** Library rows, in percent of the default height. */
+  listScale: number;
+  /** Smallest width of a library grid card, in pixels. */
+  gridCardSize: number;
 
   setColorMode: (mode: ColorMode) => void;
   setStartupScreen: (screen: StartupScreen) => void;
@@ -160,6 +181,9 @@ export type SettingsState = {
   setDynamicBackground: (value: boolean) => void;
   setBackgroundIntensity: (value: number) => void;
   setListDensity: (value: ListDensity) => void;
+  setSidebarCollapsed: (value: boolean) => void;
+  setListScale: (value: number) => void;
+  setGridCardSize: (value: number) => void;
 };
 
 export const DEFAULT_BACKGROUND_INTENSITY = 70;
@@ -192,6 +216,9 @@ function loadInitialState(): Pick<
   | "dynamicBackground"
   | "backgroundIntensity"
   | "listDensity"
+  | "sidebarCollapsed"
+  | "listScale"
+  | "gridCardSize"
 > {
   const savedColorMode = readString(KEYS.colorMode);
   const savedStartup = readString(KEYS.startupScreen);
@@ -228,6 +255,9 @@ function loadInitialState(): Pick<
     dynamicBackground: readString(KEYS.dynamicBackground) !== "false",
     backgroundIntensity: readIntensity(readString(KEYS.backgroundIntensity)),
     listDensity: readListDensity(readString(KEYS.listDensity)),
+    sidebarCollapsed: readString(KEYS.sidebarCollapsed) === "true",
+    listScale: readBounded(readString(KEYS.listScale) ?? (readString(KEYS.listDensity) === "compact" ? String(LIST_SCALE.min) : null), LIST_SCALE),
+    gridCardSize: readBounded(readString(KEYS.gridCardSize), GRID_CARD_SIZE),
   };
 }
 
@@ -310,6 +340,9 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   setDynamicBackground: (dynamicBackground) => set({ dynamicBackground }),
   setBackgroundIntensity: (value) => set({ backgroundIntensity: readIntensity(String(value)) }),
   setListDensity: (listDensity) => set({ listDensity }),
+  setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
+  setListScale: (value) => set({ listScale: readBounded(String(value), LIST_SCALE) }),
+  setGridCardSize: (value) => set({ gridCardSize: readBounded(String(value), GRID_CARD_SIZE) }),
 }));
 
 function persistAll(state: SettingsState): void {
@@ -331,6 +364,9 @@ function persistAll(state: SettingsState): void {
   writeString(KEYS.dynamicBackground, String(state.dynamicBackground));
   writeString(KEYS.backgroundIntensity, String(state.backgroundIntensity));
   writeString(KEYS.listDensity, state.listDensity);
+  writeString(KEYS.sidebarCollapsed, String(state.sidebarCollapsed));
+  writeString(KEYS.listScale, String(state.listScale));
+  writeString(KEYS.gridCardSize, String(state.gridCardSize));
 }
 
 // Persist the initial snapshot (it may include the rotated accent), then every change.
@@ -357,4 +393,7 @@ useSettingsStore.subscribe((state, previous) => {
   if (state.dynamicBackground !== previous.dynamicBackground) writeString(KEYS.dynamicBackground, String(state.dynamicBackground));
   if (state.backgroundIntensity !== previous.backgroundIntensity) writeString(KEYS.backgroundIntensity, String(state.backgroundIntensity));
   if (state.listDensity !== previous.listDensity) writeString(KEYS.listDensity, state.listDensity);
+  if (state.sidebarCollapsed !== previous.sidebarCollapsed) writeString(KEYS.sidebarCollapsed, String(state.sidebarCollapsed));
+  if (state.listScale !== previous.listScale) writeString(KEYS.listScale, String(state.listScale));
+  if (state.gridCardSize !== previous.gridCardSize) writeString(KEYS.gridCardSize, String(state.gridCardSize));
 });
