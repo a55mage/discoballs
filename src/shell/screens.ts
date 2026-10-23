@@ -1,5 +1,5 @@
 import type { ComponentType, SVGProps } from "react";
-import { IconDisc, IconLibrary, IconPlaylist, IconSettings, IconTag } from "../components/icons";
+import { IconDisc, IconLibrary, IconPlaylist, IconSettings, IconTag, IconVisualizerBars } from "../components/icons";
 import type { AppScreen } from "../types";
 
 export type ScreenMeta = {
@@ -18,6 +18,18 @@ export const SCREENS: ScreenMeta[] = [
   { id: "player", label: "Now Playing", title: "Now Playing", subtitle: "Lyrics, visualizer and queue", Icon: IconDisc },
   { id: "settings", label: "Settings", title: "Settings", subtitle: "Audio, appearance and library", Icon: IconSettings },
 ];
+
+/**
+ * Hidden: the rhythm analysis debug view (the game it was made for is shelved). Not in the sidebar; the command
+ * palette offers it only when the search mentions "beatmap".
+ */
+export const BEATMAP_LAB: ScreenMeta = {
+  id: "beatmap",
+  label: "Beatmap lab",
+  title: "Beatmap lab",
+  subtitle: "Rhythm analysis of a track",
+  Icon: IconVisualizerBars,
+};
 
 export function getScreenMeta(screen: AppScreen): ScreenMeta {
   return SCREENS.find((item) => item.id === screen) ?? SCREENS[0];

@@ -1,0 +1,174 @@
+/* Beatmap lab: debug view of the rhythm-game analysis. */
+
+.bm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--db-space-4);
+  min-height: 100%;
+  padding: 14px 18px 18px;
+}
+.bm--empty {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.bm--empty h2 {
+  margin: 0 0 6px;
+  font-size: var(--db-text-3xl);
+  font-weight: 800;
+}
+.bm--empty p {
+  max-width: 420px;
+  margin: 0;
+  color: var(--db-ink-2);
+}
+.bm__head {
+  display: flex;
+  align-items: center;
+  gap: var(--db-space-3);
+  flex-wrap: wrap;
+}
+.bm__title {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 160px;
+}
+.bm__title strong,
+.bm__title span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.bm__title strong {
+  font-size: var(--db-text-lg);
+}
+.bm__title span {
+  color: var(--db-ink-2);
+  font-size: var(--db-text-sm);
+}
+.bm__pick,
+.bm__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--db-space-2);
+}
+.bm__error {
+  margin: 0;
+  color: var(--db-warn);
+  font-weight: 700;
+}
+.bm__note {
+  margin: 0;
+  color: var(--db-ink-2);
+  font-size: var(--db-text-sm);
+}
+.bm__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 22px;
+  margin: 0;
+}
+.bm__stats div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.bm__stats dt {
+  color: var(--db-ink-2);
+  font-size: var(--db-text-xs);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.bm__stats dd {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-weight: 700;
+}
+.bm__bands span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 8px;
+}
+.bm__bands i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+.bm__toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--db-space-4);
+  flex-wrap: wrap;
+}
+.bm__zoom,
+.bm__clicks,
+.bm__follow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--db-text-sm);
+  font-weight: 700;
+}
+.bm__zoom span,
+.bm__clicks > span {
+  color: var(--db-ink-2);
+}
+.bm__follow input {
+  accent-color: var(--db-accent);
+}
+.bm-timeline {
+  display: block;
+  width: 100%;
+  border-radius: var(--db-radius-md);
+  cursor: crosshair;
+}
+.bm__sections {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.bm__sections button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  overflow: hidden;
+  padding: 8px 10px;
+  border: 1px solid var(--db-line);
+  border-radius: var(--db-radius-md);
+  background: var(--db-surface-2);
+  color: var(--db-ink);
+  font: 600 var(--db-text-sm) / 1.2 var(--db-font-sans);
+  text-align: left;
+  cursor: pointer;
+}
+.bm__sections button:hover {
+  border-color: var(--db-ink-2);
+}
+.bm__sections button:focus-visible {
+  outline: none;
+  box-shadow: var(--db-focus);
+}
+.bm__sections button > span:last-child {
+  margin-left: auto;
+  color: var(--db-ink-2);
+}
+.bm__section-bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--db-accent-soft);
+  pointer-events: none;
+}
+.bm__sections strong,
+.bm__sections span:not(.bm__section-bar) {
+  position: relative;
+}

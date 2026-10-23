@@ -9,6 +9,9 @@ use lofty::tag::{ItemKey, Tag, TagExt, TagType};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+mod beatmap;
+mod media_controls;
+
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -560,6 +563,106 @@ async fn navidrome_get_cover_data_url(source: NavidromeTrackSource) -> Result<Op
     .await?;
     let mime = response_mime.unwrap_or_else(|| "image/jpeg".to_string());
     Ok(Some(format!("data:{};base64,{}", mime, BASE64.encode(bytes))))
+}
+
+/// Where analysed beatmaps are kept, one JSON file per track version.
+fn beatmap_cache_path(app: &tauri::AppHandle, key: &str) -> Result<PathBuf, String> {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    key.hash(&mut hasher);
+    beatmap::ANALYZER_VERSION.hash(&mut hasher);
+    let dir = app
+        .path()
+        .app_cache_dir()
+        .map_err(|e| format!("No cache folder: {e}"))?
+        .join("beatmaps");
+    fs::create_dir_all(&dir).map_err(|e| format!("Cache folder error: {e}"))?;
+    Ok(dir.join(format!("{:016x}.json", hasher.finish())))
+}
+
+fn read_cached_beatmap(path: &Path) -> Option<beatmap::Beatmap> {
+    let text = fs::read_to_string(path).ok()?;
+    let mut cached: beatmap::Beatmap = serde_json::from_str(&text).ok()?;
+    if cached.version != beatmap::ANALYZER_VERSION {
+        return None;
+    }
+    cached.cached = true;
+    Some(cached)
+}
+
+/// Decodes and analyses off the async runtime (it is CPU work), then stores the result in the cache.
+async fn analyze_and_cache(
+    source: Box<dyn symphonia::core::io::MediaSource>,
+    extension: Option<String>,
+    cache_path: PathBuf,
+) -> Result<beatmap::Beatmap, String> {
+    let result = tokio::task::spawn_blocking(move || {
+        let started = std::time::Instant::now();
+        let pcm = beatmap::decode(source, extension.as_deref())?;
+        let decoded = started.elapsed();
+        let mut map = beatmap::analyze(&pcm);
+        map.decode_ms = decoded.as_millis() as u64;
+        map.analysis_ms = (started.elapsed() - decoded).as_millis() as u64;
+        Ok::<_, String>(map)
+    })
+    .await
+    .map_err(|e| format!("Analysis task failed: {e}"))??;
+    if let Ok(text) = serde_json::to_string(&result) {
+        let _ = fs::write(&cache_path, text);
+    }
+    Ok(result)
+}
+
+/// Beatmap of a local file; cached by path, size and modification time, so editing the file re-analyses it.
+#[tauri::command]
+async fn analyze_track_beatmap(app: tauri::AppHandle, path: String, force: bool) -> Result<beatmap::Beatmap, String> {
+    let audio_path = PathBuf::from(&path);
+    let metadata = fs::metadata(&audio_path).map_err(|e| format!("File not found: {e}"))?;
+    let modified = metadata
+        .modified()
+        .ok()
+        .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+        .map_or(0, |duration| duration.as_secs());
+    let cache_path = beatmap_cache_path(&app, &format!("file:{path}:{}:{modified}", metadata.len()))?;
+    if !force {
+        if let Some(cached) = read_cached_beatmap(&cache_path) {
+            return Ok(cached);
+        }
+    }
+    let file = fs::File::open(&audio_path).map_err(|e| format!("Audio read error: {e}"))?;
+    let extension = audio_path.extension().and_then(|ext| ext.to_str()).map(str::to_lowercase);
+    analyze_and_cache(Box::new(file), extension, cache_path).await
+}
+
+/// Beatmap of a Navidrome song, downloaded as MP3 like for playback; cached by server and song id.
+#[tauri::command]
+async fn analyze_navidrome_beatmap(app: tauri::AppHandle, source: NavidromeTrackSource, force: bool) -> Result<beatmap::Beatmap, String> {
+    let base_url = normalize_navidrome_base_url(&source.base_url)?;
+    let cache_path = beatmap_cache_path(&app, &format!("navidrome:{base_url}:{}", source.song_id))?;
+    if !force {
+        if let Some(cached) = read_cached_beatmap(&cache_path) {
+            return Ok(cached);
+        }
+    }
+    let client = Client::builder()
+        .user_agent("discoballs/1.5.0 (desktop app)")
+        .timeout(Duration::from_secs(90))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let (bytes, _) = navidrome_get_bytes(
+        &client,
+        &base_url,
+        &source.username,
+        &source.password,
+        "stream",
+        vec![
+            ("id".to_string(), source.song_id.clone()),
+            ("format".to_string(), "mp3".to_string()),
+            ("maxBitRate".to_string(), "320".to_string()),
+        ],
+    )
+    .await?;
+    analyze_and_cache(Box::new(std::io::Cursor::new(bytes)), Some("mp3".to_string()), cache_path).await
 }
 
 #[tauri::command]
@@ -1728,6 +1831,7 @@ fn main() {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_title("DiscoBalls");
             }
+            media_controls::install(app.handle());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -1745,6 +1849,9 @@ fn main() {
             get_album_release,
             get_audio_data_url,
             get_track_technical_info,
+            analyze_track_beatmap,
+            analyze_navidrome_beatmap,
+            media_controls::update_now_playing,
             open_external_url,
             open_track_in_file_manager
         ])

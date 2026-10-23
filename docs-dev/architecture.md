@@ -50,6 +50,10 @@ the previous versions, so existing user data keeps working. Rules of thumb:
 
 - `usePlaybackEngine`: wires the `<audio>` element, volume, EQ graph, source loading, autoplay and queue upkeep.
 - `useLibrarySession`: snapshot restore/persist, auto-open default folder, startup Navidrome connection, remote covers.
+- `useMediaControls`: media keys and system controls. The Media Session API covers WebView2 (with the
+  `HardwareMediaKeyHandling` flag in `tauri.conf.json`), Linux and browsers; on macOS `src-tauri/src/media_controls.rs`
+  registers `MPRemoteCommandCenter` and fills Now Playing, because WebKit does not take the keys for audio routed
+  through Web Audio. Both lead to `actions/mediaControls.ts`, which drops a command repeated within 300 ms.
 - `useAutoEqualizer`, `useLyrics`, `useTrackTechnicalInfo`, `usePlaybackQueueView`, `useTagDraftSync`,
   `useDashboardDrag`, `useLibraryView`.
 
@@ -105,3 +109,9 @@ passed down from `App.tsx`, which only picks the screen and mounts the hooks.
 - `playlists/`: playlist list, editor (pointer drag & drop through `useDashboardDrag`, plus move buttons) and a
   track picker.
 - `settings/`: one component per tab; `uiStore.settingsTab` lets other screens deep-link into a tab.
+- `beatmap/`: **Beatmap lab** (hidden: not in the sidebar, the command palette shows it when you search "beatmap"),
+  the debug view of the rhythm analysis made for a game that is shelved for now. `src-tauri/src/beatmap.rs` decodes a whole
+  track (Symphonia) and finds intensity, onsets in three bands, tempo and beats (dynamic-programming beat tracking) and
+  sections; results are cached as JSON in the app cache folder (`beatmaps/`, keyed by file path, size and date, or by
+  Navidrome song). The lab draws them over the waveform and can click on beats or onsets during playback.
+  Manual check on a file: `BEATMAP_FILE=/path/song.mp3 cargo test --release beatmap_of_a_file -- --ignored --nocapture`.

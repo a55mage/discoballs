@@ -2,8 +2,11 @@ import type {
   AlbumQuery,
   AlbumRelease,
   AlbumSummary,
+  Beatmap,
+  MediaControlEvent,
   NavidromeConnectionInput,
   NavidromeConnectionResult,
+  NowPlayingInfo,
   OnlineMatch,
   RenameConfig,
   SaveTrackResult,
@@ -40,4 +43,10 @@ export interface MusicAdapter {
   connectNavidrome(input: NavidromeConnectionInput): Promise<NavidromeConnectionResult>;
   scanNavidromeLibrary(input: NavidromeConnectionInput): Promise<ScanResult>;
   openTrackInFileManager(path: string): Promise<void>;
+  /** Analyses a whole track for the rhythm game (cached; `force` analyses again). */
+  analyzeBeatmap(track: Track, force?: boolean): Promise<Beatmap>;
+  /** Native media controls (macOS): calls `handler` for each command; returns the unsubscribe function. */
+  onMediaControl(handler: (event: MediaControlEvent) => void): () => void;
+  /** Shows the current track in the system's Now Playing (macOS); `null` clears it. */
+  updateNowPlaying(info: NowPlayingInfo | null): Promise<void>;
 }

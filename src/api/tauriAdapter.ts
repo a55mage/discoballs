@@ -1,10 +1,14 @@
+import { listen } from "@tauri-apps/api/event";
 import type { MusicAdapter } from "./adapter";
 import type {
   AlbumQuery,
   AlbumRelease,
   AlbumSummary,
+  Beatmap,
+  MediaControlEvent,
   NavidromeConnectionInput,
   NavidromeConnectionResult,
+  NowPlayingInfo,
   OnlineMatch,
   RenameConfig,
   SaveTrackResult,
@@ -385,6 +389,42 @@ export const tauriAdapter: MusicAdapter = {
   async openTrackInFileManager(path: string): Promise<void> {
     const invoke = getInvoke();
     await invoke<void>("open_track_in_file_manager", { path });
+  },
+
+  async analyzeBeatmap(track: Track, force = false): Promise<Beatmap> {
+    const invoke = getInvoke();
+    if (track.source?.type === "navidrome") {
+      return await invoke<Beatmap>("analyze_navidrome_beatmap", {
+        source: {
+          base_url: track.source.baseUrl,
+          username: track.source.username,
+          password: track.source.password,
+          song_id: track.source.songId,
+          cover_art_id: track.source.coverArtId ?? null,
+          suffix: track.source.suffix ?? null,
+          content_type: track.source.contentType ?? null,
+        },
+        force,
+      });
+    }
+    return await invoke<Beatmap>("analyze_track_beatmap", { path: track.path, force });
+  },
+
+  onMediaControl(handler: (event: MediaControlEvent) => void): () => void {
+    let unlisten: (() => void) | null = null;
+    let stopped = false;
+    void listen<MediaControlEvent>("media-control", (event) => handler(event.payload)).then((stop) => {
+      if (stopped) stop();
+      else unlisten = stop;
+    });
+    return () => {
+      stopped = true;
+      unlisten?.();
+    };
+  },
+
+  async updateNowPlaying(info: NowPlayingInfo | null): Promise<void> {
+    await getInvoke()<void>("update_now_playing", { info });
   },
 };
 

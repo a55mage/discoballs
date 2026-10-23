@@ -1,13 +1,13 @@
 import { useMemo, useRef, useState } from "react";
 import { selectTrack } from "../../actions/library";
-import { type HealthFilter, getTrackIssues, matchesHealthFilter } from "../../domain/libraryView";
+import { type HealthFilter, getTrackIssues, matchesHealthFilter, sortTracks } from "../../domain/libraryView";
 import { IconSearch } from "../../components/icons";
 import { useVirtualList } from "../../hooks/useVirtualList";
 import { useVisibleTracks } from "../../hooks/useVisibleTracks";
 import { useLibraryStore } from "../../store/libraryStore";
 import { useUiStore } from "../../store/uiStore";
-import { useLibraryViewStore } from "../../store/libraryViewStore";
-import { Button, Chip, Cover, Switch, TextInput, cx } from "../../ui";
+import { type TagEditorSort, useLibraryViewStore } from "../../store/libraryViewStore";
+import { Button, Chip, Cover, Select, Switch, TextInput, cx } from "../../ui";
 
 const ROW_HEIGHT = 52;
 
@@ -23,6 +23,13 @@ const CHIPS: Array<{ value: HealthFilter; label: string }> = [
   { value: "duplicates", label: "Duplicates" },
 ];
 
+const SORTS: Array<{ value: TagEditorSort; label: string }> = [
+  { value: "folder", label: "Folder" },
+  { value: "added", label: "Recently added" },
+  { value: "title", label: "Title" },
+  { value: "artist", label: "Artist" },
+];
+
 /** Left pane of the Tag Editor: every track, with filters for what needs fixing (the only home of the health chips). */
 export function FileList({ dirty }: FileListProps) {
   const { tracks, duplicateIds, health } = useVisibleTracks();
@@ -30,22 +37,26 @@ export function FileList({ dirty }: FileListProps) {
   const selectedTrackId = useLibraryStore((state) => state.selectedTrackId);
   const [filter, setFilter] = useState<HealthFilter>("all");
   const [query, setQuery] = useState("");
-  const { duplicatesIgnoreFormats, setDuplicatesIgnoreFormats } = useLibraryViewStore();
+  const { duplicatesIgnoreFormats, setDuplicatesIgnoreFormats, tagEditorSort, setTagEditorSort } = useLibraryViewStore();
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
-  const items = useMemo(
-    () =>
-      tracks
-        .filter((track) => matchesHealthFilter(track, filter, duplicateIds) && matchesQuery(track, query))
-        .map((track) => ({ track, issues: getTrackIssues(track, duplicateIds) })),
-    [tracks, duplicateIds, filter, query]
-  );
+  const items = useMemo(() => {
+    const matching = tracks.filter((track) => matchesHealthFilter(track, filter, duplicateIds) && matchesQuery(track, query));
+    // "Folder" keeps the scan order (by path); the others reuse the library's sorting.
+    const ordered = tagEditorSort === "folder" ? matching : sortTracks(matching, tagEditorSort, tagEditorSort === "added" ? "desc" : "asc");
+    return ordered.map((track) => ({ track, issues: getTrackIssues(track, duplicateIds) }));
+  }, [tracks, duplicateIds, filter, query, tagEditorSort]);
   const range = useVirtualList(scrollRef, items.length, ROW_HEIGHT);
 
   return (
     <section className="tag-files db-glass db-pane--divider-right" aria-label="Files">
       <header className="tag-files__head">
         <h2>Files</h2>
+        <Select className="tag-files__sort" aria-label="Sort files" value={tagEditorSort} onChange={(event) => setTagEditorSort(event.target.value as TagEditorSort)}>
+          {SORTS.map((sort) => (
+            <option key={sort.value} value={sort.value}>{sort.label}</option>
+          ))}
+        </Select>
       </header>
       <label className="tag-files__search">
         <IconSearch aria-hidden="true" />

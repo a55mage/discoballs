@@ -19,6 +19,7 @@ const KEYS = {
   visualizerPreset: "musicmanager-player-visualizer-preset",
   showLyrics: "musicmanager-player-show-lyrics",
   startupScreen: "musicmanager-startup-screen",
+  startupScreenReset: "musicmanager-startup-screen-reset-v2",
   accentIndex: "musicmanager-accent-index",
   accentThemes: "musicmanager-accent-themes",
   accentRotate: "musicmanager-accent-rotate-on-launch",
@@ -221,7 +222,13 @@ function loadInitialState(): Pick<
   | "gridCardSize"
 > {
   const savedColorMode = readString(KEYS.colorMode);
-  const savedStartup = readString(KEYS.startupScreen);
+  // Versions before 2.1 opened on the Tag Editor and saved that default for everybody: start once on the
+  // Library, then the user's choice in Settings counts again.
+  const resetStartup = readString(KEYS.startupScreenReset) !== "done";
+  if (resetStartup) {
+    writeString(KEYS.startupScreenReset, "done");
+  }
+  const savedStartup = resetStartup ? "library" : readString(KEYS.startupScreen);
   const savedVisualizer = readString(KEYS.visualizerPreset);
 
   const accentThemes = normalizeAccentThemes(readJson(KEYS.accentThemes)) ?? cloneDefaultAccents();

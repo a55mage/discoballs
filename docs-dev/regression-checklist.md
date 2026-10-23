@@ -18,6 +18,14 @@ Automated: `npm test`, `npx tsc --noEmit`, `cargo test` in `src-tauri/`.
 - [ ] Light/dark toggle in the header persists; accent colors apply everywhere (web)
 - [ ] Dynamic background follows the playing cover; off and intensity in Settings → Appearance (web)
 
+## Media keys and system controls
+- [ ] macOS: play/pause, next and previous keys (and AirPods / Control Center) control the app even when it is in the background; Now Playing shows title, artist, album and position
+- [ ] Windows: the media keys work; the Windows media flyout shows the track
+- [ ] One key press never toggles twice
+
+## Start
+- [ ] The app opens on the Library (after updating, once, even if the Tag Editor was saved); Settings → Start on still works
+
 ## Library
 - [ ] Open folder via picker; tracks, covers and counts appear
 - [ ] Auto-open default folder on launch (setting on/off)
@@ -38,6 +46,7 @@ Automated: `npm test`, `npx tsc --noEmit`, `cargo test` in `src-tauri/`.
 - [ ] "Match album online…": search, pick an edition, preview, apply; with and without "Replace covers"; Undo
 - [ ] Review duplicates: suggested copy, "Select the others", "Not duplicates"; nothing is ever deleted
 
+- [ ] Tag Editor: the file list sorts by Folder, Recently added, Title or Artist; the choice persists
 ## Tag editor
 - [ ] File list search (title, artist, album, file name) and the "Ignore other formats" switch: FLAC+MP3 of one song stop counting as duplicates (also in the review dialog)
 - [ ] File list filters: All, Missing cover, Missing tags, Duplicates (with counts) and "Review duplicates…" (web)
@@ -74,6 +83,13 @@ Automated: `npm test`, `npx tsc --noEmit`, `cargo test` in `src-tauri/`.
 - [ ] Play playlist (in order and shuffled); a playlist survives restart
 - [ ] Favorites playlist updates from the heart (library, player bar, palette); star ratings persist
 - [ ] Missing tracks in a playlist are shown as such and can be removed
+
+## Beatmap lab (hidden)
+- [ ] Not in the sidebar; the command palette opens it when the search contains "beatmap"
+- [ ] Opening the lab analyses the playing or selected track; a second visit or a restart loads it from the cache
+- [ ] Local MP3, M4A, FLAC, OGG and WAV files analyse; Navidrome songs too (downloaded as MP3)
+- [ ] Clicks on beats land on the pulse of rhythmic music; low / mid / high onsets follow kick, snare and hats
+- [ ] Zoom, wheel scroll, overview click and click-to-seek work; the view follows playback
 
 ## Navidrome
 - [ ] Save a server bookmark; connect; library loads; connect on open; delete bookmark

@@ -457,3 +457,9 @@
 .tag-fromname {
   margin-top: 8px;
 }
+
+.tag-files__sort {
+  width: 150px;
+  height: var(--db-control-sm);
+  font-size: var(--db-text-sm);
+}

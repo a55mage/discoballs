@@ -72,6 +72,7 @@ beforeEach(() => {
     selectedTrackId: "",
     tracks: [track("1"), track("2", { genre: "", hasCover: false, coverUrl: undefined })],
   });
+  useLibraryViewStore.setState({ tagEditorSort: "folder" });
   useTagEditorStore.setState({ trackDraft: null, onlineResults: [], selectedResultId: "", isLoadingSearch: false, searchStatus: "Ready", searchTitle: "", searchArtist: "", searchAlbum: "" });
   useSettingsStore.setState({ renameFields: ["tracknumber", "title"], renameSeparator: " - " });
   useUiStore.setState({ toast: null });
@@ -92,6 +93,18 @@ describe("TagEditorScreen", () => {
     expect(within(options[1]).getByRole("img", { name: /No cover, No genre/ })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Missing cover/ }));
     expect(within(screen.getByRole("list", { name: "Tracks" })).getAllByRole("listitem")).toHaveLength(1);
+  });
+
+  it("sorts the files by most recently added and remembers it", () => {
+    useLibraryStore.setState({
+      tracks: [track("1", { addedAt: 100 }), track("2", { addedAt: 300 }), track("3"), track("4", { addedAt: 200 })],
+    });
+    render(<Harness />);
+    const titles = () => within(screen.getByRole("list", { name: "Tracks" })).getAllByRole("listitem").map((item) => item.textContent);
+    expect(titles()).toEqual(["Song 1Artist", "Song 2Artist", "Song 3Artist", "Song 4Artist"]);
+    fireEvent.change(screen.getByLabelText("Sort files"), { target: { value: "added" } });
+    expect(titles()).toEqual(["Song 2Artist", "Song 4Artist", "Song 1Artist", "Song 3Artist"]);
+    expect(useLibraryViewStore.getState().tagEditorSort).toBe("added");
   });
 
   it("searches the files by title, artist, album or file name", () => {

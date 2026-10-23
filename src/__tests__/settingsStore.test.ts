@@ -33,10 +33,19 @@ describe("settingsStore", () => {
     expect(state.accentIndex).toBe(0);
   });
 
+  it("starts once on the Library after the update, then keeps the user's start screen", async () => {
+    const data = installStorage({ "musicmanager-startup-screen": "tagging" });
+    expect((await loadStore()).getState().startupScreen).toBe("library");
+    expect(data.get("musicmanager-startup-screen")).toBe("library");
+    data.set("musicmanager-startup-screen", "player");
+    expect((await loadStore()).getState().startupScreen).toBe("player");
+  });
+
   it("restores persisted values using the legacy keys", async () => {
     installStorage({
       "musicmanager-color-mode": "dark",
       "musicmanager-startup-screen": "player",
+      "musicmanager-startup-screen-reset-v2": "done",
       "musicmanager-rename-fields": JSON.stringify(["artist", "bogus", "title"]),
       "musicmanager-rename-separator": "_",
       "musicmanager-player-visualizer-preset": "turntable",

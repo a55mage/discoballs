@@ -97,7 +97,7 @@ export type SaveTrackResult = {
   path: string;
 };
 
-export type AppScreen = "tagging" | "library" | "dashboard" | "settings" | "player";
+export type AppScreen = "tagging" | "library" | "dashboard" | "settings" | "player" | "beatmap";
 export type StartupScreen = "tagging" | "library" | "dashboard" | "player";
 
 export type AlbumQuery = { artist: string; album: string };
@@ -130,4 +130,43 @@ export type AlbumRelease = {
   date: string;
   tracks: AlbumTrack[];
   coverUrl?: string;
+};
+
+/** A command from the system's media controls (media keys, headphones, Control Center). */
+export type MediaControlAction = "play" | "pause" | "toggle" | "next" | "previous" | "seek";
+export type MediaControlEvent = { action: MediaControlAction; position?: number | null };
+
+/** What the system's Now Playing shows. */
+export type NowPlayingInfo = { title: string; artist: string; album: string; duration: number; position: number; playing: boolean };
+
+/** A sudden change of the sound in one band: a candidate note or block for the rhythm game. */
+export type BeatmapOnset = {
+  time: number;
+  /** 0…1, relative to the strongest onsets of the track. */
+  strength: number;
+  /** 0 low (kick, bass), 1 mid (snare, voice), 2 high (hats, cymbals). */
+  band: 0 | 1 | 2;
+};
+
+export type BeatmapSection = { start: number; end: number; intensity: number };
+
+/** What the analysis of a whole track finds (see src-tauri/src/beatmap.rs). Times are in seconds. */
+export type Beatmap = {
+  version: number;
+  duration: number;
+  bpm: number;
+  /** 0…1: how clearly the pulse stands out. */
+  tempoConfidence: number;
+  beats: number[];
+  onsets: BeatmapOnset[];
+  /** Loudness over time, 0…1, `intensityRate` values per second. */
+  intensityRate: number;
+  intensity: number[];
+  /** Peak level, 0…1, `waveformRate` values per second. */
+  waveformRate: number;
+  waveform: number[];
+  sections: BeatmapSection[];
+  decodeMs: number;
+  analysisMs: number;
+  cached: boolean;
 };

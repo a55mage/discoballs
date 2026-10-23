@@ -10,7 +10,7 @@ import { usePlayerStore } from "../store/playerStore";
 import { useSettingsStore } from "../store/settingsStore";
 import { useUiStore } from "../store/uiStore";
 import { Badge, cx } from "../ui";
-import { SCREENS } from "./screens";
+import { BEATMAP_LAB, SCREENS } from "./screens";
 
 type PaletteItem = {
   id: string;
@@ -103,6 +103,10 @@ export function CommandPalette({ onTogglePlayPause }: CommandPaletteProps) {
       command("open", "Open music folder…", () => void scanLibraryWithPicker()),
     ];
     const needle = query.trim().toLowerCase();
+    // The hidden debug screen only answers to its name.
+    if (needle.includes("beatmap")) {
+      commands.push(command("go-beatmap", `${BEATMAP_LAB.label} (debug)`, () => setActiveScreen(BEATMAP_LAB.id), "Go to"));
+    }
     const matchingCommands = needle ? commands.filter((item) => item.label.toLowerCase().includes(needle)) : commands;
     if (!needle) {
       return matchingCommands;

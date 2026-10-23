@@ -3,8 +3,11 @@ import type {
   AlbumQuery,
   AlbumRelease,
   AlbumSummary,
+  Beatmap,
+  MediaControlEvent,
   NavidromeConnectionInput,
   NavidromeConnectionResult,
+  NowPlayingInfo,
   OnlineMatch,
   RenameConfig,
   SaveTrackResult,
@@ -364,4 +367,61 @@ export const mockAdapter: MusicAdapter = {
   async openTrackInFileManager(_path: string): Promise<void> {
     await wait(50);
   },
+
+  // No native media controls in a plain browser: the Media Session API covers it there.
+  onMediaControl(_handler: (event: MediaControlEvent) => void): () => void {
+    return () => undefined;
+  },
+
+  async updateNowPlaying(_info: NowPlayingInfo | null): Promise<void> {},
+
+  async analyzeBeatmap(track: Track, force = false): Promise<Beatmap> {
+    await wait(force ? 900 : 500);
+    return mockBeatmap(Number(track.id) || 1);
+  },
 };
+
+/**
+ * A believable beatmap for the 30 s mock tone: 120 BPM with kick / snare / hat onsets, a quiet intro,
+ * a loud middle and a break, varied a little per track.
+ */
+function mockBeatmap(seed: number): Beatmap {
+  const duration = 30;
+  const bpm = 116 + (seed % 5) * 2;
+  const beat = 60 / bpm;
+  const beats: number[] = [];
+  for (let time = 0.4; time < duration - 0.2; time += beat) beats.push(Number(time.toFixed(3)));
+  const level = (time: number) => (time < 8 ? 0.3 : time < 22 ? 0.85 : 0.45) + 0.08 * Math.sin(time * 1.7 + seed);
+  const onsets: Beatmap["onsets"] = [];
+  beats.forEach((time, index) => {
+    if (index % 2 === 0) onsets.push({ time, strength: 0.9, band: 0 });
+    if (index % 2 === 1 && time > 8) onsets.push({ time, strength: 0.75, band: 1 });
+    if (time > 4) onsets.push({ time: Number((time + beat / 2).toFixed(3)), strength: 0.4 + ((index * seed) % 4) / 10, band: 2 });
+  });
+  const intensityRate = 20;
+  const waveformRate = 100;
+  return {
+    version: 1,
+    duration,
+    bpm,
+    tempoConfidence: 0.62,
+    beats,
+    onsets,
+    intensityRate,
+    intensity: Array.from({ length: duration * intensityRate }, (_, i) => Math.min(1, level(i / intensityRate))),
+    waveformRate,
+    waveform: Array.from({ length: duration * waveformRate }, (_, i) => {
+      const time = i / waveformRate;
+      const sinceBeat = (time - 0.4) % beat;
+      return Math.min(1, level(time) * (0.35 + 0.65 * Math.exp(-sinceBeat * 9)));
+    }),
+    sections: [
+      { start: 0, end: 8, intensity: 0.3 },
+      { start: 8, end: 22, intensity: 0.85 },
+      { start: 22, end: duration, intensity: 0.45 },
+    ],
+    decodeMs: 0,
+    analysisMs: 0,
+    cached: false,
+  };
+}

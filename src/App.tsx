@@ -2,9 +2,11 @@ import { type ReactNode } from "react";
 import { togglePlayPause } from "./actions/playback";
 import { useAutoEqualizer } from "./hooks/useAutoEqualizer";
 import { useLibrarySession } from "./hooks/useLibrarySession";
+import { useMediaControls } from "./hooks/useMediaControls";
 import { usePlaybackEngine } from "./hooks/usePlaybackEngine";
 import { useTagDraftSync } from "./hooks/useTagDraftSync";
 import { LibraryInspector } from "./screens/library/LibraryInspector";
+import { BeatmapLab } from "./screens/beatmap/BeatmapLab";
 import { LibraryScreen } from "./screens/library/LibraryScreen";
 import { NowPlayingScreen } from "./screens/nowPlaying/NowPlayingScreen";
 import { PlaylistsScreen } from "./screens/playlists/PlaylistsScreen";
@@ -30,6 +32,7 @@ export function App() {
 
   // Playing from the library queues the list as it is filtered and sorted on screen.
   const togglePlay = () => void togglePlayPause(getVisibleLibraryTracks().map((track) => track.id));
+  useMediaControls(togglePlay);
 
   const screens: Record<typeof activeScreen, ReactNode> = {
     library: <LibraryScreen onTogglePlayPause={togglePlay} />,
@@ -37,6 +40,7 @@ export function App() {
     dashboard: <PlaylistsScreen />,
     player: <NowPlayingScreen onTogglePlayPause={togglePlay} />,
     settings: <SettingsScreen />,
+    beatmap: <BeatmapLab onTogglePlayPause={togglePlay} />,
   };
 
   return (
