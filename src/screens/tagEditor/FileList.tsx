@@ -1,10 +1,13 @@
 import { useMemo, useRef, useState } from "react";
 import { selectTrack } from "../../actions/library";
+import { playFromLibraryCover, togglePlayPause } from "../../actions/playback";
 import { type HealthFilter, getTrackIssues, matchesHealthFilter, sortTracks } from "../../domain/libraryView";
-import { IconSearch } from "../../components/icons";
+import { IconPause, IconPlay, IconSearch } from "../../components/icons";
 import { useVirtualList } from "../../hooks/useVirtualList";
 import { useVisibleTracks } from "../../hooks/useVisibleTracks";
 import { useLibraryStore } from "../../store/libraryStore";
+import { usePlayerStore } from "../../store/playerStore";
+import type { Track } from "../../types";
 import { useUiStore } from "../../store/uiStore";
 import { type TagEditorSort, useLibraryViewStore } from "../../store/libraryViewStore";
 import { Button, Chip, Cover, Select, Switch, TextInput, cx } from "../../ui";
@@ -35,6 +38,8 @@ export function FileList({ dirty }: FileListProps) {
   const { tracks, duplicateIds, health } = useVisibleTracks();
   const setDuplicatesOpen = useUiStore((state) => state.setDuplicatesOpen);
   const selectedTrackId = useLibraryStore((state) => state.selectedTrackId);
+  const playbackTrackId = usePlayerStore((state) => state.playbackTrackId);
+  const isPlaying = usePlayerStore((state) => state.isPlaying);
   const [filter, setFilter] = useState<HealthFilter>("all");
   const [query, setQuery] = useState("");
   const { duplicatesIgnoreFormats, setDuplicatesIgnoreFormats, tagEditorSort, setTagEditorSort } = useLibraryViewStore();
@@ -47,6 +52,15 @@ export function FileList({ dirty }: FileListProps) {
     return ordered.map((track) => ({ track, issues: getTrackIssues(track, duplicateIds) }));
   }, [tracks, duplicateIds, filter, query, tagEditorSort]);
   const range = useVirtualList(scrollRef, items.length, ROW_HEIGHT);
+
+  /** Plays a file, queueing the list as it is shown; on the file already playing, pauses or resumes. */
+  function play(track: Track) {
+    if (track.id === playbackTrackId) {
+      void togglePlayPause([]);
+    } else {
+      void playFromLibraryCover(track, items.map((item) => item.track.id));
+    }
+  }
 
   return (
     <section className="tag-files db-glass db-pane--divider-right" aria-label="Files">
@@ -78,8 +92,9 @@ export function FileList({ dirty }: FileListProps) {
         <ul aria-label="Tracks" style={{ paddingTop: range.offsetTop, paddingBottom: range.offsetBottom }}>
           {items.slice(range.start, range.end).map(({ track, issues }) => {
             const isSelected = track.id === selectedTrackId;
+            const isCurrent = track.id === playbackTrackId;
             return (
-              <li key={track.id}>
+              <li key={track.id} className={cx("tag-file__row", isCurrent && "is-current")}>
                 <button type="button" className={cx("tag-file", isSelected && "is-selected")} style={{ height: ROW_HEIGHT }} aria-current={isSelected || undefined} onClick={() => selectTrack(track)}>
                   <Cover size={36} radius={8} src={track.coverUrl} />
                   <span className="tag-file__text">
@@ -88,6 +103,15 @@ export function FileList({ dirty }: FileListProps) {
                   </span>
                   {isSelected && dirty ? <span className="tag-file__dirty" role="img" aria-label="Unsaved changes" /> : null}
                   {issues.length ? <span className="tag-file__warn" role="img" aria-label={`Issues: ${issues.join(", ")}`} title={issues.join(", ")}>!</span> : null}
+                </button>
+                {/* Over the cover, next to (not inside) the row button. */}
+                <button
+                  type="button"
+                  className={cx("tag-file__play", isCurrent && isPlaying && "is-playing")}
+                  aria-label={isCurrent && isPlaying ? `Pause ${track.title || fileName(track.path)}` : `Play ${track.title || fileName(track.path)}`}
+                  onClick={() => play(track)}
+                >
+                  {isCurrent && isPlaying ? <IconPause aria-hidden="true" /> : <IconPlay aria-hidden="true" />}
                 </button>
               </li>
             );

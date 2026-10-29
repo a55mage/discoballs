@@ -47,6 +47,8 @@ Automated: `npm test`, `npx tsc --noEmit`, `cargo test` in `src-tauri/`.
 - [ ] Review duplicates: suggested copy, "Select the others", "Not duplicates"; nothing is ever deleted
 
 - [ ] Tag Editor: the file list sorts by Folder, Recently added, Title or Artist; the choice persists
+- [ ] Tag Editor: the play button on a file's cover plays it (queue = the list as shown) and pauses the one playing
+- [ ] Command palette: choosing a track plays it right away
 ## Tag editor
 - [ ] File list search (title, artist, album, file name) and the "Ignore other formats" switch: FLAC+MP3 of one song stop counting as duplicates (also in the review dialog)
 - [ ] File list filters: All, Missing cover, Missing tags, Duplicates (with counts) and "Review duplicates…" (web)

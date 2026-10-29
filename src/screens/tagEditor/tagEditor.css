@@ -463,3 +463,44 @@
   height: var(--db-control-sm);
   font-size: var(--db-text-sm);
 }
+
+/* Play button over a file's cover: shown on hover, and on the file that is playing. */
+.tag-file__row {
+  position: relative;
+}
+.tag-file__play {
+  position: absolute;
+  top: 50%;
+  left: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  opacity: 0;
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+.tag-file__play svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+  stroke: none;
+}
+.tag-file__row:hover .tag-file__play,
+.tag-file__play:focus-visible,
+.tag-file__row.is-current .tag-file__play {
+  opacity: 1;
+}
+.tag-file__play:focus-visible {
+  outline: none;
+  box-shadow: var(--db-focus);
+}
+.tag-file__row.is-current .tag-file__title {
+  color: var(--db-accent-text);
+}

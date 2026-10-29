@@ -2,6 +2,12 @@
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const playFromLibraryCover = vi.fn(async (_track: unknown, _ids: string[]) => undefined);
+vi.mock("../actions/playback", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../actions/playback")>()),
+  playFromLibraryCover: (track: unknown, ids: string[]) => playFromLibraryCover(track, ids),
+}));
 import { AppShell } from "../shell/AppShell";
 import { Backdrop } from "../shell/Backdrop";
 import { CommandPalette } from "../shell/CommandPalette";
@@ -76,7 +82,8 @@ describe("CommandPalette", () => {
     expect(useUiStore.getState().isPaletteOpen).toBe(false);
   });
 
-  it("finds tracks and selects them", () => {
+  it("finds tracks and plays them, queueing the library list", () => {
+    playFromLibraryCover.mockClear();
     render(<CommandPalette onTogglePlayPause={() => undefined} />);
     open();
     const input = screen.getByRole("combobox");
@@ -84,8 +91,11 @@ describe("CommandPalette", () => {
     const options = screen.getAllByRole("option");
     expect(options[0].textContent).toContain("Harbor Lights");
     fireEvent.keyDown(input, { key: "Enter" });
-    expect(useLibraryStore.getState().selectedTrackId).toBe("2");
-    expect(useUiStore.getState().activeScreen).toBe("library");
+    expect(playFromLibraryCover).toHaveBeenCalledTimes(1);
+    const [played, queue] = playFromLibraryCover.mock.calls[0] as [Track, string[]];
+    expect(played.id).toBe("2");
+    expect(queue).toEqual(expect.arrayContaining(["1", "2"]));
+    expect(useUiStore.getState().isPaletteOpen).toBe(false);
   });
 
   it("moves the highlight with the arrow keys and exposes it to assistive tech", () => {

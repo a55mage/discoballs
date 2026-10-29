@@ -6,6 +6,13 @@ import type { OnlineMatch, Track } from "../types";
 const saveTrack = vi.fn(async (_id: string, path: string) => ({ path: path.replace("old", "new") }));
 const renameTrack = vi.fn(async (path: string) => ({ path: path.replace("old", "renamed") }));
 const searchOnline = vi.fn<(query: unknown) => Promise<OnlineMatch[]>>(async () => []);
+const playFromLibraryCover = vi.fn(async (_track: unknown, _ids: string[]) => undefined);
+const togglePlayPause = vi.fn(async (_ids: string[]) => undefined);
+vi.mock("../actions/playback", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../actions/playback")>()),
+  playFromLibraryCover: (track: unknown, ids: string[]) => playFromLibraryCover(track, ids),
+  togglePlayPause: (ids: string[]) => togglePlayPause(ids),
+}));
 vi.mock("../api", () => ({
   adapter: {
     saveTrack: (...args: [string, string]) => saveTrack(...args),
@@ -22,6 +29,7 @@ import { selectTrack } from "../actions/library";
 import { TagEditorScreen } from "../screens/tagEditor/TagEditorScreen";
 import { useLibraryViewStore } from "../store/libraryViewStore";
 import { useLibraryStore } from "../store/libraryStore";
+import { usePlayerStore } from "../store/playerStore";
 import { useSettingsStore } from "../store/settingsStore";
 import { useTagEditorStore } from "../store/tagEditorStore";
 import { useUiStore } from "../store/uiStore";
@@ -95,6 +103,20 @@ describe("TagEditorScreen", () => {
     expect(within(screen.getByRole("list", { name: "Tracks" })).getAllByRole("listitem")).toHaveLength(1);
   });
 
+  it("plays a file from the list, queueing the list as shown, and pauses the one playing", () => {
+    playFromLibraryCover.mockClear();
+    togglePlayPause.mockClear();
+    render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "Play Song 2" }));
+    const [played, queue] = playFromLibraryCover.mock.calls[0] as [Track, string[]];
+    expect(played.id).toBe("2");
+    expect(queue).toEqual(["1", "2"]);
+    act(() => usePlayerStore.setState({ playbackTrackId: "2", isPlaying: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Pause Song 2" }));
+    expect(togglePlayPause).toHaveBeenCalledTimes(1);
+    act(() => usePlayerStore.setState({ playbackTrackId: "", isPlaying: false }));
+  });
+
   it("sorts the files by most recently added and remembers it", () => {
     useLibraryStore.setState({
       tracks: [track("1", { addedAt: 100 }), track("2", { addedAt: 300 }), track("3"), track("4", { addedAt: 200 })],
@@ -124,7 +146,7 @@ describe("TagEditorScreen", () => {
 
   it("opens a track from the list and fills the form", () => {
     render(<Harness />);
-    fireEvent.click(within(within(screen.getByRole("list", { name: "Tracks" })).getAllByRole("listitem")[0]).getByRole("button"));
+    fireEvent.click(within(within(screen.getByRole("list", { name: "Tracks" })).getAllByRole("listitem")[0]).getAllByRole("button")[0]);
     expect((screen.getByLabelText("Title") as HTMLInputElement).value).toBe("Song 1");
     expect((screen.getByLabelText("Genre") as HTMLInputElement).value).toBe("Rock");
     expect(screen.getByText("No unsaved changes")).toBeTruthy();

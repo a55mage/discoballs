@@ -1,11 +1,12 @@
 import { type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from "react";
-import { scanLibraryWithPicker, selectTrack } from "../actions/library";
+import { scanLibraryWithPicker } from "../actions/library";
 import { undoLast, undoWithToast } from "../actions/history";
-import { playNextTrack, playPreviousTrack } from "../actions/playback";
+import { playFromLibraryCover, playNextTrack, playPreviousTrack } from "../actions/playback";
 import { useFavoritesStore } from "../store/favoritesStore";
 import { albumIdsFor } from "../domain/albumMatch";
 import { useLibraryStore } from "../store/libraryStore";
 import { useLibraryViewStore } from "../store/libraryViewStore";
+import { getVisibleLibraryTracks } from "../store/selectors";
 import { usePlayerStore } from "../store/playerStore";
 import { useSettingsStore } from "../store/settingsStore";
 import { useUiStore } from "../store/uiStore";
@@ -119,10 +120,10 @@ export function CommandPalette({ onTogglePlayPause }: CommandPaletteProps) {
         kind: "Track" as const,
         label: track.title || track.path.split(/[\\/]/).pop() || "Untitled",
         hint: [track.artist, track.album].filter(Boolean).join(" · "),
+        // Plays it right away; the queue continues with the library list as it is shown.
         run: () => {
           close();
-          selectTrack(track);
-          setActiveScreen("library");
+          void playFromLibraryCover(track, getVisibleLibraryTracks().map((item) => item.id));
         },
       }));
     return [...matchingTracks, ...matchingCommands];
