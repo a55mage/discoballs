@@ -20,6 +20,9 @@ use std::time::Duration;
 use tauri::Manager;
 use walkdir::WalkDir;
 
+/// Sent with every web request (MusicBrainz asks for an identifying agent); follows the app version.
+const USER_AGENT: &str = concat!("discoballs/", env!("CARGO_PKG_VERSION"), " (desktop app)");
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct Track {
     id: String,
@@ -222,7 +225,7 @@ async fn search_online(query: OnlineQuery) -> Result<Vec<OnlineMatch>, String> {
     }
 
     let client = Client::builder()
-        .user_agent("discoballs/1.5.0 (desktop app)")
+        .user_agent(USER_AGENT)
         .build()
         .map_err(|e| e.to_string())?;
 
@@ -268,7 +271,7 @@ async fn navidrome_ping(input: NavidromeConnectInput) -> Result<NavidromeConnect
     }
 
     let client = Client::builder()
-        .user_agent("discoballs/1.5.0 (desktop app)")
+        .user_agent(USER_AGENT)
         .timeout(Duration::from_secs(12))
         .build()
         .map_err(|e| e.to_string())?;
@@ -344,7 +347,7 @@ async fn navidrome_scan_library(input: NavidromeConnectInput) -> Result<ScanResu
     }
 
     let client = Client::builder()
-        .user_agent("discoballs/1.5.0 (desktop app)")
+        .user_agent(USER_AGENT)
         .timeout(Duration::from_secs(30))
         .build()
         .map_err(|e| e.to_string())?;
@@ -515,7 +518,7 @@ fn get_audio_data_url(path: String) -> Result<String, String> {
 async fn navidrome_get_audio_data_url(source: NavidromeTrackSource) -> Result<String, String> {
     let base_url = normalize_navidrome_base_url(&source.base_url)?;
     let client = Client::builder()
-        .user_agent("discoballs/1.5.0 (desktop app)")
+        .user_agent(USER_AGENT)
         .timeout(Duration::from_secs(45))
         .build()
         .map_err(|e| e.to_string())?;
@@ -545,7 +548,7 @@ async fn navidrome_get_cover_data_url(source: NavidromeTrackSource) -> Result<Op
     };
     let base_url = normalize_navidrome_base_url(&source.base_url)?;
     let client = Client::builder()
-        .user_agent("discoballs/1.5.0 (desktop app)")
+        .user_agent(USER_AGENT)
         .timeout(Duration::from_secs(20))
         .build()
         .map_err(|e| e.to_string())?;
@@ -645,7 +648,7 @@ async fn analyze_navidrome_beatmap(app: tauri::AppHandle, source: NavidromeTrack
         }
     }
     let client = Client::builder()
-        .user_agent("discoballs/1.5.0 (desktop app)")
+        .user_agent(USER_AGENT)
         .timeout(Duration::from_secs(90))
         .build()
         .map_err(|e| e.to_string())?;
@@ -1563,7 +1566,7 @@ fn parse_release_tracks(response: &Value) -> Option<AlbumRelease> {
 
 fn musicbrainz_client() -> Result<Client, String> {
     Client::builder()
-        .user_agent("discoballs/1.5.0 (desktop app)")
+        .user_agent(USER_AGENT)
         .timeout(Duration::from_secs(20))
         .build()
         .map_err(|e| e.to_string())

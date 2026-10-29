@@ -95,5 +95,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           name: DiscoBalls v${{ steps.app_version.outputs.value }}
+          body_path: RELEASE_NOTES.md
           files: ${{ matrix.release_files }}
           fail_on_unmatched_files: false
