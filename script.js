@@ -20,11 +20,6 @@ function initTheme() {
   const button = document.getElementById("theme-toggle");
   const apply = () => {
     const theme = currentTheme();
-    // Screenshots in the same theme as the page.
-    document.querySelectorAll(".js-themed").forEach((image) => {
-      const src = image.dataset[theme];
-      if (src && image.getAttribute("src") !== src) image.setAttribute("src", src);
-    });
     if (button) {
       const next = theme === "dark" ? "light" : "dark";
       button.setAttribute("aria-label", `Switch to ${next} theme`);
@@ -148,7 +143,7 @@ function initImageModal() {
 
 /* ---------- Sections fade in as they scroll into view ---------- */
 function initReveal() {
-  const targets = document.querySelectorAll(".section__head, .gallery-tabs, .window, .feature, .project__card");
+  const targets = document.querySelectorAll(".section__head, .gallery-tabs, .shots, .feature, .project__card");
   if (!("IntersectionObserver" in window)) return;
   const observer = new IntersectionObserver(
     (entries) => {
