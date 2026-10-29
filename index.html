@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" class="scroll-smooth">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -8,11 +8,22 @@
       name="description"
       content="DiscoBalls 2.0: a desktop app to organize, tag and play your music library, with a redesigned interface, smart library views and a Now Playing with lyrics and visualizers."
     />
+    <meta name="theme-color" content="#fbf7ee" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0b0d11" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" href="./img/discoballs-icon.png" />
+
+    <!-- Apply the saved theme before the first paint, so the page never flashes the wrong colours. -->
+    <script>
+      try {
+        const saved = localStorage.getItem("discoballs-site-theme");
+        if (saved === "light" || saved === "dark") document.documentElement.dataset.theme = saved;
+      } catch (error) {}
+    </script>
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Syne:wght@500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Syne:wght@600;700;800&display=swap"
       rel="stylesheet"
     />
     <link
@@ -22,378 +33,274 @@
       crossorigin="anonymous"
       referrerpolicy="no-referrer"
     />
-
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            fontFamily: {
-              sans: ["Manrope", "ui-sans-serif", "system-ui", "sans-serif"],
-              display: ["Syne", "ui-sans-serif", "system-ui", "sans-serif"]
-            },
-            colors: {
-              sand: "#fbf9ec",
-              ink: "#2c2f36",
-              accent: "#ee703e",
-              line: "#d8d1c1"
-            }
-          }
-        }
-      };
-    </script>
-
-    <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css"
-    />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11.2.10/swiper-bundle.min.css" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
-  <body class="font-sans text-ink antialiased">
-    <header class="sticky top-0 z-30 border-b border-line/70 bg-sand/90 backdrop-blur">
-      <div class="site-boundary mx-auto w-full max-w-7xl px-4 sm:px-6">
-        <div class="flex min-h-16 items-center justify-between gap-3">
-          <a href="#hero" class="inline-flex items-center gap-2 font-display text-3xl font-semibold tracking-tight">
-            <img src="./img/discoballs-icon.png" alt="DiscoBalls logo" class="h-8 w-8 rounded-md object-contain" />
-            <span>DiscoBalls</span>
+  <body>
+    <div class="backdrop" aria-hidden="true">
+      <span class="blob blob--one"></span>
+      <span class="blob blob--two"></span>
+      <span class="blob blob--three"></span>
+    </div>
+
+    <header class="topbar">
+      <div class="wrap topbar__inner">
+        <a href="#hero" class="brand">
+          <img src="./img/discoballs-icon.png" alt="" class="brand__icon" />
+          <span>DiscoBalls</span>
+        </a>
+        <nav id="main-nav" class="nav" aria-label="Sections">
+          <a href="#hero">Home</a>
+          <a href="#gallery">Gallery</a>
+          <a href="#features">Features</a>
+          <a href="#project">Project</a>
+        </nav>
+        <div class="topbar__actions">
+          <button id="theme-toggle" type="button" class="icon-button" aria-label="Switch to dark theme" title="Switch theme">
+            <i class="fa-solid fa-moon" aria-hidden="true"></i>
+          </button>
+          <a href="#downloads" class="button button--primary button--small topbar__download">
+            <i class="fa-solid fa-download" aria-hidden="true"></i>
+            Download
           </a>
-          <button
-            id="mobile-menu-button"
-            type="button"
-            aria-label="Open navigation menu"
-            aria-expanded="false"
-            class="mobile-menu-button rounded-md border border-line bg-white/80 px-3 py-2 text-ink sm:hidden"
-          >
+          <button id="mobile-menu-button" type="button" class="icon-button menu-button" aria-label="Open navigation menu" aria-expanded="false" aria-controls="main-nav">
             <i class="fa-solid fa-bars" aria-hidden="true"></i>
           </button>
-          <nav id="main-nav" class="main-nav text-sm font-semibold text-ink/70">
-            <a class="rounded-full px-3 py-1.5 transition hover:bg-black/5 hover:text-ink" href="#hero">Home</a>
-            <a class="rounded-full px-3 py-1.5 transition hover:bg-black/5 hover:text-ink" href="#gallery">Gallery</a>
-            <a class="rounded-full px-3 py-1.5 transition hover:bg-black/5 hover:text-ink" href="#features">Features</a>
-            <a class="rounded-full px-3 py-1.5 transition hover:bg-black/5 hover:text-ink" href="#project">Project</a>
-          </nav>
         </div>
       </div>
     </header>
 
-    <main class="site-boundary mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-6 sm:px-6 sm:py-8">
-      <section
-        id="hero"
-        class="grid gap-6 rounded-2xl border border-line bg-white/80 p-6 shadow-[0_12px_30px_rgba(20,24,28,0.08)] sm:p-8 lg:grid-cols-[1.75fr_0.85fr] lg:items-start"
-      >
-        <div>
-          <p class="inline-block rounded-full bg-accent/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-accent">
-            Desktop Music Tag Manager
+    <main class="wrap page">
+      <section id="hero" class="hero">
+        <div class="hero__copy">
+          <p class="pill"><span class="pill__dot" aria-hidden="true"></span>Version 2.0 · completely redesigned</p>
+          <h1>Tag your music <span class="gradient-text">with ease</span></h1>
+          <p class="lead">
+            Import tracks, enrich metadata from online sources, update artwork, make your collection shine.
+            <span class="lead__aside">I made this because I didn't like Picard.</span>
           </p>
-          <h1 class="mt-3 max-w-[18ch] font-display text-4xl leading-[1.05] sm:text-5xl">
-            Tag your music with ease
-          </h1>
-          <p class="mt-4 max-w-[42ch] text-sm text-ink/75 sm:text-base">
-            Import tracks, enrich metadata from online sources, update artwork,
-            make your collection shine.<br>
-            I made this because I didn't like Picard.
-          </p>
-          <a
-            href="https://www.paypal.com/donate/?business=r.macis%40live.it"
-            target="_blank"
-            rel="noreferrer"
-            class="mt-4 inline-flex items-center gap-2 rounded-lg border border-line bg-[#fffdf7] px-3 py-2 text-sm font-semibold text-ink transition hover:bg-[#f4ecdc]"
-          >
-            <i class="fa-brands fa-paypal w-4 text-center text-accent" aria-hidden="true"></i>
-            Donate via PayPal
+          <div class="hero__actions">
+            <a id="primary-download" class="button button--primary" href="#downloads">
+              <i class="fa-solid fa-download" aria-hidden="true"></i>
+              <span id="primary-download-label">Download DiscoBalls</span>
+            </a>
+            <a class="button button--ghost" href="https://github.com/a55mage/discoballs" target="_blank" rel="noreferrer">
+              <i class="fa-brands fa-github" aria-hidden="true"></i>
+              Source code
+            </a>
+          </div>
+          <a class="donate" href="https://www.paypal.com/donate/?business=r.macis%40live.it" target="_blank" rel="noreferrer">
+            <i class="fa-brands fa-paypal" aria-hidden="true"></i>
+            Enjoying it? Donate via PayPal
           </a>
         </div>
 
-        <aside class="w-full max-w-[460px] rounded-xl border border-line bg-white p-3 lg:justify-self-end">
-          <div class="mb-3 flex items-center justify-between gap-2">
-            <p class="text-xs font-bold uppercase tracking-[0.1em] text-ink/55">Downloads</p>
-            <span class="rounded-full bg-accent/10 px-2 py-0.5 text-xs font-semibold text-accent">v2.0.0</span>
+        <aside id="downloads" class="card downloads" aria-labelledby="downloads-title">
+          <div class="downloads__head">
+            <h2 id="downloads-title">Downloads</h2>
+            <span class="badge">v2.0.0</span>
           </div>
-          <div class="grid gap-2">
-            <div class="rounded-lg border border-line bg-[#fffdf7] px-3 py-2">
-              <div class="flex items-center justify-between gap-3">
-                <div class="flex items-center gap-2 text-sm font-semibold text-ink">
-                  <i class="fa-brands fa-apple w-4 text-center text-accent" aria-hidden="true"></i>
-                  macOS
-                </div>
-                <div class="flex flex-wrap gap-2">
-                <a href="https://github.com/a55mage/discoballs/releases/download/v2.0.0/DiscoBalls_2.0.0_aarch64.dmg" target="_blank" rel="noreferrer" class="rounded-md border border-line px-2 py-1 text-xs font-semibold text-ink transition hover:bg-[#f4ecdc]">.dmg</a>
-                </div>
-              </div>
+          <div class="platform" data-os="mac">
+            <div class="platform__name">
+              <i class="fa-brands fa-apple" aria-hidden="true"></i>
+              macOS
+              <span class="platform__yours">Your system</span>
             </div>
-
-            <div class="rounded-lg border border-line bg-[#fffdf7] px-3 py-2">
-              <div class="flex items-center justify-between gap-3">
-                <div class="flex items-center gap-2 text-sm font-semibold text-ink">
-                  <i class="fa-brands fa-windows w-4 text-center text-accent" aria-hidden="true"></i>
-                  Windows
-                </div>
-                <div class="flex flex-wrap gap-2">
-                <a href="https://github.com/a55mage/discoballs/releases/download/v2.0.0/DiscoBalls_2.0.0_x64-setup.exe" target="_blank" rel="noreferrer" class="rounded-md border border-line px-2 py-1 text-xs font-semibold text-ink transition hover:bg-[#f4ecdc]">.exe</a>
-                <a href="https://github.com/a55mage/discoballs/releases/download/v2.0.0/DiscoBalls_2.0.0_x64_en-US.msi" target="_blank" rel="noreferrer" class="rounded-md border border-line px-2 py-1 text-xs font-semibold text-ink transition hover:bg-[#f4ecdc]">.msi</a>
-                </div>
-              </div>
+            <div class="platform__files">
+              <a href="https://github.com/a55mage/discoballs/releases/download/v2.0.0/DiscoBalls_2.0.0_aarch64.dmg" data-primary>.dmg</a>
             </div>
-
-            <div class="rounded-lg border border-line bg-[#fffdf7] px-3 py-2">
-              <div class="flex items-center justify-between gap-3">
-                <div class="flex items-center gap-2 text-sm font-semibold text-ink">
-                  <i class="fa-brands fa-linux w-4 text-center text-accent" aria-hidden="true"></i>
-                  Linux
-                  <span class="rounded-full border border-line bg-[#fff3c9] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.1em] text-ink/80">beta</span>
-                </div>
-                <div class="flex flex-wrap gap-2">
-                <a href="https://github.com/a55mage/discoballs/releases/download/v2.0.0/DiscoBalls_2.0.0_amd64.AppImage" target="_blank" rel="noreferrer" class="rounded-md border border-line px-2 py-1 text-xs font-semibold text-ink transition hover:bg-[#f4ecdc]">.AppImage</a>
-                <a href="https://github.com/a55mage/discoballs/releases/download/v2.0.0/DiscoBalls_2.0.0_amd64.deb" target="_blank" rel="noreferrer" class="rounded-md border border-line px-2 py-1 text-xs font-semibold text-ink transition hover:bg-[#f4ecdc]">.deb</a>
-                <a href="https://github.com/a55mage/discoballs/releases/download/v2.0.0/DiscoBalls-2.0.0-1.x86_64.rpm" target="_blank" rel="noreferrer" class="rounded-md border border-line px-2 py-1 text-xs font-semibold text-ink transition hover:bg-[#f4ecdc]">.rpm</a>
-                </div>
-              </div>
-            </div>
-
-            <a
-              href="https://github.com/a55mage/discoballs"
-              target="_blank"
-              rel="noreferrer"
-              class="flex items-center gap-2 rounded-lg border border-line bg-[#fffdf7] px-3 py-2 text-sm font-semibold text-ink transition hover:bg-[#f4ecdc]"
-            >
-              <i class="fa-brands fa-github w-4 text-center text-accent" aria-hidden="true"></i>
-              Source Code
-            </a>
           </div>
+          <div class="platform" data-os="windows">
+            <div class="platform__name">
+              <i class="fa-brands fa-windows" aria-hidden="true"></i>
+              Windows
+              <span class="platform__yours">Your system</span>
+            </div>
+            <div class="platform__files">
+              <a href="https://github.com/a55mage/discoballs/releases/download/v2.0.0/DiscoBalls_2.0.0_x64-setup.exe" data-primary>.exe</a>
+              <a href="https://github.com/a55mage/discoballs/releases/download/v2.0.0/DiscoBalls_2.0.0_x64_en-US.msi">.msi</a>
+            </div>
+          </div>
+          <div class="platform" data-os="linux">
+            <div class="platform__name">
+              <i class="fa-brands fa-linux" aria-hidden="true"></i>
+              Linux
+              <span class="tag">beta</span>
+              <span class="platform__yours">Your system</span>
+            </div>
+            <div class="platform__files">
+              <a href="https://github.com/a55mage/discoballs/releases/download/v2.0.0/DiscoBalls_2.0.0_amd64.AppImage" data-primary>.AppImage</a>
+              <a href="https://github.com/a55mage/discoballs/releases/download/v2.0.0/DiscoBalls_2.0.0_amd64.deb">.deb</a>
+              <a href="https://github.com/a55mage/discoballs/releases/download/v2.0.0/DiscoBalls-2.0.0-1.x86_64.rpm">.rpm</a>
+            </div>
+          </div>
+          <a class="downloads__all" href="https://github.com/a55mage/discoballs/releases" target="_blank" rel="noreferrer">
+            All releases and release notes
+            <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+          </a>
         </aside>
       </section>
 
-      <section
-        id="gallery"
-        class="rounded-2xl border border-line bg-white/80 p-6 shadow-[0_12px_30px_rgba(20,24,28,0.08)] sm:p-8"
-      >
-        <h2 class="font-display text-2xl sm:text-3xl">App Gallery</h2>
-        <div class="app-swiper swiper mt-4 rounded-xl border border-line bg-[#f8f1e5]">
-          <div class="swiper-wrapper">
-            <div class="swiper-slide">
-              <img
-                src="./img/library-light.png"
-                alt="DiscoBalls library in light theme"
-                class="js-zoomable block h-[360px] w-full cursor-zoom-in object-contain sm:h-[560px] lg:h-[680px]"
-              />
+      <section id="gallery" class="section">
+        <div class="section__head">
+          <p class="eyebrow">Gallery</p>
+          <h2>One app for your whole collection</h2>
+          <p class="section__lead">Screenshots follow the site's theme: switch it from the top bar to see the other look.</p>
+        </div>
+        <div class="gallery-tabs" role="tablist" aria-label="Screens">
+          <button type="button" role="tab" data-slide="0" aria-selected="true">Library</button>
+          <button type="button" role="tab" data-slide="1" aria-selected="false">Now Playing</button>
+          <button type="button" role="tab" data-slide="2" aria-selected="false">Tag Editor</button>
+          <button type="button" role="tab" data-slide="3" aria-selected="false">Playlists</button>
+          <button type="button" role="tab" data-slide="4" aria-selected="false">Settings</button>
+        </div>
+        <div class="window">
+          <div class="window__bar" aria-hidden="true"><span></span><span></span><span></span></div>
+          <div class="app-swiper swiper">
+            <div class="swiper-wrapper">
+              <div class="swiper-slide">
+                <img class="js-zoomable js-themed" data-light="./img/library-light.png" data-dark="./img/library-dark.png" src="./img/library-light.png" alt="DiscoBalls library" width="1440" height="900" />
+              </div>
+              <div class="swiper-slide">
+                <img class="js-zoomable js-themed" data-light="./img/player-light.png" data-dark="./img/player-dark.png" src="./img/player-light.png" alt="DiscoBalls Now Playing" width="1440" height="900" loading="lazy" />
+              </div>
+              <div class="swiper-slide">
+                <img class="js-zoomable js-themed" data-light="./img/tagging-light.png" data-dark="./img/tagging-dark.png" src="./img/tagging-light.png" alt="DiscoBalls Tag Editor" width="1440" height="900" loading="lazy" />
+              </div>
+              <div class="swiper-slide">
+                <img class="js-zoomable js-themed" data-light="./img/playlist-light.png" data-dark="./img/playlist-dark.png" src="./img/playlist-light.png" alt="DiscoBalls playlist editor" width="1440" height="900" loading="lazy" />
+              </div>
+              <div class="swiper-slide">
+                <img class="js-zoomable js-themed" data-light="./img/settings-light.png" data-dark="./img/settings-dark.png" src="./img/settings-light.png" alt="DiscoBalls settings" width="1440" height="900" loading="lazy" />
+              </div>
             </div>
-            <div class="swiper-slide">
-              <img
-                src="./img/library-dark.png"
-                alt="DiscoBalls library in dark theme"
-                class="js-zoomable block h-[360px] w-full cursor-zoom-in object-contain sm:h-[560px] lg:h-[680px]"
-              />
-            </div>
-            <div class="swiper-slide">
-              <img
-                src="./img/player-light.png"
-                alt="DiscoBalls Now Playing in light theme"
-                class="js-zoomable block h-[360px] w-full cursor-zoom-in object-contain sm:h-[560px] lg:h-[680px]"
-              />
-            </div>
-            <div class="swiper-slide">
-              <img
-                src="./img/player-dark.png"
-                alt="DiscoBalls Now Playing in dark theme"
-                class="js-zoomable block h-[360px] w-full cursor-zoom-in object-contain sm:h-[560px] lg:h-[680px]"
-              />
-            </div>
-            <div class="swiper-slide">
-              <img
-                src="./img/tagging-light.png"
-                alt="DiscoBalls tagging interface in light theme"
-                class="js-zoomable block h-[360px] w-full cursor-zoom-in object-contain sm:h-[560px] lg:h-[680px]"
-              />
-            </div>
-            <div class="swiper-slide">
-              <img
-                src="./img/tagging-dark.png"
-                alt="DiscoBalls tagging interface in dark theme"
-                class="js-zoomable block h-[360px] w-full cursor-zoom-in object-contain sm:h-[560px] lg:h-[680px]"
-              />
-            </div>
-            <div class="swiper-slide">
-              <img
-                src="./img/playlist-light.png"
-                alt="DiscoBalls playlist editor in light theme"
-                class="js-zoomable block h-[360px] w-full cursor-zoom-in object-contain sm:h-[560px] lg:h-[680px]"
-              />
-            </div>
-            <div class="swiper-slide">
-              <img
-                src="./img/playlist-dark.png"
-                alt="DiscoBalls playlist editor in dark theme"
-                class="js-zoomable block h-[360px] w-full cursor-zoom-in object-contain sm:h-[560px] lg:h-[680px]"
-              />
-            </div>
-            <div class="swiper-slide">
-              <img
-                src="./img/settings-light.png"
-                alt="DiscoBalls settings in light theme"
-                class="js-zoomable block h-[360px] w-full cursor-zoom-in object-contain sm:h-[560px] lg:h-[680px]"
-              />
-            </div>
-            <div class="swiper-slide">
-              <img
-                src="./img/settings-dark.png"
-                alt="DiscoBalls settings in dark theme"
-                class="js-zoomable block h-[360px] w-full cursor-zoom-in object-contain sm:h-[560px] lg:h-[680px]"
-              />
-            </div>
+            <div class="swiper-button-prev"></div>
+            <div class="swiper-button-next"></div>
           </div>
-          <div class="swiper-button-prev"></div>
-          <div class="swiper-button-next"></div>
-          <div class="swiper-pagination"></div>
+        </div>
+        <p class="gallery-hint"><i class="fa-solid fa-magnifying-glass-plus" aria-hidden="true"></i> Click a screenshot to enlarge it</p>
+      </section>
+
+      <section id="features" class="section">
+        <div class="section__head">
+          <p class="eyebrow">Features</p>
+          <h2>Everything your library needs</h2>
+        </div>
+        <div class="features">
+          <article class="feature feature--wide">
+            <span class="feature__icon"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i></span>
+            <div>
+              <h3>New in 2.0 <span class="badge">Redesign</span></h3>
+              <p>A completely redesigned interface: one frosted frame around your music, light and dark themes, a background tinted by the cover that is playing, and a sidebar that folds to icons when you need room.</p>
+            </div>
+          </article>
+          <article class="feature">
+            <span class="feature__icon"><i class="fa-solid fa-table-cells-large" aria-hidden="true"></i></span>
+            <h3>Smart library</h3>
+            <p>Tracks, albums, artists or folders, as a list or a grid of covers with zoom. Sort by any field, even by date added.</p>
+          </article>
+          <article class="feature">
+            <span class="feature__icon"><i class="fa-solid fa-heart-pulse" aria-hidden="true"></i></span>
+            <h3>Library health</h3>
+            <p>Find missing covers, missing tags and duplicates, with a guided duplicate review. Favorites and star ratings too.</p>
+          </article>
+          <article class="feature">
+            <span class="feature__icon"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></span>
+            <h3>Online matches</h3>
+            <p>Metadata and artwork from MusicBrainz and iTunes with a before/after comparison, or match a whole album at once.</p>
+          </article>
+          <article class="feature">
+            <span class="feature__icon"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i></span>
+            <h3>Batch editing</h3>
+            <p>Edit many tracks at once, read tags from file names and auto-number tracks.</p>
+          </article>
+          <article class="feature">
+            <span class="feature__icon"><i class="fa-solid fa-i-cursor" aria-hidden="true"></i></span>
+            <h3>Rename files</h3>
+            <p>Name files from their tags with your own field order and separator, with a live preview.</p>
+          </article>
+          <article class="feature">
+            <span class="feature__icon"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i></span>
+            <h3>Undo anything</h3>
+            <p>Every tag change is recorded: undo a single edit or a whole batch from the history.</p>
+          </article>
+          <article class="feature">
+            <span class="feature__icon"><i class="fa-solid fa-compact-disc" aria-hidden="true"></i></span>
+            <h3>Now Playing</h3>
+            <p>Cover, synced lyrics and seven visualizers coloured by the cover, alone or combined, plus a full-window mode.</p>
+          </article>
+          <article class="feature">
+            <span class="feature__icon"><i class="fa-solid fa-forward" aria-hidden="true"></i></span>
+            <h3>Media keys</h3>
+            <p>Play, pause and skip from the keyboard or your headphones; the track shows in the system's Now Playing.</p>
+          </article>
+          <article class="feature">
+            <span class="feature__icon"><i class="fa-solid fa-wave-square" aria-hidden="true"></i></span>
+            <h3>Equalizer Studio</h3>
+            <p>Custom presets, Auto EQ by genre and volume normalization from ReplayGain tags.</p>
+          </article>
+          <article class="feature">
+            <span class="feature__icon"><i class="fa-solid fa-list-check" aria-hidden="true"></i></span>
+            <h3>Playlists and queue</h3>
+            <p>Playlists with drag and drop, a queue with history, shuffle and repeat.</p>
+          </article>
+          <article class="feature">
+            <span class="feature__icon"><i class="fa-solid fa-server" aria-hidden="true"></i></span>
+            <h3>Navidrome</h3>
+            <p>Browse and play your Subsonic / Navidrome server; the top bar shows the connected server.</p>
+          </article>
+          <article class="feature">
+            <span class="feature__icon"><i class="fa-solid fa-terminal" aria-hidden="true"></i></span>
+            <h3>Command palette</h3>
+            <p>Ctrl/Cmd+K to jump to screens, run commands and find tracks.</p>
+          </article>
         </div>
       </section>
 
-      <section
-        id="features"
-        class="rounded-2xl border border-line bg-white/80 p-6 shadow-[0_12px_30px_rgba(20,24,28,0.08)] sm:p-8"
-      >
-        <h2 class="font-display text-2xl sm:text-3xl">Key Features</h2>
-        <ul class="mt-4 grid gap-2.5">
-          <li class="flex items-center gap-3 rounded-xl border border-line bg-white px-4 py-3">
-            <i class="fa-solid fa-wand-magic-sparkles w-5 text-center text-accent" aria-hidden="true"></i>
-            <span><strong>New in 2.0:</strong> a completely redesigned interface, one frosted frame around your music, light and dark themes, and a background tinted by the cover that is playing.</span>
-          </li>
-          <li class="flex items-center gap-3 rounded-xl border border-line bg-white px-4 py-3">
-            <i class="fa-solid fa-table-cells-large w-5 text-center text-accent" aria-hidden="true"></i>
-            <span>Library by tracks, albums, artists or folders, as a list or a grid of covers with zoom; sort by any field or by date added, and collapse the sidebar to icons for more room.</span>
-          </li>
-          <li class="flex items-center gap-3 rounded-xl border border-line bg-white px-4 py-3">
-            <i class="fa-solid fa-heart-pulse w-5 text-center text-accent" aria-hidden="true"></i>
-            <span>Library health filters (missing cover, missing tags, duplicates) with a guided duplicate review, favorites and star ratings.</span>
-          </li>
-          <li class="flex items-center gap-3 rounded-xl border border-line bg-white px-4 py-3">
-            <i class="fa-solid fa-magnifying-glass w-5 text-center text-accent" aria-hidden="true"></i>
-            <span>Search metadata and artwork online (MusicBrainz + iTunes) with a before/after comparison, or match a whole album to a MusicBrainz release with a preview before anything is written.</span>
-          </li>
-          <li class="flex items-center gap-3 rounded-xl border border-line bg-white px-4 py-3">
-            <i class="fa-solid fa-pen-to-square w-5 text-center text-accent" aria-hidden="true"></i>
-            <span>Batch edit many tracks at once, read tags from file names, auto-number tracks, and sort the Tag Editor by recently added files.</span>
-          </li>
-          <li class="flex items-center gap-3 rounded-xl border border-line bg-white px-4 py-3">
-            <i class="fa-solid fa-rotate-left w-5 text-center text-accent" aria-hidden="true"></i>
-            <span>Every tag change is recorded: undo a single edit or a whole batch from the history.</span>
-          </li>
-          <li class="flex items-center gap-3 rounded-xl border border-line bg-white px-4 py-3">
-            <i class="fa-solid fa-keyboard w-5 text-center text-accent" aria-hidden="true"></i>
-            <span>Configurable rename templates with live preview and customizable separator/field order.</span>
-          </li>
-          <li class="flex items-center gap-3 rounded-xl border border-line bg-white px-4 py-3">
-            <i class="fa-solid fa-compact-disc w-5 text-center text-accent" aria-hidden="true"></i>
-            <span>Now Playing with cover, synced lyrics and seven visualizers coloured by the cover, alone or combined, plus a full-window mode.</span>
-          </li>
-          <li class="flex items-center gap-3 rounded-xl border border-line bg-white px-4 py-3">
-            <i class="fa-solid fa-forward w-5 text-center text-accent" aria-hidden="true"></i>
-            <span>Media keys and system controls on macOS and Windows, with the current track in the system's Now Playing.</span>
-          </li>
-          <li class="flex items-center gap-3 rounded-xl border border-line bg-white px-4 py-3">
-            <i class="fa-solid fa-wave-square w-5 text-center text-accent" aria-hidden="true"></i>
-            <span>Equalizer Studio with custom presets, Auto EQ by genre, and volume normalization from ReplayGain tags.</span>
-          </li>
-          <li class="flex items-center gap-3 rounded-xl border border-line bg-white px-4 py-3">
-            <i class="fa-solid fa-list-check w-5 text-center text-accent" aria-hidden="true"></i>
-            <span>Playlists with drag-and-drop, a queue with history, shuffle and repeat.</span>
-          </li>
-          <li class="flex items-center gap-3 rounded-xl border border-line bg-white px-4 py-3">
-            <i class="fa-solid fa-server w-5 text-center text-accent" aria-hidden="true"></i>
-            <span>Navidrome (Subsonic) servers: browse and play your remote library; the top bar shows the connected server.</span>
-          </li>
-          <li class="flex items-center gap-3 rounded-xl border border-line bg-white px-4 py-3">
-            <i class="fa-solid fa-terminal w-5 text-center text-accent" aria-hidden="true"></i>
-            <span>Command palette (Ctrl/Cmd+K) to jump to screens, run commands and find tracks.</span>
-          </li>
-        </ul>
-      </section>
-
-      <section
-        id="project"
-        class="rounded-2xl border border-line bg-white/80 p-6 shadow-[0_12px_30px_rgba(20,24,28,0.08)] sm:p-8"
-      >
-        <h2 class="font-display text-2xl sm:text-3xl">Project Characteristics</h2>
-        <div class="mt-4 grid gap-2.5 sm:grid-cols-3">
-          <article class="rounded-xl border border-line bg-white px-4 py-3">
-            <h3 class="font-display text-lg">
-              <i class="fa-solid fa-desktop mr-2 text-accent" aria-hidden="true"></i>Cross-platform Desktop
-            </h3>
-            <p class="mt-1 text-sm text-ink/70">Native-feeling app for macOS, Windows and Linux built with React + Rust via Tauri.</p>
+      <section id="project" class="section">
+        <div class="section__head">
+          <p class="eyebrow">Project</p>
+          <h2>Built in the open</h2>
+        </div>
+        <div class="project">
+          <article class="card project__card">
+            <i class="fa-solid fa-desktop" aria-hidden="true"></i>
+            <h3>Cross-platform desktop</h3>
+            <p>A native-feeling app for macOS, Windows and Linux, built with React and Rust through Tauri.</p>
           </article>
-          <article class="rounded-xl border border-line bg-white px-4 py-3">
-            <h3 class="font-display text-lg">
-              <i class="fa-solid fa-code-branch mr-2 text-accent" aria-hidden="true"></i>Open Source
-            </h3>
-            <p class="mt-1 text-sm text-ink/70">Transparent codebase, community-driven improvements, and public releases on GitHub.</p>
+          <article class="card project__card">
+            <i class="fa-solid fa-code-branch" aria-hidden="true"></i>
+            <h3>Open source</h3>
+            <p>A transparent codebase, community-driven improvements and public releases on GitHub.</p>
           </article>
-          <article class="rounded-xl border border-line bg-white px-4 py-3">
-            <h3 class="font-display text-lg">
-              <i class="fa-solid fa-record-vinyl mr-2 text-accent" aria-hidden="true"></i>Metadata + Playback Workflow
-            </h3>
-            <p class="mt-1 text-sm text-ink/70">Designed to connect library care, tagging, playlists, EQ and listening in one workflow.</p>
+          <article class="card project__card">
+            <i class="fa-solid fa-record-vinyl" aria-hidden="true"></i>
+            <h3>Metadata and playback</h3>
+            <p>Library care, tagging, playlists, EQ and listening in one workflow.</p>
           </article>
         </div>
       </section>
     </main>
 
-    <footer class="site-boundary mx-auto w-full max-w-7xl px-4 pb-8 sm:px-6">
-      <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-white/80 px-4 py-3 text-sm text-ink/70">
-        <p class="font-semibold">Developed by: Riccardo Macis</p>
-        <div class="flex flex-wrap items-center gap-2">
-          <a
-            href="https://www.linkedin.com/in/riccardo-macis-3702637a/"
-            target="_blank"
-            rel="noreferrer"
-            class="inline-flex items-center gap-2 rounded-full border border-line bg-white px-3 py-1.5 font-semibold text-ink transition hover:bg-[#f4ecdc]"
-          >
-            <i class="fa-brands fa-linkedin text-accent" aria-hidden="true"></i>
-            LinkedIn
-          </a>
-          <a
-            href="https://github.com/a55mage"
-            target="_blank"
-            rel="noreferrer"
-            class="inline-flex items-center gap-2 rounded-full border border-line bg-white px-3 py-1.5 font-semibold text-ink transition hover:bg-[#f4ecdc]"
-          >
-            <i class="fa-brands fa-github text-accent" aria-hidden="true"></i>
-            GitHub
-          </a>
-          <a
-            href="https://a55mage.github.io/"
-            target="_blank"
-            rel="noreferrer"
-            class="inline-flex items-center gap-2 rounded-full border border-line bg-white px-3 py-1.5 font-semibold text-ink transition hover:bg-[#f4ecdc]"
-          >
-            <i class="fa-solid fa-globe text-accent" aria-hidden="true"></i>
-            Portfolio
-          </a>
+    <footer class="wrap footer">
+      <div class="card footer__inner">
+        <p><strong>Developed by Riccardo Macis</strong></p>
+        <div class="footer__links">
+          <a href="https://www.linkedin.com/in/riccardo-macis-3702637a/" target="_blank" rel="noreferrer"><i class="fa-brands fa-linkedin" aria-hidden="true"></i> LinkedIn</a>
+          <a href="https://github.com/a55mage" target="_blank" rel="noreferrer"><i class="fa-brands fa-github" aria-hidden="true"></i> GitHub</a>
+          <a href="https://a55mage.github.io/" target="_blank" rel="noreferrer"><i class="fa-solid fa-globe" aria-hidden="true"></i> Portfolio</a>
         </div>
       </div>
     </footer>
 
-    <div
-      id="image-modal"
-      class="fixed inset-0 z-50 hidden items-center justify-center bg-black/85 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Image preview"
-    >
-      <button
-        id="image-modal-close"
-        type="button"
-        class="absolute right-4 top-4 rounded-full bg-white/20 px-3 py-1 text-sm font-semibold text-white backdrop-blur transition hover:bg-white/30"
-      >
-        Close
+    <div id="image-modal" class="modal" role="dialog" aria-modal="true" aria-label="Image preview" hidden>
+      <button id="image-modal-close" type="button" class="modal__close">
+        <i class="fa-solid fa-xmark" aria-hidden="true"></i> Close
       </button>
-      <img
-        id="image-modal-img"
-        src=""
-        alt=""
-        class="max-h-[92vh] max-w-[95vw] rounded-lg border border-white/20 bg-black/30 object-contain"
-      />
+      <img id="image-modal-img" src="" alt="" />
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/swiper@11.2.10/swiper-bundle.min.js"></script>
     <script src="./script.js"></script>
   </body>
 </html>
