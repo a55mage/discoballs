@@ -319,28 +319,8 @@ h3 {
   gap: 48px;
   align-items: center;
 }
-.pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 0 22px;
-  padding: 6px 14px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--surface-strong);
-  color: var(--ink-2);
-  font-size: 13px;
-  font-weight: 700;
-}
-.pill__dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 0 4px var(--accent-soft);
-}
 .hero h1 {
-  font-size: clamp(44px, 6.4vw, 80px);
+  font-size: clamp(38px, 5vw, 62px);
   font-weight: 800;
 }
 .lead {
@@ -567,7 +547,12 @@ h3 {
   gap: 16px;
 }
 .feature {
-  padding: 22px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 14px;
+  align-items: center;
+  align-content: start;
+  padding: 20px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
@@ -590,16 +575,12 @@ h3 {
   align-items: center;
   justify-content: center;
   flex: none;
-  width: 44px;
-  height: 44px;
-  margin-bottom: 14px;
-  border-radius: 13px;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
   background: var(--accent-soft);
   color: var(--accent-ink);
   font-size: 18px;
-}
-.feature--wide .feature__icon {
-  margin-bottom: 0;
 }
 .feature h3 {
   display: flex;
@@ -609,7 +590,8 @@ h3 {
   font-weight: 700;
 }
 .feature p {
-  margin: 8px 0 0;
+  grid-column: 1 / -1;
+  margin: 10px 0 0;
   color: var(--ink-2);
   font-size: 15px;
 }
